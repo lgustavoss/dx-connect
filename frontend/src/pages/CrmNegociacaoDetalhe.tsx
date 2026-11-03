@@ -190,6 +190,7 @@ export function CrmNegociacaoDetalhe() {
   const [contratoAberto, setContratoAberto] = useState(true)
   const docInitRef = useRef(false)
   const [propostaBadge, setPropostaBadge] = useState<string | null>(null)
+  const [temPropostaEnviada, setTemPropostaEnviada] = useState(false)
   const [contratoBadge, setContratoBadge] = useState<string | null>(null)
   const [linhasAssinadas, setLinhasAssinadas] = useState<Set<number>>(() => new Set())
   const [nomeBase, setNomeBase] = useState('')
@@ -268,6 +269,7 @@ export function CrmNegociacaoDetalhe() {
         ps.find((p) => p.status === 'rascunho') || ps.find((p) => p.status === 'enviada') || ps[0]
       const contrato = cs.find((c) => CONTRATO_ATIVO.has(c.status)) || cs[0]
       setPropostaBadge(proposta ? PROPOSTA_STATUS_LABEL[proposta.status] || proposta.status : null)
+      setTemPropostaEnviada(ps.some((p) => p.status === 'enviada'))
       setContratoBadge(contrato ? CONTRATO_STATUS_LABEL[contrato.status] || contrato.status : null)
       setLinhasAssinadas(new Set(cs.filter((c) => c.status === 'assinado').map((c) => c.negociacao_linha_cnpj_id)))
       if (!docInitRef.current) {
@@ -277,6 +279,7 @@ export function CrmNegociacaoDetalhe() {
       }
     } catch {
       setPropostaBadge(null)
+      setTemPropostaEnviada(false)
       setContratoBadge(null)
     }
   }, [negociacaoId])
@@ -619,6 +622,13 @@ export function CrmNegociacaoDetalhe() {
         </p>
       </div>
 
+      {neg.estagio_slug === 'proposta_enviada' && !temPropostaEnviada ? (
+        <p className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+          O funil está em «Proposta enviada», mas não há proposta enviada nesta negociação. Gere e envie a proposta
+          (o envio registra o fato) ou mova o estágio.
+        </p>
+      ) : null}
+
       <Card title="Avançar estágio">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
           <div className="min-w-[200px] flex-1">
@@ -647,7 +657,8 @@ export function CrmNegociacaoDetalhe() {
         </div>
         <p className="mt-2 text-xs text-slate-500">
           A partir de Documentação, o CNPJ é obrigatório em todas as linhas. Sem CNPJ válido, o avanço para esse estágio
-          (e posteriores) fica bloqueado.
+          (e posteriores) fica bloqueado. «Proposta enviada» só aceita o avanço quando existe proposta enviada — o
+          envio pelo cartão da proposta é o que move o funil.
         </p>
       </Card>
 

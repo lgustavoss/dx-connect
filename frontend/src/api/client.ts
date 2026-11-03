@@ -3577,7 +3577,7 @@ export namespace ComercialProposta {
     condicoes?: string | null;
   }
   export interface MarcarEnviadaRequest {
-    canal: 'email' | 'impresso' | 'outro';
+    canal: 'email' | 'impresso' | 'outro' | 'whatsapp';
     enviado_em?: string | null;
     avancar_funil?: boolean;
   }

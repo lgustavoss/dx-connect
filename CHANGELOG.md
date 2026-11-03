@@ -17,6 +17,8 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 - CRM: a **origem da lead** deixa de ser texto livre e passa a ser uma lista configurável em Configurações → Funil CRM (seed: WhatsApp, indicação, site, visita, outro) (#1319)
 - CRM: a linha da negociação passa a editar o **TEF promocional** (custo e valor ao cliente) — antes só a API aceitava; o custo e a margem recalculam na hora (#1320)
 - Configurações → Tipos de negócio: a tela deixa explícito que a classificação é do **cadastro de Empresas** — o funil do CRM não usa (#1320)
+- CRM: **gerar a proposta não mexe mais no funil** — enviar pelo WhatsApp do chat vinculado (ou baixar o PDF) registra o envio e move para «Proposta enviada»; acabou o passo de voltar só para marcar enviada (#1321)
+- CRM: o funil não mente — «Proposta enviada» só aceita o cartão quando existe proposta de fato enviada, e a ficha avisa quando o estágio está à frente do documento (#1321)
 
 #### Correções
 

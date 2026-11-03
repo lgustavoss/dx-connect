@@ -47,6 +47,7 @@ FUNIL_SEED = (
 )
 
 SLUG_DOCUMENTACAO = "documentacao"
+SLUG_PROPOSTA_ENVIADA = "proposta_enviada"
 
 # Seed da lista de origens do lead (#1319). A lista é configurável em Configurações.
 ORIGENS_SEED = ("WhatsApp", "Indicação", "Site", "Visita", "Outro")
