@@ -15,6 +15,8 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 - CRM: as **observações digitadas ao criar a lead** viram a primeira anotação da negociação — não somem mais quando a negociação abre (#1319)
 - CRM: lead **perdido** volta a ter **Nova negociação** no cartão e na lista, sem cadastrar a lead de novo (#1319)
 - CRM: a **origem da lead** deixa de ser texto livre e passa a ser uma lista configurável em Configurações → Funil CRM (seed: WhatsApp, indicação, site, visita, outro) (#1319)
+- CRM: a linha da negociação passa a editar o **TEF promocional** (custo e valor ao cliente) — antes só a API aceitava; o custo e a margem recalculam na hora (#1320)
+- Configurações → Tipos de negócio: a tela deixa explícito que a classificação é do **cadastro de Empresas** — o funil do CRM não usa (#1320)
 
 #### Correções
 
