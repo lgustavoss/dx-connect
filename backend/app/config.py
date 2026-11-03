@@ -62,6 +62,10 @@ class Settings(BaseSettings):
     PONTO_JUSTIFICATIVA_ANEXOS_DIR: str = "data/ponto_justificativa_anexos"
     PONTO_JUSTIFICATIVA_ANEXOS_MAX_BYTES: int = 25 * 1024 * 1024
 
+    # PDFs de boleto/NFS-e anexados na fatura aprovada (#326 / #364 / #368).
+    FATURAMENTO_ANEXOS_DIR: str = "data/faturamento_anexos"
+    FATURAMENTO_ANEXOS_MAX_BYTES: int = 25 * 1024 * 1024
+
     # Mídia de sugestões/problemas (#856+): prints no texto + PDF/vídeo em anexo.
     SOLICITACAO_MEDIA_DIR: str = "data/solicitacao_media"
     SOLICITACAO_MEDIA_MAX_BYTES: int = 25 * 1024 * 1024

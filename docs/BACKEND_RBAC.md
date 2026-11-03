@@ -63,10 +63,12 @@ Admin **ou** atendente vinculado ao setor com slug/nome `financeiro` (homônimos
 
 | Recurso | Rotas |
 |---------|--------|
-| Faturas internas | `GET/POST /v1/faturamento/faturas`, `POST /v1/faturamento/faturas/gerar-competencia`, `POST .../aprovar`, `POST .../rejeitar` (motivo obrigatório) |
+| Faturas internas | `GET/POST /v1/faturamento/faturas`, `GET .../faturas/{id}`, `POST /v1/faturamento/faturas/gerar-competencia`, `POST .../aprovar`, `POST .../rejeitar` (motivo obrigatório) |
+| Documentos manuais | `PATCH .../documentos`, `POST .../anexos` (`faturamento.gerar`); `GET .../anexos/{id}/download` (`faturamento.ver`); `DELETE .../anexos/{id}` (`faturamento.gerar`). Só fatura **aprovada**. NFS-e só se `emite_nfse`. |
+| Títulos a receber | `GET /v1/faturamento/titulos` (`faturamento.ver`); `POST .../titulos/{id}/baixar` (`faturamento.aprovar`). Um título por fatura, criado na aprovação. Status efetivo `vencido` se aberto e vencimento passou. Baixa manual (sem webhook). |
 | Contratos faturáveis | `GET /v1/faturamento/contratos-elegiveis` (assinados com empresa) |
 
-UI: menu **Faturamento**. Job `faturamento-mensal` gera a competência atual (idempotente; **não** reabre rejeitadas). A acção manual «Gerar faturas do mês» reabre rejeitadas. Boleto/NFS-e ficam para lote posterior e só após fatura **aprovada**. O seed cria o setor `financeiro` se faltar.
+UI: menu **Faturamento** (abas Faturas e A receber). Job `faturamento-mensal` gera a competência atual (idempotente; **não** reabre rejeitadas). A ação manual «Gerar faturas do mês» reabre rejeitadas. Depois de aprovada, nasce o título a receber e o financeiro anexa o PDF do boleto e da NFS-e. O seed cria o setor `financeiro` se faltar.
 
 ## Autenticado com escopo de setor (`obter_atendente_atual`)
 
