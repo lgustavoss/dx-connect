@@ -1,6 +1,6 @@
 # Testar UI
 
-Execute **smoke test** da aplicação no navegador integrado do Cursor (MCP `cursor-ide-browser`).
+Execute **smoke test** da aplicação no navegador. Com MCP de navegador (ex.: `cursor-ide-browser` no Cursor), valide com snapshot/console/network. Sem MCP de navegador (caso do DSH hoje), valide por HTTP (`curl`) e peça as evidências visuais ao usuário.
 
 ## Quando usar
 
@@ -19,9 +19,11 @@ Execute **smoke test** da aplicação no navegador integrado do Cursor (MCP `cur
 
 Se o usuário passou rota ou feature, foque nela. Senão, rode o **smoke padrão** abaixo.
 
-## Fluxo (browser MCP)
+## Fluxo
 
-Use `browser_navigate` → `browser_snapshot` → `browser_console_messages` → `browser_network_requests`.
+Com MCP de navegador: `browser_navigate` → `browser_snapshot` → `browser_console_messages` → `browser_network_requests`.
+
+Sem MCP de navegador: use `curl -s -o NUL -w "%{http_code}" <url>` por rota e inspecione os logs do Vite/backend.
 
 ### 1 — Smoke inicial
 
@@ -48,7 +50,7 @@ Credenciais dev:
 - [ ] Login redireciona para dashboard/home
 - [ ] Sem erro 401/403 inesperado na network (`/api/v1/auth/login`)
 
-Use `browser_fill` + `browser_click` ou interação por refs do snapshot.
+Com MCP: `browser_fill` + `browser_click` ou interação por refs do snapshot. Sem MCP: valide `POST /api/v1/auth/login` por `curl` e confirme o redirecionamento descrito pelo usuário.
 
 ### 3 — Navegação mínima pós-login
 
@@ -73,7 +75,7 @@ Checklist:
 
 ### 5 — Screenshot e relatório
 
-Tire `browser_take_screenshot` em caso de falha.
+Com MCP, tire `browser_take_screenshot` em caso de falha. Sem MCP, registre status HTTP e trechos de erro.
 
 Entregue:
 

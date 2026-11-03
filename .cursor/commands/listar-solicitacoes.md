@@ -2,20 +2,24 @@
 
 Mostra no chat as solicitações **pendentes** da fila SaaS DeskRudder (o mesmo painel `/saas/solicitacoes`).
 
-Este arquivo está no git (`.cursor/commands/`). Depois de um `git pull`, se `/listar-solicitacoes` não aparecer, recarregue a janela do Cursor.
+Fonte única: `.cursor/commands/listar-solicitacoes.md`; o DSH recebe uma cópia em `.dsh/skills/` (gerada por `.dsh/sync-skills.mjs`). Depois de um `git pull`, no Cursor recarregue a janela; no DSH a skill recarrega sozinha.
 
-## Pré-requisito — MCP no PC de cada pessoa
+## Pré-requisito — MCP ligado na sua máquina
 
-A fila **não** está no clone local. Cada desenvolvedor liga o MCP **no próprio Cursor** (`.cursor/mcp.json` é gitignored, não compartilhe token):
+A fila **não** está no clone local. Cada pessoa liga o MCP no próprio cliente (token **nunca** vai para o git):
+
+**No Cursor** (`.cursor/mcp.json` é gitignored):
 
 1. Copiar `.cursor/mcp.json.example` → `.cursor/mcp.json`
 2. Entrar no painel admin (`https://deskrudder.com.br/login/admin`) com a conta `saas_ops`
-3. Abrir **Minha conta** (`/saas/conta`) e gerar o token Cursor (aparece **uma vez**)
+3. Abrir **Minha conta** (`/saas/conta`) e gerar o token (aparece **uma vez**)
 4. Colar em `DESKRUDDER_MCP_TOKEN`. A URL do example é a **API comercial**:
    `https://api.deskrudder.com.br`
    (épico #875 — stack própria, não a da DuplexSoft). Enquanto o split não estiver no ar, esse host ainda não existe; não use a API do cliente como se fosse o control-plane.
 5. Cursor → Settings → MCP → habilitar `deskrudder-saas` (fica verde)
 6. No Windows, se o servidor não iniciar: trocar `"command": "python"` por `"command": "py"`
+
+**No DSH:** já configurado no profile do usuário (bundle `@local/deskrudder-saas-mcp`); as ferramentas aparecem como `mcp__deskrudder-saas__*`. O MCP da Hostinger (`mcp__hostinger-vps__*`) segue o mesmo padrão.
 
 Sem MCP ligado: **não inventar a fila**. Pedir para completar os passos acima. Não ler nem imprimir o token.
 
@@ -27,7 +31,7 @@ Se o usuário pedir «todas», «planejadas» ou um protocolo/`#S…`, use esse 
 
 ## Como listar
 
-Chamar `listar_solicitacoes` **duas vezes** (ou HTTP `GET /v1/saas/solicitacoes?status=…&limit=50`):
+Chamar a ferramenta **duas vezes** — no Cursor `listar_solicitacoes`, no DSH `mcp__deskrudder-saas__listar_solicitacoes` (ou HTTP `GET /v1/saas/solicitacoes?status=…&limit=50`):
 
 - `status=aberta`
 - `status=em_analise`

@@ -92,6 +92,25 @@ Skills futuras sugeridas:
 
 - `alembic-recovery` — troubleshooting de heads/revisions
 
+## Pastas que o agente não deve varrer
+
+`node_modules`, `.git`, `dist`, `release`, `.venv`, `__pycache__`, extensões do editor e logs de sessão **não** devem ser varridos com `glob`/`grep`/`read` nem com `dir /s` / `grep -r` — o `package.json`/lockfile já descrevem o que está instalado. Ao buscar, escopar em `backend/`, `frontend/src`, `scripts/`, `deploy/` e usar `include` para restringir extensão.
+
+- Regra pessoal completa (DSH, vale para todos os workspaces desta máquina): `%USERPROFILE%\.dsh\AGENTS.md`
+- Segredos: não ler `.env`, `.cursor/mcp.json` ou credenciais sem pedido explícito.
+
+## DeepSeek Harness (DSH)
+
+Além do Cursor, o time pode trabalhar no DSH. O DSH carrega skills do workspace em `.dsh/skills/` e as expõe como `/nome` no chat — mesmo fluxo dos commands do Cursor (ver `.dsh/README.md`).
+
+| Item | Onde |
+|------|------|
+| Fonte única dos comandos/skills | `.cursor/commands/*.md`, `.cursor/skills/*/SKILL.md` |
+| Espelho gerado para o DSH | `.dsh/skills/` — gerar com `node .dsh/sync-skills.mjs` (não editar à mão) |
+| MCP | `deskrudder-saas` e `hostinger-vps` no profile do DSH (fora do repo, com tokens) |
+| Rules | continuam em `.cursor/rules/*.mdc` — leia a rule relevante no contexto (RBAC, SSE, migrations, git, release) |
+| Hooks | não portados (bloqueio de `main`/`staging` e ESLint `--fix` não rodam no DSH) |
+
 ## Docs de referência
 
 - `docs/BACKEND_RBAC.md`

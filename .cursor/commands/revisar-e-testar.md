@@ -52,7 +52,7 @@ cd frontend && npm run build
 - `backend=false` → **não** rode pytest; no relatório: `pytest: omitido (diff sem backend/scripts/CI)`
 - `frontend=false` → **não** rode `npm run build`; no relatório: `npm run build: omitido (diff sem frontend/CI)`
 - Os dois `true` → rode os dois
-- Os dois `false` (só docs/Cursor) → não rode testes pesados; diga isso no relatório
+- Os dois `false` (só docs/config) → não rode testes pesados; diga isso no relatório
 
 Se o script falhar (sem `origin/main`), assuma os dois `true`.
 
