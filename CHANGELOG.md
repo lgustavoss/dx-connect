@@ -11,6 +11,10 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 - Faturamento: depois de aprovar, o financeiro anexa o **PDF do boleto** e da **NFS-e** (quando a empresa emite nota), com linha digitável e número da nota — dá para baixar de novo (2ª via) e filtrar quem emite ou não NFS-e
 - Faturamento: ao aprovar a fatura nasce um **título a receber** (em aberto / vencido / pago); a baixa é manual, na aba A receber — sem envio por e-mail do DeskRudder (banco e prefeitura já avisam o cliente)
+- CRM: o **nome do cliente / posto** no lead passa a ser a identidade única — a razão social da linha CNPJ e o nome da Rede veem sugeridos na primeira vez, para o comercial confirmar em vez de redigitar (#1319)
+- CRM: as **observações digitadas ao criar a lead** viram a primeira anotação da negociação — não somem mais quando a negociação abre (#1319)
+- CRM: lead **perdido** volta a ter **Nova negociação** no cartão e na lista, sem cadastrar a lead de novo (#1319)
+- CRM: a **origem da lead** deixa de ser texto livre e passa a ser uma lista configurável em Configurações → Funil CRM (seed: WhatsApp, indicação, site, visita, outro) (#1319)
 
 #### Correções
 

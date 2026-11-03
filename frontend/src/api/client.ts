@@ -4039,6 +4039,16 @@ export const comercialContratoPolitica = {
     }),
 };
 
+export const crmOrigens = {
+  list: (params?: { incluir_inativos?: boolean }) =>
+    api<Crm.OrigemLead[]>(withParams('/crm/origens-lead', params)),
+  create: (data: Crm.OrigemLeadCreate) =>
+    api<Crm.OrigemLead>('/crm/origens-lead', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: number, data: Crm.OrigemLeadUpdate) =>
+    api<Crm.OrigemLead>(`/crm/origens-lead/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  remove: (id: number) => api<void>(`/crm/origens-lead/${id}`, { method: 'DELETE' }),
+};
+
 export const crmFunil = {
   list: (params?: { incluir_inativos?: boolean }) =>
     api<Crm.FunilEstagio[]>(withParams('/crm/funil-estagios', params)),
@@ -4122,6 +4132,25 @@ export const crmLembretes = {
 };
 
 export namespace Crm {
+  export interface OrigemLead {
+    id: number;
+    nome: string;
+    ordem: number;
+    ativo: boolean;
+  }
+
+  export interface OrigemLeadCreate {
+    nome: string;
+    ordem?: number;
+    ativo?: boolean;
+  }
+
+  export interface OrigemLeadUpdate {
+    nome?: string;
+    ordem?: number;
+    ativo?: boolean;
+  }
+
   export interface FunilEstagio {
     id: number;
     slug: string;
@@ -4294,6 +4323,7 @@ export namespace Crm {
   export interface NegociacaoCreate {
     lead_id: number;
     titulo?: string | null;
+    nome_base_webposto?: string | null;
     responsavel_id?: number | null;
     linhas?: LinhaCreate[];
   }

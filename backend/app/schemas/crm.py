@@ -48,6 +48,27 @@ class FunilEstagioUpdate(BaseModel):
     ativo: bool | None = None
 
 
+class CrmOrigemLeadRead(BaseModel):
+    id: int
+    nome: str
+    ordem: int
+    ativo: bool
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CrmOrigemLeadCreate(BaseModel):
+    nome: str = Field(..., min_length=1, max_length=80)
+    ordem: int = 0
+    ativo: bool = True
+
+
+class CrmOrigemLeadUpdate(BaseModel):
+    nome: str | None = Field(None, min_length=1, max_length=80)
+    ordem: int | None = None
+    ativo: bool | None = None
+
+
 class CrmLeadCreate(BaseModel):
     nome: str = Field(..., min_length=1, max_length=255)
     telefone: str | None = Field(None, max_length=40)
@@ -189,6 +210,7 @@ class CrmLinhaRead(BaseModel):
 class CrmNegociacaoCreate(BaseModel):
     lead_id: int
     titulo: str | None = Field(None, max_length=255)
+    nome_base_webposto: str | None = Field(None, max_length=255)
     responsavel_id: int | None = None
     linhas: list[CrmLinhaCreate] = Field(default_factory=list)
 

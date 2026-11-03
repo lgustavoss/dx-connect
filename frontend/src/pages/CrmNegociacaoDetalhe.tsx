@@ -9,6 +9,7 @@ import {
   crmFunil,
   crmLeads,
   crmNegociacoes,
+  crmOrigens,
   type ComercialCustos,
   type Crm,
 } from '../api/client'
@@ -173,6 +174,7 @@ export function CrmNegociacaoDetalhe() {
   const [leadEmail, setLeadEmail] = useState('')
   const [leadEmpresa, setLeadEmpresa] = useState('')
   const [leadOrigem, setLeadOrigem] = useState('')
+  const [origensLead, setOrigensLead] = useState<Crm.OrigemLead[]>([])
   const [savingLead, setSavingLead] = useState(false)
 
   const [propostaAberta, setPropostaAberta] = useState(false)
@@ -183,6 +185,13 @@ export function CrmNegociacaoDetalhe() {
   const [linhasAssinadas, setLinhasAssinadas] = useState<Set<number>>(() => new Set())
   const [nomeBase, setNomeBase] = useState('')
   const [savingNomeBase, setSavingNomeBase] = useState(false)
+
+  useEffect(() => {
+    crmOrigens
+      .list()
+      .then(setOrigensLead)
+      .catch(() => setOrigensLead([]))
+  }, [])
 
   const load = useCallback(async () => {
     if (!id || Number.isNaN(negociacaoId)) {
@@ -442,14 +451,15 @@ export function CrmNegociacaoDetalhe() {
     }
   }
 
-  async function saveLead() {
+  async function saveLead(over?: { origem?: string }) {
     if (!lead || !podeEditarLead) return
+    const origemAtual = over?.origem ?? leadOrigem
     const payload = {
       nome: leadNome.trim(),
       telefone: leadTelefone.trim() || null,
       email: leadEmail.trim() || null,
       empresa_texto: leadEmpresa.trim() || null,
-      origem: leadOrigem.trim() || null,
+      origem: origemAtual.trim() || null,
     }
     if (!payload.nome) {
       toast.showWarning('Informe o nome do contato.')
@@ -727,18 +737,24 @@ export function CrmNegociacaoDetalhe() {
                 disabled={!podeEditarLead || savingLead || !neg.ativa}
               />
               <Input
-                label="Empresa / prospecto"
+                label="Nome do cliente / posto"
                 value={leadEmpresa}
                 onChange={(e) => setLeadEmpresa(e.target.value)}
                 onBlur={() => void saveLead()}
                 disabled={!podeEditarLead || savingLead || !neg.ativa}
+                hint="Sugere a razão social da linha e o nome da Rede na primeira vez."
               />
-              <Input
+              <Select
                 label="Origem"
                 value={leadOrigem}
-                onChange={(e) => setLeadOrigem(e.target.value)}
-                onBlur={() => void saveLead()}
-                placeholder="WhatsApp, indicação…"
+                onChange={(v) => {
+                  const proxima = String(v)
+                  setLeadOrigem(proxima)
+                  void saveLead({ origem: proxima })
+                }}
+                options={origensLead.map((o) => ({ value: o.nome, label: o.nome }))}
+                includeEmpty
+                emptyLabel="— selecione —"
                 disabled={!podeEditarLead || savingLead || !neg.ativa}
               />
             </div>
@@ -758,7 +774,7 @@ export function CrmNegociacaoDetalhe() {
                   void saveNomeBase()
                 }
               }}
-              placeholder="Ex.: Rede Postos Norte"
+              placeholder={lead?.empresa_texto || 'Ex.: Rede Postos Norte'}
               disabled={linhasAssinadas.size > 0 || savingNomeBase || !neg.ativa}
               hint={
                 linhasAssinadas.size > 0
@@ -930,6 +946,7 @@ export function CrmNegociacaoDetalhe() {
                 label="Razão social"
                 value={linhaForm.razao_social}
                 onChange={(e) => setLinhaForm((p) => ({ ...p, razao_social: e.target.value }))}
+                placeholder={lead?.empresa_texto || 'Nome do cliente / posto'}
               />
               <p className="text-xs text-slate-500">
                 Endereço, responsável legal e contato da empresa são preenchidos ao gerar o contrato.
