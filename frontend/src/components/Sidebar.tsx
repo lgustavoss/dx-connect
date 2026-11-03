@@ -343,7 +343,7 @@ const navStructure: NavItem[] = [
     id: 'comercial',
     label: 'Comercial',
     icon: 'tiposNegocio',
-    extraActivePrefixes: ['/crm/'],
+    extraActivePrefixes: ['/crm/', '/operacao/'],
     children: [
       {
         to: '/crm/leads',
@@ -351,6 +351,13 @@ const navStructure: NavItem[] = [
         icon: 'tiposNegocio',
         permissao: 'crm.ver',
         activePrefix: '/crm/leads',
+      },
+      {
+        to: '/operacao/carteira',
+        label: 'Carteira',
+        icon: 'tiposNegocio',
+        permissao: 'crm.ver',
+        activePrefix: '/operacao/',
       },
       {
         to: '/crm/contratos',
