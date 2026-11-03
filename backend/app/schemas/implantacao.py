@@ -73,4 +73,6 @@ class TicketChecklistRead(BaseModel):
     progresso_pct: int = 0
     itens_obrigatorios_pendentes: int = 0
     pdvs_ativos: int | None = None
+    # Quantidade prevista na linha do contrato (#1323).
+    pdvs_necessarios: int | None = None
     itens: list[TicketChecklistItemRead] = Field(default_factory=list)

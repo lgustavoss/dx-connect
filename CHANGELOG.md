@@ -21,6 +21,8 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 - CRM: o funil não mente — «Proposta enviada» só aceita o cartão quando existe proposta de fato enviada, e a ficha avisa quando o estágio está à frente do documento (#1321)
 - Contratos: o formulário fiscal da negociação busca **CNPJ na Receita** e **CEP no ViaCEP**; setup e multa aparecem como números na ficha (#1322)
 - Contratos: **marcar assinado move o funil** para «Contrato assinado» sem checkbox, e o passo «marcar enviado» saiu da tela; a lista mostra qual contrato é **vigente** (o aditivo passa a ser o vigente e o anterior fica como histórico) (#1322)
+- Implantação: ao assinar com o ticket, nascem os **PDVs previstos na linha do contrato** (rascunho PDV-1…) e o cartão vai para «Implantação» no funil, sem clique no Kanban (#1323)
+- Implantação: o item **Cadastrar PDVs** só conclui com o cadastro compatível ou com o desvio registrado na observação; o ticket de implantação deixou de aparecer no **portal do cliente** (#1323)
 
 #### Correções
 

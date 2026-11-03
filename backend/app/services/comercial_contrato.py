@@ -1264,9 +1264,12 @@ def marcar_assinado(db: Session, row: Contrato, data: ContratoMarcarAssinadoIn, 
         )
     )
     # Assinar move o funil sempre — o opt-in virou ruído e deixava o Kanban mentir (#1322).
+    # Se o ticket de implantação já foi aberto, o cartão já está em «Implantação» (#1323):
+    # não regride o estágio.
     neg = crm_svc.obter_negociacao(db, linha.negociacao_id)
     atual = crm_svc.obter_estagio(db, estagio_id=neg.estagio_id)
-    if atual.slug != "contrato_assinado":
+    destino = crm_svc.obter_estagio(db, slug="contrato_assinado")
+    if atual.ordem < destino.ordem:
         crm_svc.mover_estagio(
             db,
             neg,
