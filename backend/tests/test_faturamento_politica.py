@@ -9,8 +9,38 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 from app.database import SessionLocal
-from app.services.faturamento import vencimento_da_competencia
+from app.services.faturamento import processar_faturamento_mensal, vencimento_da_competencia
+from tests.test_comercial_contrato import _anexar_pdf_assinado, _negociacao_com_linha
 from tests.test_implantacao import _assinar_contrato
+
+
+def _assinar_contrato_com_setup(client, h, *, setup_valor: str = "1500.00", setup_isento: bool = False):
+    _, linha = _negociacao_com_linha(client, h)
+    c = client.post(
+        "/v1/comercial/contratos",
+        headers=h,
+        json={
+            "linha_id": linha["id"],
+            "setup_valor": None if setup_isento else setup_valor,
+            "setup_isento": setup_isento,
+        },
+    )
+    assert c.status_code == 201, c.text
+    cid = c.json()["id"]
+    _anexar_pdf_assinado(client, h, cid)
+    ass = client.post(
+        f"/v1/comercial/contratos/{cid}/marcar-assinado",
+        headers=h,
+        json={"abrir_ticket_implantacao": True},
+    )
+    assert ass.status_code == 200, ass.text
+    return ass.json()
+
+
+def _titulos(client, h, **params):
+    r = client.get("/v1/faturamento/titulos", headers=h, params=params)
+    assert r.status_code == 200, r.text
+    return r.json()
 
 
 def _comp(d: date) -> str:
@@ -414,3 +444,125 @@ def test_gatilho_ticket_implantacao_fechado(client, auth_headers):
     )
     assert depois.status_code == 200, depois.text
     assert depois.json()["criadas"] == 1
+
+
+def test_setup_vira_titulo_no_momento_assinatura_e_nao_duplica(client, auth_headers):
+    h_com = auth_headers["comercial"]
+    h_fin = auth_headers["a2"]
+    h_admin = auth_headers["admin"]
+    contrato = _assinar_contrato_com_setup(client, h_com)
+    cid = contrato["id"]
+
+    # Sem momento definido, o setup continua só no PDF (compatível com o comportamento anterior).
+    assert _titulos(client, h_fin) == []
+
+    r = client.patch(
+        f"/v1/comercial/contratos/{cid}/cobranca",
+        headers=h_com,
+        json={"setup_momento": "assinatura"},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["setup_momento"] == "assinatura"
+
+    titulos = _titulos(client, h_fin)
+    setup = [t for t in titulos if t["contrato_id"] == cid and t["tipo"] == "implantacao"]
+    assert len(setup) == 1
+    assert setup[0]["fatura_id"] is None
+    assert setup[0]["valor"] == "1500.00"
+    assert setup[0]["status"] in {"aberto", "vencido"}
+
+    # Reabrir o momento, gerar a competência e rodar o job não duplicam o título.
+    client.patch(f"/v1/comercial/contratos/{cid}/cobranca", headers=h_com, json={"setup_momento": "assinatura"})
+    client.post(
+        "/v1/faturamento/faturas/gerar-competencia",
+        headers=h_admin,
+        json={"competencia": _comp(date.today())},
+    )
+    db = SessionLocal()
+    try:
+        processar_faturamento_mensal(db)
+        db.commit()
+    finally:
+        db.close()
+    setup = [t for t in _titulos(client, h_fin) if t["contrato_id"] == cid and t["tipo"] == "implantacao"]
+    assert len(setup) == 1
+
+
+def test_setup_isento_nao_vira_titulo(client, auth_headers):
+    h_com = auth_headers["comercial"]
+    h_fin = auth_headers["a2"]
+    contrato = _assinar_contrato_com_setup(client, h_com, setup_isento=True)
+    cid = contrato["id"]
+    r = client.patch(
+        f"/v1/comercial/contratos/{cid}/cobranca",
+        headers=h_com,
+        json={"setup_momento": "assinatura"},
+    )
+    assert r.status_code == 200, r.text
+    assert [t for t in _titulos(client, h_fin) if t["tipo"] == "implantacao"] == []
+
+
+def test_setup_data_combinada_espera_a_data(client, auth_headers):
+    h_com = auth_headers["comercial"]
+    h_fin = auth_headers["a2"]
+    contrato = _assinar_contrato_com_setup(client, h_com)
+    cid = contrato["id"]
+
+    sem_data = client.patch(
+        f"/v1/comercial/contratos/{cid}/cobranca",
+        headers=h_com,
+        json={"setup_momento": "data_combinada"},
+    )
+    assert sem_data.status_code == 400
+
+    futuro = (date.today() + timedelta(days=30)).isoformat()
+    r = client.patch(
+        f"/v1/comercial/contratos/{cid}/cobranca",
+        headers=h_com,
+        json={"setup_momento": "data_combinada", "setup_data_combinada": futuro},
+    )
+    assert r.status_code == 200, r.text
+    assert [t for t in _titulos(client, h_fin) if t["tipo"] == "implantacao"] == []
+
+    passado = "2026-01-20"
+    r = client.patch(
+        f"/v1/comercial/contratos/{cid}/cobranca",
+        headers=h_com,
+        json={"setup_data_combinada": passado},
+    )
+    assert r.status_code == 200, r.text
+    setup = [t for t in _titulos(client, h_fin) if t["contrato_id"] == cid and t["tipo"] == "implantacao"]
+    assert len(setup) == 1
+    assert setup[0]["competencia"] == "2026-01"
+    assert setup[0]["vencimento"] == "2026-02-10"
+
+
+def test_setup_junto_da_primeira_mensalidade(client, auth_headers):
+    h_com = auth_headers["comercial"]
+    h_fin = auth_headers["a2"]
+    contrato = _assinar_contrato_com_setup(client, h_com)
+    cid = contrato["id"]
+    r = client.patch(
+        f"/v1/comercial/contratos/{cid}/cobranca",
+        headers=h_com,
+        json={"setup_momento": "primeira_mensalidade"},
+    )
+    assert r.status_code == 200, r.text
+    assert [t for t in _titulos(client, h_fin) if t["tipo"] == "implantacao"] == []
+
+    comp = _comp(date.today())
+    gerar = client.post(
+        "/v1/faturamento/faturas", headers=h_fin, json={"contrato_id": cid, "competencia": comp}
+    )
+    assert gerar.status_code in (200, 201), gerar.text
+    fid = gerar.json()["id"]
+    aprova = client.post(f"/v1/faturamento/faturas/{fid}/aprovar", headers=h_fin)
+    assert aprova.status_code == 200, aprova.text
+
+    titulos = _titulos(client, h_fin)
+    mensalidade = [t for t in titulos if t["contrato_id"] == cid and t["tipo"] == "mensalidade"]
+    setup = [t for t in titulos if t["contrato_id"] == cid and t["tipo"] == "implantacao"]
+    assert len(mensalidade) == 1
+    assert len(setup) == 1
+    assert setup[0]["fatura_id"] is None
+    assert setup[0]["valor"] == "1500.00"

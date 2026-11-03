@@ -21,6 +21,8 @@ from app.models.comercial_contrato import (
     CONTRATO_RASCUNHO,
     FIDELIDADE_MESES_PADRAO,
     MULTA_MAX_MENSALIDADES_PADRAO,
+    SETUP_MOMENTO_DATA_COMBINADA,
+    SETUP_MOMENTO_OPCOES,
     Contrato,
     ContratoPdf,
     ContratoPolitica,
@@ -1277,6 +1279,10 @@ def marcar_assinado(db: Session, row: Contrato, data: ContratoMarcarAssinadoIn, 
             estagio_slug="contrato_assinado",
             nota="Contrato assinado (registro manual).",
         )
+    # Taxa de implantação com momento «assinatura» nasce como título agora (#1342).
+    from app.services import faturamento as faturamento_svc
+
+    faturamento_svc.garantir_titulo_setup(db, row)
     db.flush()
     return obter_contrato(db, row.id)
 
@@ -1309,6 +1315,22 @@ def atualizar_cobranca(db: Session, row: Contrato, data, ator: Atendente) -> Con
         row.dia_vencimento_override = int(valor) if valor is not None else None
     if "inicio_mensalidade_override" in payload:
         row.inicio_mensalidade_override = payload["inicio_mensalidade_override"]
+    if "setup_momento" in payload:
+        momento = (payload["setup_momento"] or "").strip() or None
+        if momento is not None and momento not in SETUP_MOMENTO_OPCOES:
+            raise HTTPException(status_code=400, detail="Momento da taxa de implantação inválido.")
+        row.setup_momento = momento
+    if "setup_data_combinada" in payload:
+        row.setup_data_combinada = payload["setup_data_combinada"]
+    if row.setup_momento == SETUP_MOMENTO_DATA_COMBINADA and row.setup_data_combinada is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Informe a data combinada para a taxa de implantação.",
+        )
+    db.flush()
+    from app.services import faturamento as faturamento_svc
+
+    faturamento_svc.garantir_titulo_setup(db, row)
     db.flush()
     return row
 
@@ -1483,6 +1505,8 @@ def contrato_para_read(row: Contrato, *, incluir_html: bool = False) -> dict[str
         "primeira_venda_pdv_por_id": row.primeira_venda_pdv_por_id,
         "primeira_venda_pdv_por_nome": row.primeira_venda_pdv_por.nome if row.primeira_venda_pdv_por else None,
         "primeira_venda_pdv_em": row.primeira_venda_pdv_em,
+        "setup_momento": row.setup_momento,
+        "setup_data_combinada": row.setup_data_combinada,
         "dia_vencimento_override": row.dia_vencimento_override,
         "inicio_mensalidade_override": row.inicio_mensalidade_override,
         "dia_vencimento_efetivo": dia_vencimento_efetivo,

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from decimal import Decimal
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -118,11 +119,13 @@ class MultaRescisaoEstimativa(BaseModel):
 
 
 class ContratoCobrancaUpdate(BaseModel):
-    """Cobrança da negociação: marco da primeira venda e overrides da política (#1340)."""
+    """Cobrança da negociação: marco da primeira venda, overrides e momento do setup (#1340/#1342)."""
 
     primeira_venda_pdv: date | None = None
     dia_vencimento_override: int | None = Field(None, ge=1, le=28)
     inicio_mensalidade_override: date | None = None
+    setup_momento: Literal["assinatura", "data_combinada", "primeira_mensalidade", "isento"] | None = None
+    setup_data_combinada: date | None = None
 
 
 class ContratoRead(BaseModel):
@@ -149,6 +152,8 @@ class ContratoRead(BaseModel):
     primeira_venda_pdv_por_id: int | None = None
     primeira_venda_pdv_por_nome: str | None = None
     primeira_venda_pdv_em: datetime | None = None
+    setup_momento: str | None = None
+    setup_data_combinada: date | None = None
     dia_vencimento_override: int | None = None
     inicio_mensalidade_override: date | None = None
     dia_vencimento_efetivo: int | None = None

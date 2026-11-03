@@ -3712,6 +3712,8 @@ export namespace ComercialContrato {
     primeira_venda_pdv_por_id?: number | null;
     primeira_venda_pdv_por_nome?: string | null;
     primeira_venda_pdv_em?: string | null;
+    setup_momento?: 'assinatura' | 'data_combinada' | 'primeira_mensalidade' | 'isento' | string | null;
+    setup_data_combinada?: string | null;
     dia_vencimento_override?: number | null;
     inicio_mensalidade_override?: string | null;
     dia_vencimento_efetivo?: number | null;
@@ -3771,6 +3773,8 @@ export namespace ComercialContrato {
     primeira_venda_pdv?: string | null;
     dia_vencimento_override?: number | null;
     inicio_mensalidade_override?: string | null;
+    setup_momento?: 'assinatura' | 'data_combinada' | 'primeira_mensalidade' | 'isento' | null;
+    setup_data_combinada?: string | null;
   }
   export interface Politica {
     reajuste_percentual: string | number;
@@ -3830,12 +3834,13 @@ export namespace Faturamento {
   }
   export interface Titulo {
     id: number;
-    fatura_id: number;
+    fatura_id: number | null;
     contrato_id: number;
     empresa_id: number | null;
     empresa_nome: string | null;
     cnpj: string | null;
     razao_social: string | null;
+    tipo?: 'mensalidade' | 'implantacao' | string;
     competencia: string;
     valor: string | number;
     vencimento: string;

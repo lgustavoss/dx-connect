@@ -39,6 +39,18 @@ CONTRATO_STATUS_ATIVOS = frozenset({CONTRATO_RASCUNHO, CONTRATO_ENVIADO, CONTRAT
 FIDELIDADE_MESES_PADRAO = 12
 MULTA_MAX_MENSALIDADES_PADRAO = 3
 
+# Quando a taxa de implantação (setup) vira título a receber (#1342).
+SETUP_MOMENTO_ASSINATURA = "assinatura"
+SETUP_MOMENTO_DATA_COMBINADA = "data_combinada"
+SETUP_MOMENTO_PRIMEIRA_MENSALIDADE = "primeira_mensalidade"
+SETUP_MOMENTO_ISENTO = "isento"
+SETUP_MOMENTO_OPCOES = (
+    SETUP_MOMENTO_ASSINATURA,
+    SETUP_MOMENTO_DATA_COMBINADA,
+    SETUP_MOMENTO_PRIMEIRA_MENSALIDADE,
+    SETUP_MOMENTO_ISENTO,
+)
+
 
 class ContratoTemplate(Base):
     __tablename__ = "comercial_contrato_templates"
@@ -89,6 +101,9 @@ class Contrato(Base):
     primeira_venda_pdv = Column(Date, nullable=True)
     primeira_venda_pdv_por_id = Column(Integer, ForeignKey("atendentes.id", ondelete="SET NULL"), nullable=True)
     primeira_venda_pdv_em = Column(DateTime(timezone=True), nullable=True)
+    # Quando o setup vira título próprio (#1342): assinatura | data combinada | 1ª mensalidade | isento.
+    setup_momento = Column(String(32), nullable=True)
+    setup_data_combinada = Column(Date, nullable=True)
     deslocamento_cliente = Column(Boolean, nullable=False, default=True)
     alimentacao_cliente = Column(Boolean, nullable=False, default=True)
     hospedagem_cliente = Column(Boolean, nullable=False, default=True)

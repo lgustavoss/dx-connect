@@ -3,12 +3,21 @@ import { comercialContratos, type ComercialContrato } from '../../api/client'
 import { mensagemFalhaParaToast } from '../../api/errorMessage'
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
+import { Select } from '../ui/Select'
 import { useToast } from '../ui/Toast'
 
 const MOTIVO_LABEL: Record<string, string> = {
   aguardando_primeira_venda: 'Aguardando primeira venda no PDV — a mensalidade ainda não nasce.',
   aguardando_fechamento_implantacao: 'Aguardando o fechamento do ticket de implantação — a mensalidade ainda não nasce.',
 }
+
+const SETUP_MOMENTOS = [
+  { value: '', label: 'Não definido (só no PDF)' },
+  { value: 'assinatura', label: 'Na assinatura do contrato' },
+  { value: 'data_combinada', label: 'Em data combinada' },
+  { value: 'primeira_mensalidade', label: 'Junto da 1ª mensalidade' },
+  { value: 'isento', label: 'Isento' },
+]
 
 function formatDate(iso: string | null | undefined): string {
   if (!iso) return '—'
@@ -20,6 +29,13 @@ function formatDate(iso: string | null | undefined): string {
 function diaIso(v: string | null | undefined): string {
   if (!v) return ''
   return v.slice(0, 10)
+}
+
+function money(v: string | number | null | undefined): string {
+  if (v == null || v === '') return '—'
+  const n = Number(v)
+  if (Number.isNaN(n)) return String(v)
+  return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
 /**
@@ -41,13 +57,24 @@ export function CobrancaContrato({
     contrato.dia_vencimento_override != null ? String(contrato.dia_vencimento_override) : '',
   )
   const [inicioOverride, setInicioOverride] = useState(diaIso(contrato.inicio_mensalidade_override))
+  const [setupMomento, setSetupMomento] = useState(contrato.setup_momento || '')
+  const [setupData, setSetupData] = useState(diaIso(contrato.setup_data_combinada))
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     setPrimeiraVenda(diaIso(contrato.primeira_venda_pdv))
     setDiaVencimento(contrato.dia_vencimento_override != null ? String(contrato.dia_vencimento_override) : '')
     setInicioOverride(diaIso(contrato.inicio_mensalidade_override))
-  }, [contrato.id, contrato.primeira_venda_pdv, contrato.dia_vencimento_override, contrato.inicio_mensalidade_override])
+    setSetupMomento(contrato.setup_momento || '')
+    setSetupData(diaIso(contrato.setup_data_combinada))
+  }, [
+    contrato.id,
+    contrato.primeira_venda_pdv,
+    contrato.dia_vencimento_override,
+    contrato.inicio_mensalidade_override,
+    contrato.setup_momento,
+    contrato.setup_data_combinada,
+  ])
 
   async function salvar() {
     if (diaVencimento.trim()) {
@@ -57,12 +84,18 @@ export function CobrancaContrato({
         return
       }
     }
+    if (setupMomento === 'data_combinada' && !setupData.trim()) {
+      toast.showWarning('Informe a data combinada da taxa de implantação.')
+      return
+    }
     setSaving(true)
     try {
       const atual = await comercialContratos.atualizarCobranca(contrato.id, {
         primeira_venda_pdv: primeiraVenda.trim() || null,
         dia_vencimento_override: diaVencimento.trim() ? Number(diaVencimento) : null,
         inicio_mensalidade_override: inicioOverride.trim() || null,
+        setup_momento: setupMomento ? (setupMomento as ComercialContrato.CobrancaUpdate['setup_momento']) : null,
+        setup_data_combinada: setupData.trim() || null,
       })
       toast.showSuccess('Cobrança do contrato atualizada.')
       onUpdated(atual)
@@ -117,6 +150,31 @@ export function CobrancaContrato({
           onChange={(e) => setInicioOverride(e.target.value)}
           disabled={!podeEditar}
         />
+      </div>
+      <div className="mt-3 rounded-lg border border-slate-200/70 p-3 dark:border-slate-700">
+        <p className="text-xs font-medium text-slate-700 dark:text-slate-200">Taxa de implantação (setup)</p>
+        <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+          Valor: {contrato.setup_isento ? 'isento' : money(contrato.setup_valor)} — vira título próprio em A receber
+          quando o momento configurado chega (uma vez só, sem duplicar). Isento não gera título.
+        </p>
+        <div className="mt-2 grid gap-3 sm:grid-cols-2">
+          <Select
+            label="Quando vira título"
+            value={setupMomento}
+            onChange={(v) => setSetupMomento(String(v))}
+            options={SETUP_MOMENTOS}
+            disabled={!podeEditar}
+          />
+          {setupMomento === 'data_combinada' ? (
+            <Input
+              label="Data combinada"
+              type="date"
+              value={setupData}
+              onChange={(e) => setSetupData(e.target.value)}
+              disabled={!podeEditar}
+            />
+          ) : null}
+        </div>
       </div>
       <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
         Overrides valem só para este contrato (negociação). Em branco = segue a política da instância.

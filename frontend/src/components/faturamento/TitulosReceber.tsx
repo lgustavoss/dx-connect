@@ -14,6 +14,11 @@ const STATUS_LABEL: Record<string, string> = {
   cancelado: 'Cancelado',
 }
 
+const TIPO_LABEL: Record<string, string> = {
+  mensalidade: 'Mensalidade',
+  implantacao: 'Implantação',
+}
+
 function formatMoney(v: string | number): string {
   const n = typeof v === 'number' ? v : Number(v)
   if (Number.isNaN(n)) return String(v)
@@ -108,6 +113,7 @@ export function TitulosReceber({
               <thead>
                 <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500 dark:border-slate-700">
                   <th className="px-4 py-3 font-medium">Cliente</th>
+                  <th className="px-4 py-3 font-medium">Tipo</th>
                   <th className="px-4 py-3 font-medium">Competência</th>
                   <th className="px-4 py-3 font-medium">Valor</th>
                   <th className="px-4 py-3 font-medium">Vencimento</th>
@@ -128,6 +134,11 @@ export function TitulosReceber({
                           Abrir empresa
                         </Link>
                       ) : null}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="text-xs font-medium text-slate-700 dark:text-slate-200">
+                        {TIPO_LABEL[t.tipo || 'mensalidade'] || t.tipo}
+                      </span>
                     </td>
                     <td className="px-4 py-3 tabular-nums">{t.competencia}</td>
                     <td className="px-4 py-3 tabular-nums">{formatMoney(t.valor)}</td>

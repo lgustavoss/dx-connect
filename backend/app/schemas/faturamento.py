@@ -31,12 +31,13 @@ class FaturamentoPoliticaUpdate(BaseModel):
 
 class TituloReceberRead(BaseModel):
     id: int
-    fatura_id: int
+    fatura_id: int | None = None
     contrato_id: int
     empresa_id: int | None = None
     empresa_nome: str | None = None
     cnpj: str | None = None
     razao_social: str | None = None
+    tipo: str = "mensalidade"
     competencia: str
     valor: Decimal
     vencimento: date

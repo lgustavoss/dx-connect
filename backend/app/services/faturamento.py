@@ -11,7 +11,14 @@ from zoneinfo import ZoneInfo
 from fastapi import HTTPException
 from sqlalchemy.orm import Session, joinedload
 
-from app.models.comercial_contrato import CONTRATO_ASSINADO, Contrato
+from app.models.comercial_contrato import (
+    CONTRATO_ASSINADO,
+    SETUP_MOMENTO_ASSINATURA,
+    SETUP_MOMENTO_DATA_COMBINADA,
+    SETUP_MOMENTO_ISENTO,
+    SETUP_MOMENTO_PRIMEIRA_MENSALIDADE,
+    Contrato,
+)
 from app.models.crm import CrmNegociacaoCnpjLinha
 from app.models.empresa import Empresa
 from app.models.atendente import Atendente
@@ -34,6 +41,8 @@ from app.models.faturamento import (
     TITULO_ABERTO,
     TITULO_PAGO,
     TITULO_STATUS_FILTRO,
+    TITULO_TIPO_IMPLANTACAO,
+    TITULO_TIPO_MENSALIDADE,
     TITULO_VENCIDO,
     VENCIMENTO_DIA_PADRAO,
     Fatura,
@@ -194,6 +203,7 @@ def titulo_para_read(db: Session, row: TituloReceber) -> dict:
         "empresa_nome": empresa.nome if empresa else None,
         "cnpj": linha.cnpj if linha else (empresa.cnpj_cpf if empresa else None),
         "razao_social": (linha.razao_social if linha else None) or (empresa.razao_social if empresa else None),
+        "tipo": row.tipo or TITULO_TIPO_MENSALIDADE,
         "competencia": row.competencia,
         "valor": row.valor,
         "vencimento": row.vencimento,
@@ -216,6 +226,7 @@ def garantir_titulo_da_fatura(db: Session, fatura: Fatura) -> TituloReceber:
         fatura_id=fatura.id,
         contrato_id=fatura.contrato_id,
         empresa_id=fatura.empresa_id,
+        tipo=TITULO_TIPO_MENSALIDADE,
         competencia=fatura.competencia,
         valor=fatura.valor,
         vencimento=fatura.vencimento,
@@ -225,6 +236,83 @@ def garantir_titulo_da_fatura(db: Session, fatura: Fatura) -> TituloReceber:
     db.flush()
     fatura.titulo = row
     return row
+
+
+def _data_do_momento_setup(db: Session, contrato: Contrato) -> date | None:
+    """Data em que a taxa de implantação vira título; None = não vira (isento/indefinido)."""
+    momento = (getattr(contrato, "setup_momento", None) or "").strip()
+    if contrato.setup_isento or momento in ("", SETUP_MOMENTO_ISENTO):
+        return None
+    valor = contrato.setup_valor
+    if valor is None or Decimal(str(valor)) <= 0:
+        return None
+    if momento == SETUP_MOMENTO_ASSINATURA:
+        if contrato.assinado_em is not None:
+            return contrato.assinado_em.date()
+        if contrato.status == CONTRATO_ASSINADO:
+            return contrato.data_inicio
+        return None
+    if momento == SETUP_MOMENTO_DATA_COMBINADA:
+        return contrato.setup_data_combinada
+    if momento == SETUP_MOMENTO_PRIMEIRA_MENSALIDADE:
+        primeira = (
+            db.query(Fatura)
+            .filter(Fatura.contrato_id == contrato.id, Fatura.status == FATURA_APROVADA)
+            .order_by(Fatura.competencia.asc())
+            .first()
+        )
+        if primeira is None:
+            return None
+        if primeira.aprovada_em is not None:
+            return primeira.aprovada_em.date()
+        return primeira.vencimento
+    return None
+
+
+def garantir_titulo_setup(db: Session, contrato: Contrato, *, hoje: date | None = None) -> TituloReceber | None:
+    """Cria (uma única vez) o título de implantação quando o momento definido no contrato chega (#1342)."""
+    existente = (
+        db.query(TituloReceber)
+        .filter(
+            TituloReceber.contrato_id == contrato.id,
+            TituloReceber.tipo == TITULO_TIPO_IMPLANTACAO,
+        )
+        .first()
+    )
+    if existente is not None:
+        return None
+    momento_data = _data_do_momento_setup(db, contrato)
+    if momento_data is None:
+        return None
+    referencia = hoje or _hoje()
+    if momento_data > referencia:
+        return None
+    pol = garantir_politica(db)
+    dia = dia_vencimento_do_contrato(db, contrato, politica=pol)
+    competencia = f"{momento_data.year:04d}-{momento_data.month:02d}"
+    row = TituloReceber(
+        fatura_id=None,
+        contrato_id=contrato.id,
+        empresa_id=contrato.empresa_id,
+        tipo=TITULO_TIPO_IMPLANTACAO,
+        competencia=competencia,
+        valor=Decimal(str(contrato.setup_valor)),
+        vencimento=vencimento_da_competencia(competencia, dia=dia),
+        status=TITULO_ABERTO,
+    )
+    db.add(row)
+    db.flush()
+    return row
+
+
+def garantir_titulos_setup(db: Session, *, hoje: date | None = None) -> int:
+    """Varre os contratos faturáveis e cria os títulos de implantação vencidos (idempotente)."""
+    criados = 0
+    for contrato in _contratos_faturaveis(db):
+        if garantir_titulo_setup(db, contrato, hoje=hoje) is not None:
+            criados += 1
+    return criados
+
 
 
 def documentos_completos(row: Fatura) -> bool:
@@ -588,6 +676,7 @@ def gerar_competencia(
         criadas += 1
         if audit_id is None:
             audit_id = row.id
+    garantir_titulos_setup(db)
     db.flush()
     return comp, criadas, existentes, reabertas, aguardando, audit_id
 
@@ -607,6 +696,9 @@ def aprovar_fatura(db: Session, row: Fatura, ator: Atendente) -> Fatura:
     row.rejeicao_motivo = None
     db.flush()
     garantir_titulo_da_fatura(db, row)
+    contrato = row.contrato or db.query(Contrato).filter(Contrato.id == row.contrato_id).first()
+    if contrato is not None:
+        garantir_titulo_setup(db, contrato)
     db.flush()
     return row
 

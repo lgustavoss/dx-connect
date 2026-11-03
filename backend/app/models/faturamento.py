@@ -2,7 +2,20 @@
 
 from __future__ import annotations
 
-from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
+from sqlalchemy import (
+    Boolean,
+    Column,
+    Date,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+    text,
+)
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -43,6 +56,11 @@ TITULO_VENCIDO = "vencido"
 TITULO_CANCELADO = "cancelado"
 TITULO_STATUS_PERSISTIDOS = frozenset({TITULO_ABERTO, TITULO_PAGO, TITULO_CANCELADO})
 TITULO_STATUS_FILTRO = frozenset({TITULO_ABERTO, TITULO_PAGO, TITULO_VENCIDO, TITULO_CANCELADO})
+
+# Tipo do título em A receber (#1342): mensalidade nasce da fatura; implantação é título próprio.
+TITULO_TIPO_MENSALIDADE = "mensalidade"
+TITULO_TIPO_IMPLANTACAO = "implantacao"
+TITULO_TIPOS = frozenset({TITULO_TIPO_MENSALIDADE, TITULO_TIPO_IMPLANTACAO})
 
 
 class FaturamentoPolitica(Base):
@@ -114,14 +132,29 @@ class FaturaAnexo(Base):
 
 
 class TituloReceber(Base):
-    """Título a receber gerado na aprovação da fatura (#328)."""
+    """Título a receber: mensalidade (nasce da fatura aprovada) ou implantação (#328 / #1342)."""
 
     __tablename__ = "faturamento_titulos"
+    __table_args__ = (
+        Index(
+            "uq_faturamento_titulo_implantacao_contrato",
+            "contrato_id",
+            unique=True,
+            sqlite_where=text("tipo = 'implantacao'"),
+            postgresql_where=text("tipo = 'implantacao'"),
+        ),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
-    fatura_id = Column(Integer, ForeignKey("faturamento_faturas.id", ondelete="CASCADE"), nullable=False, unique=True)
+    fatura_id = Column(
+        Integer,
+        ForeignKey("faturamento_faturas.id", ondelete="CASCADE"),
+        nullable=True,
+        unique=True,
+    )
     contrato_id = Column(Integer, ForeignKey("comercial_contratos.id", ondelete="RESTRICT"), nullable=False, index=True)
     empresa_id = Column(Integer, ForeignKey("empresas.id", ondelete="SET NULL"), nullable=True, index=True)
+    tipo = Column(String(20), nullable=False, default=TITULO_TIPO_MENSALIDADE)
     competencia = Column(String(7), nullable=False, index=True)
     valor = Column(Numeric(14, 2), nullable=False)
     vencimento = Column(Date, nullable=False, index=True)
