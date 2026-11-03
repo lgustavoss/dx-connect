@@ -1461,6 +1461,25 @@ export async function fetchChatInternoMidiaBlob(conversaId: number, mensagemId: 
   return res.blob()
 }
 
+export async function fetchFaturaAnexoBlob(faturaId: number, anexoId: number): Promise<Blob> {
+  const token = getAuthToken()
+  const headers: Record<string, string> = {}
+  if (token) headers.Authorization = `Bearer ${token}`
+  const res = await fetch(
+    `${apiOrigin()}${API_VERSION_PREFIX}/faturamento/faturas/${faturaId}/anexos/${anexoId}/download`,
+    { headers },
+  )
+  if (res.status === 401) {
+    invalidateSessionAndRedirectToLogin()
+    throw new ApiError('Sessão expirada ou inválida.', 401, {})
+  }
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => ({}))
+    throw new ApiError(mensagemErroApi(errBody, res.status), res.status, errBody)
+  }
+  return res.blob()
+}
+
 export async function fetchTicketAnexoBlob(ticketId: number, anexoId: number): Promise<Blob> {
   const token = getAuthToken()
   const headers: Record<string, string> = {}
@@ -3759,6 +3778,14 @@ export const comercialImplantacaoTemplates = {
 };
 
 export namespace Faturamento {
+  export interface Anexo {
+    id: number;
+    tipo: 'boleto' | 'nfse_pdf' | 'nfse_xml' | string;
+    nome_original: string;
+    content_type: string | null;
+    tamanho_bytes: number;
+    created_at?: string | null;
+  }
   export interface Fatura {
     id: number;
     contrato_id: number;
@@ -3776,6 +3803,32 @@ export namespace Faturamento {
     aprovada_por_id: number | null;
     aprovada_por_nome: string | null;
     aprovada_em: string | null;
+    boleto_linha_digitavel?: string | null;
+    boleto_nosso_numero?: string | null;
+    nfse_numero?: string | null;
+    documentos_completos?: boolean;
+    anexos?: Anexo[];
+    titulo?: Titulo | null;
+  }
+  export interface Titulo {
+    id: number;
+    fatura_id: number;
+    contrato_id: number;
+    empresa_id: number | null;
+    empresa_nome: string | null;
+    cnpj: string | null;
+    razao_social: string | null;
+    competencia: string;
+    valor: string | number;
+    vencimento: string;
+    status: string;
+    status_persistido?: string;
+    pago_em?: string | null;
+    valor_pago?: string | number | null;
+    baixa_observacao?: string | null;
+    baixado_por_id?: number | null;
+    baixado_por_nome?: string | null;
+    baixado_em?: string | null;
   }
   export interface ContratoElegivel {
     id: number;
@@ -3794,8 +3847,9 @@ export namespace Faturamento {
 }
 
 export const faturamento = {
-  listFaturas: (params?: { competencia?: string; status?: string }) =>
+  listFaturas: (params?: { competencia?: string; status?: string; emite_nfse?: boolean }) =>
     api<Faturamento.Fatura[]>(withParams('/faturamento/faturas', params)),
+  obterFatura: (id: number) => api<Faturamento.Fatura>(`/faturamento/faturas/${id}`),
   listContratosElegiveis: () => api<Faturamento.ContratoElegivel[]>('/faturamento/contratos-elegiveis'),
   gerarFatura: (data: { contrato_id: number; competencia?: string | null }) =>
     api<Faturamento.Fatura>('/faturamento/faturas', { method: 'POST', body: JSON.stringify(data) }),
@@ -3810,6 +3864,36 @@ export const faturamento = {
     api<Faturamento.Fatura>(`/faturamento/faturas/${id}/rejeitar`, {
       method: 'POST',
       body: JSON.stringify({ motivo }),
+    }),
+  atualizarDocumentos: (
+    id: number,
+    data: {
+      boleto_linha_digitavel?: string | null;
+      boleto_nosso_numero?: string | null;
+      nfse_numero?: string | null;
+    },
+  ) =>
+    api<Faturamento.Fatura>(`/faturamento/faturas/${id}/documentos`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  enviarAnexo: (id: number, file: File, tipo: 'boleto' | 'nfse_pdf' | 'nfse_xml') => {
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('tipo', tipo);
+    return api<Faturamento.Fatura>(`/faturamento/faturas/${id}/anexos`, { method: 'POST', body: fd });
+  },
+  removerAnexo: (id: number, anexoId: number) =>
+    api<Faturamento.Fatura>(`/faturamento/faturas/${id}/anexos/${anexoId}`, { method: 'DELETE' }),
+  listTitulos: (params?: { competencia?: string; status?: string }) =>
+    api<Faturamento.Titulo[]>(withParams('/faturamento/titulos', params)),
+  baixarTitulo: (
+    id: number,
+    data?: { pago_em?: string; valor_pago?: number | string; observacao?: string },
+  ) =>
+    api<Faturamento.Titulo>(`/faturamento/titulos/${id}/baixar`, {
+      method: 'POST',
+      body: JSON.stringify(data ?? {}),
     }),
 };
 
