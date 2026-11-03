@@ -81,6 +81,10 @@ class Contrato(Base):
     fidelidade_meses = Column(Integer, nullable=False, default=FIDELIDADE_MESES_PADRAO)
     setup_valor = Column(Numeric(14, 2), nullable=True)
     setup_isento = Column(Boolean, nullable=False, default=False)
+    # Negociação pode sobrescrever a política da instância (#1339):
+    # dia de vencimento e data em que a mensalidade começa a contar.
+    dia_vencimento_override = Column(Integer, nullable=True)
+    inicio_mensalidade_override = Column(Date, nullable=True)
     deslocamento_cliente = Column(Boolean, nullable=False, default=True)
     alimentacao_cliente = Column(Boolean, nullable=False, default=True)
     hospedagem_cliente = Column(Boolean, nullable=False, default=True)

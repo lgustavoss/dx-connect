@@ -7,7 +7,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.core.audit import registrar_audit
-from app.core.auth import exigir_faturamento
+from app.core.auth import exigir_faturamento, exigir_permissao
 from app.database import get_db
 from app.models.atendente import Atendente
 from app.schemas.faturamento import (
@@ -18,6 +18,8 @@ from app.schemas.faturamento import (
     FaturaGerarIn,
     FaturaRead,
     FaturaRejeitarIn,
+    FaturamentoPoliticaRead,
+    FaturamentoPoliticaUpdate,
     TituloBaixaIn,
     TituloReceberRead,
 )
@@ -25,6 +27,35 @@ from app.services import faturamento as svc
 from app.services import faturamento_anexo_storage as anexo_storage
 
 router = APIRouter(prefix="/faturamento", tags=["faturamento"])
+
+
+@router.get("/politica", response_model=FaturamentoPoliticaRead)
+def obter_politica(
+    db: Session = Depends(get_db),
+    _: Atendente = Depends(exigir_faturamento("faturamento.ver")),
+):
+    """Política da instância: dia de vencimento, gatilho e proporcional (#1339)."""
+    return svc.politica_para_read(db)
+
+
+@router.patch("/politica", response_model=FaturamentoPoliticaRead)
+def atualizar_politica(
+    data: FaturamentoPoliticaUpdate,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(exigir_permissao("faturamento.politica")),
+):
+    svc.atualizar_politica(db, data)
+    registrar_audit(
+        db,
+        "faturamento_politica",
+        1,
+        "update",
+        atendente.id,
+        payload=data.model_dump(exclude_unset=True),
+    )
+    db.commit()
+    return svc.politica_para_read(db)
+
 
 
 @router.get("/faturas", response_model=list[FaturaRead])
@@ -84,7 +115,7 @@ def gerar_competencia(
     db: Session = Depends(get_db),
     atendente: Atendente = Depends(exigir_faturamento("faturamento.gerar")),
 ):
-    competencia, criadas, existentes, reabertas, audit_id = svc.gerar_competencia(
+    competencia, criadas, existentes, reabertas, aguardando, audit_id = svc.gerar_competencia(
         db, data.competencia, reabrir_rejeitadas=True
     )
     if audit_id is not None:
@@ -102,6 +133,7 @@ def gerar_competencia(
         "criadas": criadas,
         "existentes": existentes,
         "reabertas": reabertas,
+        "aguardando": aguardando,
     }
 
 

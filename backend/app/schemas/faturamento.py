@@ -1,7 +1,32 @@
 from datetime import date, datetime
 from decimal import Decimal
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+
+GatilhoFaturamento = Literal[
+    "data_inicio",
+    "dias_apos_assinatura",
+    "dias_apos_marco",
+    "ticket_implantacao_fechado",
+]
+
+
+class FaturamentoPoliticaRead(BaseModel):
+    dia_vencimento: int
+    gatilho: str
+    gatilho_dias: int
+    proporcional_primeira_fatura: bool
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class FaturamentoPoliticaUpdate(BaseModel):
+    dia_vencimento: int | None = Field(None, ge=1, le=28)
+    gatilho: GatilhoFaturamento | None = None
+    gatilho_dias: int | None = Field(None, ge=0, le=365)
+    proporcional_primeira_fatura: bool | None = None
+
 
 
 class TituloReceberRead(BaseModel):
@@ -95,6 +120,7 @@ class FaturaGerarCompetenciaOut(BaseModel):
     criadas: int
     existentes: int
     reabertas: int = 0
+    aguardando: int = 0
 
 
 class ContratoElegivelRead(BaseModel):
@@ -104,3 +130,6 @@ class ContratoElegivelRead(BaseModel):
     cnpj: str | None = None
     razao_social: str | None = None
     valor_mensalidade: Decimal
+    dia_vencimento: int | None = None
+    inicio_mensalidade: date | None = None
+    aguardando_motivo: str | None = None

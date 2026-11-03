@@ -78,6 +78,7 @@ import { TipoNegocioDetalhe } from './pages/TipoNegocioDetalhe'
 import { ConfigWhatsapp } from './pages/ConfigWhatsapp'
 import { ConfigPdvCatalogos } from './pages/ConfigPdvCatalogos'
 import { ConfigComercialCustos } from './pages/ConfigComercialCustos'
+import { ConfigFaturamentoPolitica } from './pages/ConfigFaturamentoPolitica'
 import { ConfigEmpresaEmail } from './pages/ConfigEmpresaEmail'
 import { ConfigHubPage } from './pages/config/ConfigHubPage'
 import { ConfigDomainIndexRedirect, ConfigDomainLayout } from './pages/config/ConfigDomainLayout'
@@ -875,6 +876,7 @@ function AppRoutes() {
           <Route path="propostas" element={<PermissaoRoute codigo="propostas.modelos"><ConfigPropostaTemplates embedded /></PermissaoRoute>} />
           <Route path="contratos" element={<PermissaoRoute codigo="contratos.modelos"><ConfigContratoTemplates embedded /></PermissaoRoute>} />
           <Route path="custos" element={<AlgumaPermissaoRoute codigos={['custos.ver', 'custos.simular', 'custos.editar']}><ConfigComercialCustos embedded /></AlgumaPermissaoRoute>} />
+          <Route path="faturamento" element={<PermissaoRoute codigo="faturamento.politica"><ConfigFaturamentoPolitica embedded /></PermissaoRoute>} />
           <Route path="implantacao" element={<PermissaoRoute codigo="implantacao.editar"><ConfigImplantacaoChecklist embedded /></PermissaoRoute>} />
           <Route path="empresa" element={<PermissaoRoute codigo="instalacao.ver"><ConfigEmpresaEmail embedded section="empresa" /></PermissaoRoute>} />
           <Route path="tipos-negocio" element={<PermissaoRoute codigo="tipos_negocio.ver"><TiposNegocio embedded /></PermissaoRoute>} />

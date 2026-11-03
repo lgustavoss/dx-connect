@@ -308,7 +308,8 @@ export function Faturamento() {
         {aba === 'faturas' ? (
         <p className="text-xs text-slate-500 dark:text-slate-400">
           O job automático cria faturas novas da competência (não reabre rejeitadas). «Gerar faturas do mês»
-          também reabre as rejeitadas desta competência. Vencimento: dia 10 do mês seguinte.
+          também reabre as rejeitadas desta competência. Vencimento e início da mensalidade seguem a política de
+          faturamento da instância (Configurações → Financeiro) e o override do contrato.
         </p>
         ) : (
         <p className="text-xs text-slate-500 dark:text-slate-400">

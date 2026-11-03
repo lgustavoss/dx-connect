@@ -15,6 +15,21 @@ FATURA_CANCELADA = "cancelada"
 FATURA_STATUSES = frozenset({FATURA_AGUARDANDO, FATURA_APROVADA, FATURA_REJEITADA, FATURA_CANCELADA})
 
 VENCIMENTO_DIA_PADRAO = 10
+DIA_VENCIMENTO_MIN = 1
+DIA_VENCIMENTO_MAX = 28
+
+# Gatilho de início da mensalidade (#1339). A instância escolhe um; o contrato pode
+# sobrescrever apenas a data de início (negociação).
+GATILHO_DATA_INICIO = "data_inicio"
+GATILHO_DIAS_APOS_ASSINATURA = "dias_apos_assinatura"
+GATILHO_DIAS_APOS_MARCO = "dias_apos_marco"
+GATILHO_TICKET_IMPLANTACAO_FECHADO = "ticket_implantacao_fechado"
+GATILHO_OPCOES = (
+    GATILHO_DATA_INICIO,
+    GATILHO_DIAS_APOS_ASSINATURA,
+    GATILHO_DIAS_APOS_MARCO,
+    GATILHO_TICKET_IMPLANTACAO_FECHADO,
+)
 
 ANEXO_BOLETO = "boleto"
 ANEXO_NFSE_PDF = "nfse_pdf"
@@ -28,6 +43,24 @@ TITULO_VENCIDO = "vencido"
 TITULO_CANCELADO = "cancelado"
 TITULO_STATUS_PERSISTIDOS = frozenset({TITULO_ABERTO, TITULO_PAGO, TITULO_CANCELADO})
 TITULO_STATUS_FILTRO = frozenset({TITULO_ABERTO, TITULO_PAGO, TITULO_VENCIDO, TITULO_CANCELADO})
+
+
+class FaturamentoPolitica(Base):
+    """Singleton da instância: como a mensalidade nasce e vence (#1339).
+
+    O job e a geração manual leem esta linha; `VENCIMENTO_DIA_PADRAO` fica só como
+    semente/fallback de banco antigo.
+    """
+
+    __tablename__ = "faturamento_politica"
+
+    id = Column(Integer, primary_key=True)
+    dia_vencimento = Column(Integer, nullable=False, default=VENCIMENTO_DIA_PADRAO)
+    gatilho = Column(String(32), nullable=False, default=GATILHO_DATA_INICIO)
+    gatilho_dias = Column(Integer, nullable=False, default=0)
+    proporcional_primeira_fatura = Column(Boolean, nullable=False, default=False)
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
 
 
 class Fatura(Base):

@@ -3839,16 +3839,40 @@ export namespace Faturamento {
     cnpj: string | null;
     razao_social: string | null;
     valor_mensalidade: string | number;
+    dia_vencimento?: number | null;
+    inicio_mensalidade?: string | null;
+    aguardando_motivo?: string | null;
   }
   export interface GerarCompetenciaOut {
     competencia: string;
     criadas: number;
     existentes: number;
     reabertas: number;
+    aguardando?: number;
   }
+  export type GatilhoFaturamento =
+    | 'data_inicio'
+    | 'dias_apos_assinatura'
+    | 'dias_apos_marco'
+    | 'ticket_implantacao_fechado';
+  export interface Politica {
+    dia_vencimento: number;
+    gatilho: GatilhoFaturamento;
+    gatilho_dias: number;
+    proporcional_primeira_fatura: boolean;
+  }
+  export type PoliticaUpdate = Partial<Politica>;
 }
 
 export const faturamento = {
+  politica: {
+    get: () => api<Faturamento.Politica>('/faturamento/politica'),
+    patch: (data: Faturamento.PoliticaUpdate) =>
+      api<Faturamento.Politica>('/faturamento/politica', {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
+  },
   listFaturas: (params?: { competencia?: string; status?: string; emite_nfse?: boolean }) =>
     api<Faturamento.Fatura[]>(withParams('/faturamento/faturas', params)),
   obterFatura: (id: number) => api<Faturamento.Fatura>(`/faturamento/faturas/${id}`),

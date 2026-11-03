@@ -59,6 +59,13 @@ CATALOGO: tuple[tuple[str, str, str, str, str], ...] = (
     ("Faturamento", "faturamento.ver", "Visualizar", "Ver faturas, títulos a receber e contratos elegíveis.", ""),
     ("Faturamento", "faturamento.gerar", "Gerar", "Gerar faturas e registrar boleto/NFS-e.", ""),
     ("Faturamento", "faturamento.aprovar", "Aprovar", "Aprovar ou rejeitar faturas e dar baixa em títulos.", ""),
+    (
+        "Faturamento",
+        "faturamento.politica",
+        "Política da instância",
+        "Alterar dia de vencimento, gatilho da mensalidade e primeira fatura proporcional.",
+        "",
+    ),
     ("Redes", "redes.ver", "Visualizar", "Ver o cadastro de redes.", ""),
     ("Redes", "redes.criar", "Criar", "Cadastrar redes.", ""),
     ("Redes", "redes.editar", "Editar", "Alterar redes.", ""),
