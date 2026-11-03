@@ -27,6 +27,8 @@ import { CrmLeads } from './pages/CrmLeads'
 import { CrmNegociacaoDetalhe } from './pages/CrmNegociacaoDetalhe'
 import { CrmContratos } from './pages/CrmContratos'
 import { Faturamento } from './pages/Faturamento'
+import { OperacaoCarteira } from './pages/operacao/OperacaoCarteira'
+import { OperacaoTimeline } from './pages/operacao/OperacaoTimeline'
 import { ConfigCrmFunil } from './pages/ConfigCrmFunil'
 import { Redes } from './pages/Redes'
 import { RedeDetalhe } from './pages/RedeDetalhe'
@@ -470,6 +472,22 @@ function AppRoutes() {
           element={
             <PermissaoRoute codigo="contratos.ver">
               <CrmContratos />
+            </PermissaoRoute>
+          }
+        />
+        <Route
+          path="operacao/carteira"
+          element={
+            <PermissaoRoute codigo="crm.ver">
+              <OperacaoCarteira />
+            </PermissaoRoute>
+          }
+        />
+        <Route
+          path="operacao/timeline"
+          element={
+            <PermissaoRoute codigo="crm.ver">
+              <OperacaoTimeline />
             </PermissaoRoute>
           }
         />
