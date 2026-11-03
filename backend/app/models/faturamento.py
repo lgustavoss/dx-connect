@@ -73,6 +73,9 @@ class Fatura(Base):
     competencia = Column(String(7), nullable=False, index=True)  # YYYY-MM
     valor = Column(Numeric(14, 2), nullable=False)
     vencimento = Column(Date, nullable=False)
+    # Período coberto pela fatura (#1341): a primeira proporcional mostra o recorte real.
+    periodo_inicio = Column(Date, nullable=True)
+    periodo_fim = Column(Date, nullable=True)
     emite_nfse = Column(Boolean, nullable=False, default=True)
     status = Column(String(32), nullable=False, default=FATURA_AGUARDANDO, index=True)
     rejeicao_motivo = Column(Text, nullable=True)

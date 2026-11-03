@@ -117,6 +117,14 @@ class MultaRescisaoEstimativa(BaseModel):
     aviso: str
 
 
+class ContratoCobrancaUpdate(BaseModel):
+    """Cobrança da negociação: marco da primeira venda e overrides da política (#1340)."""
+
+    primeira_venda_pdv: date | None = None
+    dia_vencimento_override: int | None = Field(None, ge=1, le=28)
+    inicio_mensalidade_override: date | None = None
+
+
 class ContratoRead(BaseModel):
     id: int
     negociacao_linha_cnpj_id: int
@@ -137,6 +145,15 @@ class ContratoRead(BaseModel):
     fidelidade_meses: int
     setup_valor: Decimal | None = None
     setup_isento: bool
+    primeira_venda_pdv: date | None = None
+    primeira_venda_pdv_por_id: int | None = None
+    primeira_venda_pdv_por_nome: str | None = None
+    primeira_venda_pdv_em: datetime | None = None
+    dia_vencimento_override: int | None = None
+    inicio_mensalidade_override: date | None = None
+    dia_vencimento_efetivo: int | None = None
+    inicio_mensalidade_efetivo: date | None = None
+    aguardando_motivo: str | None = None
     deslocamento_cliente: bool
     alimentacao_cliente: bool
     hospedagem_cliente: bool

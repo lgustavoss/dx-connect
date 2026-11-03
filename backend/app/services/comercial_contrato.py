@@ -1281,6 +1281,38 @@ def marcar_assinado(db: Session, row: Contrato, data: ContratoMarcarAssinadoIn, 
     return obter_contrato(db, row.id)
 
 
+def atualizar_cobranca(db: Session, row: Contrato, data, ator: Atendente) -> Contrato:
+    """Data manual da primeira venda e overrides de cobrança da negociação (#1340).
+
+    Grava o autor e o momento do marco (auditoria), além do AuditLog da rota.
+    """
+    payload = data.model_dump(exclude_unset=True)
+    if "primeira_venda_pdv" in payload:
+        valor = payload["primeira_venda_pdv"]
+        if valor is not None:
+            if valor > date.today():
+                raise HTTPException(
+                    status_code=400,
+                    detail="A primeira venda no PDV não pode estar no futuro.",
+                )
+            row.primeira_venda_pdv = valor
+            row.primeira_venda_pdv_por_id = ator.id
+            row.primeira_venda_pdv_em = datetime.now(timezone.utc)
+        else:
+            row.primeira_venda_pdv = None
+            row.primeira_venda_pdv_por_id = None
+            row.primeira_venda_pdv_em = None
+    if "dia_vencimento_override" in payload:
+        valor = payload["dia_vencimento_override"]
+        if valor is not None and not (1 <= int(valor) <= 28):
+            raise HTTPException(status_code=400, detail="Dia de vencimento deve ficar entre 1 e 28.")
+        row.dia_vencimento_override = int(valor) if valor is not None else None
+    if "inicio_mensalidade_override" in payload:
+        row.inicio_mensalidade_override = payload["inicio_mensalidade_override"]
+    db.flush()
+    return row
+
+
 def cancelar_contrato(db: Session, row: Contrato, ator: Atendente) -> Contrato:
     if row.status == CONTRATO_CANCELADO:
         raise HTTPException(status_code=400, detail="Este contrato já está cancelado.")
@@ -1418,6 +1450,17 @@ def contrato_para_read(row: Contrato, *, incluir_html: bool = False) -> dict[str
         from app.models.ticket import Ticket
 
         ticket_impl = sess.query(Ticket).filter(Ticket.contrato_id == row.id).first()
+    inicio_mensalidade_efetivo = None
+    dia_vencimento_efetivo = None
+    aguardando_motivo = None
+    if sess is not None:
+        from app.services import faturamento as faturamento_svc
+
+        pol = faturamento_svc.garantir_politica(sess)
+        inicio_mensalidade_efetivo, aguardando_motivo = faturamento_svc.inicio_da_mensalidade(
+            sess, row, politica=pol
+        )
+        dia_vencimento_efetivo = faturamento_svc.dia_vencimento_do_contrato(sess, row, politica=pol)
     return {
         "id": row.id,
         "negociacao_linha_cnpj_id": row.negociacao_linha_cnpj_id,
@@ -1436,6 +1479,15 @@ def contrato_para_read(row: Contrato, *, incluir_html: bool = False) -> dict[str
         "fidelidade_meses": row.fidelidade_meses,
         "setup_valor": row.setup_valor,
         "setup_isento": row.setup_isento,
+        "primeira_venda_pdv": row.primeira_venda_pdv,
+        "primeira_venda_pdv_por_id": row.primeira_venda_pdv_por_id,
+        "primeira_venda_pdv_por_nome": row.primeira_venda_pdv_por.nome if row.primeira_venda_pdv_por else None,
+        "primeira_venda_pdv_em": row.primeira_venda_pdv_em,
+        "dia_vencimento_override": row.dia_vencimento_override,
+        "inicio_mensalidade_override": row.inicio_mensalidade_override,
+        "dia_vencimento_efetivo": dia_vencimento_efetivo,
+        "inicio_mensalidade_efetivo": inicio_mensalidade_efetivo,
+        "aguardando_motivo": aguardando_motivo,
         "deslocamento_cliente": row.deslocamento_cliente,
         "alimentacao_cliente": row.alimentacao_cliente,
         "hospedagem_cliente": row.hospedagem_cliente,

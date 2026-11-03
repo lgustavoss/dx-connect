@@ -3708,6 +3708,15 @@ export namespace ComercialContrato {
     fidelidade_meses: number;
     setup_valor?: string | number | null;
     setup_isento: boolean;
+    primeira_venda_pdv?: string | null;
+    primeira_venda_pdv_por_id?: number | null;
+    primeira_venda_pdv_por_nome?: string | null;
+    primeira_venda_pdv_em?: string | null;
+    dia_vencimento_override?: number | null;
+    inicio_mensalidade_override?: string | null;
+    dia_vencimento_efetivo?: number | null;
+    inicio_mensalidade_efetivo?: string | null;
+    aguardando_motivo?: string | null;
     deslocamento_cliente: boolean;
     alimentacao_cliente: boolean;
     hospedagem_cliente: boolean;
@@ -3758,6 +3767,11 @@ export namespace ComercialContrato {
     abrir_ticket_implantacao?: boolean;
     referencia_externa?: string | null;
   }
+  export interface CobrancaUpdate {
+    primeira_venda_pdv?: string | null;
+    dia_vencimento_override?: number | null;
+    inicio_mensalidade_override?: string | null;
+  }
   export interface Politica {
     reajuste_percentual: string | number;
     reajuste_rotulo: string;
@@ -3798,6 +3812,8 @@ export namespace Faturamento {
     competencia: string;
     valor: string | number;
     vencimento: string;
+    periodo_inicio?: string | null;
+    periodo_fim?: string | null;
     emite_nfse: boolean;
     status: string;
     rejeicao_motivo: string | null;
@@ -4005,6 +4021,11 @@ export const comercialContratos = {
     }),
   cancelar: (id: number) =>
     api<ComercialContrato.Contrato>(`/comercial/contratos/${id}/cancelar`, { method: 'POST' }),
+  atualizarCobranca: (id: number, data: ComercialContrato.CobrancaUpdate) =>
+    api<ComercialContrato.Contrato>(`/comercial/contratos/${id}/cobranca`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
   anexarPdfAssinado: (id: number, file: File, referenciaExterna?: string) => {
     const fd = new FormData()
     fd.append('arquivo', file)

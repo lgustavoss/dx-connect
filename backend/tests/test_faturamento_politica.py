@@ -217,6 +217,170 @@ def test_gatilho_marco_sem_primeira_venda_nao_gera_fatura(client, auth_headers):
     assert alvo["inicio_mensalidade"] is None
 
 
+def test_data_primeira_venda_manual_gera_competencia_e_audita(client, auth_headers):
+    h_com = auth_headers["comercial"]
+    h_admin = auth_headers["admin"]
+    h_fin = auth_headers["a2"]
+    h_at = auth_headers["a1"]
+    _patch_politica(client, h_admin, gatilho="dias_apos_marco", gatilho_dias=30)
+
+    contrato = _assinar_contrato(client, h_com)
+    cid = contrato["id"]
+
+    assert (
+        client.patch(f"/v1/comercial/contratos/{cid}/cobranca", headers=h_at, json={"primeira_venda_pdv": "2026-01-15"}).status_code
+        == 403
+    )
+    futuro = client.patch(
+        f"/v1/comercial/contratos/{cid}/cobranca",
+        headers=h_com,
+        json={"primeira_venda_pdv": "2099-01-01"},
+    )
+    assert futuro.status_code == 400
+
+    r = client.patch(
+        f"/v1/comercial/contratos/{cid}/cobranca",
+        headers=h_com,
+        json={"primeira_venda_pdv": "2026-01-15"},
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["primeira_venda_pdv"] == "2026-01-15"
+    assert body["primeira_venda_pdv_por_id"]
+    assert body["primeira_venda_pdv_por_nome"] == "Comercial"
+    assert body["primeira_venda_pdv_em"]
+    assert body["inicio_mensalidade_efetivo"] == "2026-02-14"  # 30 dias após o marco
+    assert body["aguardando_motivo"] is None
+
+    # Financeiro também informa a data (RBAC de faturamento.gerar/setor).
+    ok_fin = client.patch(
+        f"/v1/comercial/contratos/{cid}/cobranca",
+        headers=h_fin,
+        json={"primeira_venda_pdv": "2026-01-16"},
+    )
+    assert ok_fin.status_code == 200, ok_fin.text
+    assert ok_fin.json()["inicio_mensalidade_efetivo"] == "2026-02-15"
+
+    gerar = client.post(
+        "/v1/faturamento/faturas/gerar-competencia", headers=h_admin, json={"competencia": "2026-02"}
+    )
+    assert gerar.status_code == 200, gerar.text
+    assert gerar.json()["criadas"] == 1
+
+    from app.models.audit_log import AuditLog
+
+    db = SessionLocal()
+    try:
+        logs = (
+            db.query(AuditLog)
+            .filter(AuditLog.entity_type == "comercial_contrato", AuditLog.entity_id == cid)
+            .all()
+        )
+        assert any((log.payload_json or {}).get("cobranca", {}).get("primeira_venda_pdv") == "2026-01-16" for log in logs)
+    finally:
+        db.close()
+
+
+def test_primeira_fatura_proporcional_com_periodo_coberto(client, auth_headers):
+    h_com = auth_headers["comercial"]
+    h_admin = auth_headers["admin"]
+    h_fin = auth_headers["a2"]
+    _patch_politica(client, h_admin, gatilho="data_inicio", proporcional_primeira_fatura=True)
+
+    contrato = _assinar_contrato(client, h_com)
+    cid = contrato["id"]
+    r = client.patch(
+        f"/v1/comercial/contratos/{cid}/cobranca",
+        headers=h_com,
+        json={"inicio_mensalidade_override": "2026-03-18"},
+    )
+    assert r.status_code == 200, r.text
+
+    gerar = client.post(
+        "/v1/faturamento/faturas/gerar-competencia", headers=h_admin, json={"competencia": "2026-03"}
+    )
+    assert gerar.status_code == 200, gerar.text
+    assert gerar.json()["criadas"] == 1
+
+    fatura = next(
+        f
+        for f in client.get("/v1/faturamento/faturas", headers=h_fin, params={"competencia": "2026-03"}).json()
+        if f["contrato_id"] == cid
+    )
+    # 18/03 até 09/04 = 23 dias; ciclo 10/03–10/04 = 31 dias; 900 * 23/31 = 667,74.
+    assert fatura["valor"] == "667.74"
+    assert fatura["vencimento"] == "2026-04-10"
+    assert fatura["periodo_inicio"] == "2026-03-18"
+    assert fatura["periodo_fim"] == "2026-04-09"
+
+    seguinte = client.post(
+        "/v1/faturamento/faturas/gerar-competencia", headers=h_admin, json={"competencia": "2026-04"}
+    )
+    assert seguinte.status_code == 200, seguinte.text
+    assert seguinte.json()["criadas"] == 1
+    fatura_cheia = next(
+        f
+        for f in client.get("/v1/faturamento/faturas", headers=h_fin, params={"competencia": "2026-04"}).json()
+        if f["contrato_id"] == cid
+    )
+    assert fatura_cheia["valor"] == "900.00"
+    assert fatura_cheia["vencimento"] == "2026-05-10"
+    assert fatura_cheia["periodo_inicio"] == "2026-04-10"
+    assert fatura_cheia["periodo_fim"] == "2026-05-09"
+
+
+def test_proporcional_inicio_no_proprio_dia_d_e_fatura_cheia(client, auth_headers):
+    h_com = auth_headers["comercial"]
+    h_admin = auth_headers["admin"]
+    h_fin = auth_headers["a2"]
+    _patch_politica(client, h_admin, gatilho="data_inicio", proporcional_primeira_fatura=True)
+
+    contrato = _assinar_contrato(client, h_com)
+    cid = contrato["id"]
+    client.patch(
+        f"/v1/comercial/contratos/{cid}/cobranca",
+        headers=h_com,
+        json={"inicio_mensalidade_override": "2026-03-10"},
+    )
+    gerar = client.post(
+        "/v1/faturamento/faturas/gerar-competencia", headers=h_admin, json={"competencia": "2026-03"}
+    )
+    assert gerar.status_code == 200, gerar.text
+    fatura = next(
+        f
+        for f in client.get("/v1/faturamento/faturas", headers=h_fin, params={"competencia": "2026-03"}).json()
+        if f["contrato_id"] == cid
+    )
+    assert fatura["valor"] == "900.00"
+    assert fatura["periodo_inicio"] == "2026-03-10"
+    assert fatura["periodo_fim"] == "2026-04-09"
+
+
+def test_flag_desligada_primeira_fatura_cheia_mesmo_no_meio_do_ciclo(client, auth_headers):
+    h_com = auth_headers["comercial"]
+    h_admin = auth_headers["admin"]
+    h_fin = auth_headers["a2"]
+    _patch_politica(client, h_admin, gatilho="data_inicio", proporcional_primeira_fatura=False)
+
+    contrato = _assinar_contrato(client, h_com)
+    cid = contrato["id"]
+    client.patch(
+        f"/v1/comercial/contratos/{cid}/cobranca",
+        headers=h_com,
+        json={"inicio_mensalidade_override": "2026-03-18"},
+    )
+    gerar = client.post(
+        "/v1/faturamento/faturas/gerar-competencia", headers=h_admin, json={"competencia": "2026-03"}
+    )
+    assert gerar.status_code == 200, gerar.text
+    fatura = next(
+        f
+        for f in client.get("/v1/faturamento/faturas", headers=h_fin, params={"competencia": "2026-03"}).json()
+        if f["contrato_id"] == cid
+    )
+    assert fatura["valor"] == "900.00"
+
+
 def test_gatilho_ticket_implantacao_fechado(client, auth_headers):
     h_com = auth_headers["comercial"]
     h_admin = auth_headers["admin"]

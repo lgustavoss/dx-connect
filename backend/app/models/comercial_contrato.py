@@ -85,6 +85,10 @@ class Contrato(Base):
     # dia de vencimento e data em que a mensalidade começa a contar.
     dia_vencimento_override = Column(Integer, nullable=True)
     inicio_mensalidade_override = Column(Date, nullable=True)
+    # Marco manual: data da primeira venda no PDV (#1340). Auditada com autor e data.
+    primeira_venda_pdv = Column(Date, nullable=True)
+    primeira_venda_pdv_por_id = Column(Integer, ForeignKey("atendentes.id", ondelete="SET NULL"), nullable=True)
+    primeira_venda_pdv_em = Column(DateTime(timezone=True), nullable=True)
     deslocamento_cliente = Column(Boolean, nullable=False, default=True)
     alimentacao_cliente = Column(Boolean, nullable=False, default=True)
     hospedagem_cliente = Column(Boolean, nullable=False, default=True)
@@ -102,6 +106,7 @@ class Contrato(Base):
     template = relationship("ContratoTemplate", back_populates="contratos")
     linha = relationship("CrmNegociacaoCnpjLinha")
     gerado_por = relationship("Atendente", foreign_keys=[gerado_por_id])
+    primeira_venda_pdv_por = relationship("Atendente", foreign_keys=[primeira_venda_pdv_por_id])
     pdfs = relationship(
         "ContratoPdf",
         back_populates="contrato",

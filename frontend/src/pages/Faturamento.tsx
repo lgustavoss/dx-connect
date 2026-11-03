@@ -26,6 +26,11 @@ const STATUS_LABEL: Record<string, string> = {
 
 const STATUS_FILTROS = ['', 'aguardando_aprovacao', 'aprovada', 'rejeitada'] as const
 
+const MOTIVO_AGUARDANDO: Record<string, string> = {
+  aguardando_primeira_venda: 'aguardando a primeira venda no PDV',
+  aguardando_fechamento_implantacao: 'aguardando o fechamento do ticket de implantação',
+}
+
 function competenciaAtual(): string {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
@@ -146,10 +151,13 @@ export function Faturamento() {
     () =>
       contratos.map((c) => ({
         value: c.id,
-        label: `${c.razao_social || c.empresa_nome || `Contrato #${c.id}`} — ${formatMoney(c.valor_mensalidade)}`,
+        label: `${c.razao_social || c.empresa_nome || `Contrato #${c.id}`} — ${formatMoney(c.valor_mensalidade)}${
+          c.aguardando_motivo ? ' · aguardando marco' : ''
+        }`,
       })),
     [contratos],
   )
+  const aguardandoMarco = useMemo(() => contratos.filter((c) => c.aguardando_motivo), [contratos])
 
   async function gerarMes() {
     setGerando(true)
@@ -157,10 +165,12 @@ export function Faturamento() {
       const r = await faturamento.gerarCompetencia({ competencia: competencia || undefined })
       const novas = r.criadas
       const reabertas = r.reabertas ?? 0
-      if (novas || reabertas) {
+      const aguardando = r.aguardando ?? 0
+      if (novas || reabertas || aguardando) {
         const partes = [
           novas ? `${novas} nova(s)` : null,
           reabertas ? `${reabertas} rejeitada(s) reaberta(s)` : null,
+          aguardando ? `${aguardando} aguardando marco (primeira venda/implantação)` : null,
         ].filter(Boolean)
         toast.showSuccess(`${partes.join(', ')} em ${r.competencia}.`)
       } else {
@@ -319,6 +329,26 @@ export function Faturamento() {
         </div>
       </Card>
 
+      {aba === 'faturas' && aguardandoMarco.length > 0 ? (
+        <Card className="border-amber-200 bg-amber-50/70 dark:border-amber-900/60 dark:bg-amber-950/30">
+          <p className="text-sm font-medium text-amber-950 dark:text-amber-100">
+            {aguardandoMarco.length} contrato(s) com mensalidade aguardando marco
+          </p>
+          <p className="mt-1 text-xs text-amber-900/80 dark:text-amber-100/80">
+            O gatilho da instância depende de um marco que ainda não aconteceu. A fatura não nasce até a data ser
+            informada no contrato (aba Contratos → cobrança do contrato assinado).
+          </p>
+          <ul className="mt-2 list-disc space-y-0.5 pl-5 text-xs text-amber-950 dark:text-amber-100">
+            {aguardandoMarco.map((c) => (
+              <li key={c.id}>
+                {c.razao_social || c.empresa_nome || `Contrato #${c.id}`}
+                {c.aguardando_motivo ? ` — ${MOTIVO_AGUARDANDO[c.aguardando_motivo] || c.aguardando_motivo}` : ''}
+              </li>
+            ))}
+          </ul>
+        </Card>
+      ) : null}
+
       {aba === 'receber' ? (
         <>
           <div className="flex flex-wrap gap-2">
@@ -450,6 +480,7 @@ export function Faturamento() {
                   <th className="px-4 py-3 font-medium">Competência</th>
                   <th className="px-4 py-3 font-medium">Valor</th>
                   <th className="px-4 py-3 font-medium">Vencimento</th>
+                  <th className="px-4 py-3 font-medium">Período coberto</th>
                   <th className="px-4 py-3 font-medium">NFS-e</th>
                   <th className="px-4 py-3 font-medium">Documentos</th>
                   <th className="px-4 py-3 font-medium">A receber</th>
@@ -469,6 +500,11 @@ export function Faturamento() {
                     <td className="px-4 py-3 tabular-nums">{f.competencia}</td>
                     <td className="px-4 py-3 tabular-nums">{formatMoney(f.valor)}</td>
                     <td className="px-4 py-3">{formatDate(f.vencimento)}</td>
+                    <td className="px-4 py-3 text-xs text-slate-600 dark:text-slate-300">
+                      {f.periodo_inicio && f.periodo_fim
+                        ? `${formatDate(f.periodo_inicio)} – ${formatDate(f.periodo_fim)}`
+                        : '—'}
+                    </td>
                     <td className="px-4 py-3">{f.emite_nfse ? 'Sim' : 'Não'}</td>
                     <td className="px-4 py-3">
                       {f.status === 'aprovada' ? (

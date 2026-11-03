@@ -79,6 +79,8 @@ class FaturaRead(BaseModel):
     competencia: str
     valor: Decimal
     vencimento: date
+    periodo_inicio: date | None = None
+    periodo_fim: date | None = None
     emite_nfse: bool
     status: str
     rejeicao_motivo: str | None = None

@@ -5,7 +5,7 @@ from __future__ import annotations
 import calendar
 import re
 from datetime import date, datetime, timedelta, timezone
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException
@@ -253,6 +253,8 @@ def fatura_para_read(db: Session, row: Fatura) -> dict:
         "competencia": row.competencia,
         "valor": row.valor,
         "vencimento": row.vencimento,
+        "periodo_inicio": row.periodo_inicio,
+        "periodo_fim": row.periodo_fim,
         "emite_nfse": bool(row.emite_nfse),
         "status": row.status,
         "rejeicao_motivo": row.rejeicao_motivo,
@@ -354,6 +356,45 @@ def _competencia_antes_inicio(inicio: date | None, competencia: str) -> bool:
     return competencia < f"{inicio.year:04d}-{inicio.month:02d}"
 
 
+def _dia_vencimento_anterior(vencimento: date, dia: int) -> date:
+    """Mesmo dia D do mês anterior ao vencimento (início do ciclo da mensalidade)."""
+    ano, mes = vencimento.year, vencimento.month - 1
+    if mes == 0:
+        ano, mes = ano - 1, 12
+    ultimo = calendar.monthrange(ano, mes)[1]
+    return date(ano, mes, min(dia, ultimo))
+
+
+def _valor_e_periodo_da_fatura(
+    contrato: Contrato,
+    competencia: str,
+    *,
+    inicio: date | None,
+    vencimento: date,
+    dia: int,
+    proporcional: bool,
+) -> tuple[Decimal, date, date]:
+    """Valor e período coberto; primeira fatura proporcional quando a flag está ligada (#1341).
+
+    Convenção: dias corridos do início até o dia anterior ao vencimento, divididos pelos
+    dias do ciclo (do dia D do mês anterior ao vencimento), arredondando com 2 casas.
+    Início no próprio dia D (ou antes do início do ciclo) = fatura cheia.
+    """
+    valor_cheio = Decimal(str(contrato.valor_mensalidade or 0))
+    ciclo_inicio = _dia_vencimento_anterior(vencimento, dia)
+    ciclo_fim = vencimento - timedelta(days=1)
+    primeira = inicio is not None and f"{inicio.year:04d}-{inicio.month:02d}" == competencia
+    if proporcional and primeira:
+        dias_ciclo = (vencimento - ciclo_inicio).days
+        dias = (vencimento - inicio).days
+        if 0 < dias < dias_ciclo:
+            valor = (valor_cheio * Decimal(dias) / Decimal(dias_ciclo)).quantize(
+                Decimal("0.01"), rounding=ROUND_HALF_UP
+            )
+            return valor, inicio, vencimento - timedelta(days=1)
+    return valor_cheio, ciclo_inicio, ciclo_fim
+
+
 def _limpar_documentos(db: Session, row: Fatura) -> None:
     for a in list(row.anexos or []):
         anexo_storage.apagar_arquivo(a.storage_key)
@@ -371,12 +412,29 @@ def _preencher_fatura(
     competencia: str,
     *,
     politica: FaturamentoPolitica | None = None,
+    inicio: date | None = None,
 ) -> None:
+    pol = politica or garantir_politica(db)
+    dia = dia_vencimento_do_contrato(db, contrato, politica=pol)
+    vencimento = vencimento_da_competencia(competencia, dia=dia)
+    inicio_efetivo = inicio
+    if inicio_efetivo is None:
+        inicio_efetivo, _ = inicio_da_mensalidade(db, contrato, politica=pol)
+    valor, periodo_inicio, periodo_fim = _valor_e_periodo_da_fatura(
+        contrato,
+        competencia,
+        inicio=inicio_efetivo,
+        vencimento=vencimento,
+        dia=dia,
+        proporcional=bool(pol.proporcional_primeira_fatura),
+    )
     row.contrato_id = contrato.id
     row.empresa_id = contrato.empresa_id
     row.competencia = competencia
-    row.valor = Decimal(str(contrato.valor_mensalidade or 0))
-    row.vencimento = vencimento_da_fatura(db, contrato, competencia, politica=politica)
+    row.valor = valor
+    row.vencimento = vencimento
+    row.periodo_inicio = periodo_inicio
+    row.periodo_fim = periodo_fim
     row.emite_nfse = _emite_nfse_empresa(db, contrato.empresa_id)
     row.status = FATURA_AGUARDANDO
     row.rejeicao_motivo = None
@@ -516,7 +574,7 @@ def gerar_competencia(
         existente = db.query(Fatura).filter(Fatura.contrato_id == contrato.id, Fatura.competencia == comp).first()
         if existente:
             if reabrir_rejeitadas and existente.status == FATURA_REJEITADA:
-                _preencher_fatura(db, existente, contrato, comp, politica=politica)
+                _preencher_fatura(db, existente, contrato, comp, politica=politica, inicio=inicio)
                 reabertas += 1
                 if audit_id is None:
                     audit_id = existente.id
@@ -524,7 +582,7 @@ def gerar_competencia(
                 existentes += 1
             continue
         row = Fatura()
-        _preencher_fatura(db, row, contrato, comp, politica=politica)
+        _preencher_fatura(db, row, contrato, comp, politica=politica, inicio=inicio)
         db.add(row)
         db.flush()
         criadas += 1
