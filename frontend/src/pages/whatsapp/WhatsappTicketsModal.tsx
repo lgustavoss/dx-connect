@@ -22,6 +22,7 @@ import { SelectComPesquisa } from '../../components/ui/SelectComPesquisa'
 import { useToast } from '../../components/ui/Toast'
 import { mensagemFalhaParaToast } from '../../api/errorMessage'
 import { exibirProtocolo } from '../../lib/exibirProtocolo'
+import { buscarOpcoesEmpresa, opcaoEmpresa } from '../../lib/opcaoEmpresa'
 import { marcarTicketAtivo, TICKETS_PATH } from '../../lib/ticketAtivo'
 
 type Modo = 'vincular' | 'abrir'
@@ -52,10 +53,7 @@ export function WhatsappTicketsModal({ chat, open, onClose, onSuccess }: Props) 
     motivoOutroTexto: '',
   })
 
-  const empresaItems = useMemo(
-    () => empresasList.map((e) => ({ id: e.id, label: e.nome })),
-    [empresasList],
-  )
+  const empresaItems = useMemo(() => empresasList.map(opcaoEmpresa), [empresasList])
 
   const setoresAtivos = useMemo(
     () => [...setoresList.filter((s) => s.ativo)].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')),
@@ -224,6 +222,7 @@ export function WhatsappTicketsModal({ chat, open, onClose, onSuccess }: Props) 
                 disabled={salvando}
                 required
                 menuPlacement="inline"
+                onSearch={buscarOpcoesEmpresa}
               />
               <Select
                 label="Setor"

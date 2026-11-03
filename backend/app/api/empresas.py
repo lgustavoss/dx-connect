@@ -44,7 +44,10 @@ class OrdenarEmpresasPor(str, Enum):
 def listar_empresas(
     rede_id: int | None = Query(None),
     incluir_inativos: bool = Query(False, description="Incluir empresas inativas"),
-    busca: str | None = Query(None, description="Nome, razão social, fantasia, CNPJ ou e-mail"),
+    busca: str | None = Query(
+        None,
+        description="Nome, razão social, fantasia, CNPJ/CPF (formatado ou só dígitos) ou e-mail",
+    ),
     offset: int = Query(0, ge=0),
     limit: int = Query(_DEFAULT_PAGE, ge=1, le=_MAX_PAGE),
     ordenar_por: OrdenarEmpresasPor | None = Query(None),
@@ -63,16 +66,22 @@ def listar_empresas(
     if not incluir_inativos:
         q = q.filter(Empresa.ativo.is_(True))
     if busca and busca.strip():
-        term = f"%{busca.strip()}%"
-        q = q.filter(
-            or_(
-                Empresa.nome.ilike(term),
-                Empresa.razao_social.ilike(term),
-                Empresa.nome_fantasia.ilike(term),
-                Empresa.cnpj_cpf.ilike(term),
-                Empresa.email.ilike(term),
-            )
-        )
+        termo = busca.strip()
+        term = f"%{termo}%"
+        condicoes = [
+            Empresa.nome.ilike(term),
+            Empresa.razao_social.ilike(term),
+            Empresa.nome_fantasia.ilike(term),
+            Empresa.cnpj_cpf.ilike(term),
+            Empresa.email.ilike(term),
+        ]
+        # O CNPJ/CPF é gravado só com dígitos (EmpresaForm) — aceitar o termo
+        # formatado ("65.305.802/0001-70") e também casar por dígitos (#S202611-0001).
+        if not re.search(r"[A-Za-z]", termo):
+            digitos = _digitos(termo)
+            if digitos:
+                condicoes.append(Empresa.cnpj_cpf.ilike(f"%{digitos}%"))
+        q = q.filter(or_(*condicoes))
     total = q.count()
     if ordenar_por is None:
         order_cols = [Empresa.nome.asc(), Empresa.id.asc()]
