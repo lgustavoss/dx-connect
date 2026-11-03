@@ -137,7 +137,7 @@ def listar_contratos(
     elif filtrar_minhas is None:
         filtrar_minhas = False
     incluir_html = negociacao_id is not None
-    return [
+    payloads = [
         svc.contrato_para_read(r, incluir_html=incluir_html)
         for r in svc.listar_contratos(
             db,
@@ -149,6 +149,8 @@ def listar_contratos(
             atendente=atendente,
         )
     ]
+    svc.marcar_vigentes(db, payloads)
+    return payloads
 
 
 @router.get("/contratos/linhas/{linha_id}/empresa", response_model=EmpresaRead)
@@ -220,7 +222,11 @@ def obter_contrato(
     db: Session = Depends(get_db),
     atendente: Atendente = Depends(exigir_permissao("contratos.ver")),
 ):
-    return svc.contrato_para_read(svc.obter_contrato(db, contrato_id, atendente=atendente), incluir_html=True)
+    payload = svc.contrato_para_read(
+        svc.obter_contrato(db, contrato_id, atendente=atendente), incluir_html=True
+    )
+    svc.marcar_vigentes(db, [payload])
+    return payload
 
 
 @router.get("/contratos/{contrato_id}/pdf")

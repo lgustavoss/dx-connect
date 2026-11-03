@@ -30,12 +30,12 @@ import {
 import { marcarTicketAtivo, TICKETS_PATH } from '../../lib/ticketAtivo'
 import { exibirProtocolo } from '../../lib/exibirProtocolo'
 
+// `renovado` fica fora da UI até existir renovação de verdade (#1322).
 const STATUS_LABEL: Record<string, string> = {
   rascunho: 'Rascunho',
   enviado: 'Enviado',
   assinado: 'Assinado',
   cancelado: 'Cancelado',
-  renovado: 'Renovado',
 }
 
 const ATIVOS = new Set(['rascunho', 'enviado', 'assinado'])
@@ -127,9 +127,7 @@ export function CrmContratoCard({ negociacao, lead = null, onChanged, embedded =
   const [preview, setPreview] = useState<ComercialContrato.Contrato | null>(null)
   const [baixandoId, setBaixandoId] = useState<number | null>(null)
   const [baixandoAssinadoId, setBaixandoAssinadoId] = useState<number | null>(null)
-  const [enviandoId, setEnviandoId] = useState<number | null>(null)
   const [assinandoId, setAssinandoId] = useState<number | null>(null)
-  const [avancarFunil, setAvancarFunil] = useState(true)
   const [abrirTicket, setAbrirTicket] = useState(true)
   const [pdfFile, setPdfFile] = useState<File | null>(null)
   const [referenciaAnexo, setReferenciaAnexo] = useState('')
@@ -343,21 +341,6 @@ export function CrmContratoCard({ negociacao, lead = null, onChanged, embedded =
     }
   }
 
-  async function handleEnviado(id: number) {
-    setEnviandoId(id)
-    try {
-      const row = await comercialContratos.marcarEnviado(id)
-      setPreview(row)
-      toast.showSuccess('Contrato marcado como enviado (registro manual).')
-      await load()
-      onChanged()
-    } catch (err) {
-      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível marcar como enviado.'))
-    } finally {
-      setEnviandoId(null)
-    }
-  }
-
   async function handleAssinado(id: number) {
     const atual = contratos.find((c) => c.id === id) || preview
     if (!atual?.tem_pdf_assinado) {
@@ -366,17 +349,13 @@ export function CrmContratoCard({ negociacao, lead = null, onChanged, embedded =
     }
     setAssinandoId(id)
     try {
+      // Assinar move o funil sempre (sem opt-in) — #1322.
       const row = await comercialContratos.marcarAssinado(id, {
-        avancar_funil: avancarFunil,
         abrir_ticket_implantacao: abrirTicket,
       })
       setPreview(row)
       const ticket = abrirTicket ? 'O ticket de implantação foi aberto.' : 'Nenhum ticket de implantação foi aberto.'
-      toast.showSuccess(
-        avancarFunil
-          ? `Contrato assinado e funil atualizado. ${ticket}`
-          : `Contrato marcado como assinado. ${ticket}`,
-      )
+      toast.showSuccess(`Contrato assinado e funil movido para «Contrato assinado». ${ticket}`)
       setAssinandoId(null)
       await load()
       onChanged()
@@ -579,6 +558,7 @@ export function CrmContratoCard({ negociacao, lead = null, onChanged, embedded =
             value={fiscais}
             onChange={(patch) => setFiscais((p) => ({ ...p, ...patch }))}
             disabled={gerando}
+            cnpj={preview?.cnpj || linhaSel?.cnpj || null}
           />
           <Button onClick={() => void handleGerar()} disabled={gerando}>
             {gerando
@@ -628,6 +608,17 @@ export function CrmContratoCard({ negociacao, lead = null, onChanged, embedded =
                 {preview.status === 'cancelado'
                   ? ' · contrato cancelado'
                   : ` (${textoDiasFidelidade(preview.dias_restantes_fidelidade)})`}
+                {preview.vigente ? ' · vigente' : preview.status === 'assinado' ? ' · anterior (não vigente)' : ''}
+              </p>
+              <p className="text-xs text-slate-500">
+                Setup:{' '}
+                {preview.setup_isento
+                  ? 'isento'
+                  : preview.setup_valor != null && Number(preview.setup_valor) > 0
+                    ? money(preview.setup_valor)
+                    : 'sem cobrança'}
+                {' · '}
+                Multa: até {pluralPt(preview.multa_max_mensalidades, 'mensalidade', 'mensalidades')} de mensalidade
                 {Number(preview.reajuste_percentual) > 0
                   ? ` · reajuste ${percent(preview.reajuste_percentual)}${preview.reajuste_rotulo ? ` ${preview.reajuste_rotulo}` : ''}`
                   : ' · sem reajuste'}
@@ -699,15 +690,6 @@ export function CrmContratoCard({ negociacao, lead = null, onChanged, embedded =
               >
                 {baixandoId === preview.id ? 'Baixando…' : 'Baixar PDF'}
               </Button>
-              {podeEmitir && preview.status === 'rascunho' ? (
-                <Button
-                  variant="secondary"
-                  onClick={() => void handleEnviado(preview.id)}
-                  disabled={enviandoId === preview.id}
-                >
-                  {enviandoId === preview.id ? 'Salvando…' : 'Marcar enviado'}
-                </Button>
-              ) : null}
               {podeEmitir && (preview.status === 'rascunho' || preview.status === 'enviado') ? (
                 <Button
                   variant="secondary"
@@ -832,6 +814,7 @@ export function CrmContratoCard({ negociacao, lead = null, onChanged, embedded =
                   <span className="font-medium text-slate-900 dark:text-slate-100">#{c.id}</span>
                   {' · '}
                   {STATUS_LABEL[c.status] || c.status}
+                  {c.vigente ? ' · vigente' : c.status === 'assinado' ? ' · anterior' : ''}
                   {' · '}
                   {c.razao_social || (c.cnpj ? maskCnpjCpf(c.cnpj) : `linha ${c.negociacao_linha_cnpj_id}`)}
                   <div className="text-xs text-slate-500">
@@ -882,21 +865,9 @@ export function CrmContratoCard({ negociacao, lead = null, onChanged, embedded =
                   da primeira assinatura já cobre o cliente.
                 </p>
               </div>
-              <div className="space-y-1">
-                <label className="inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
-                  <input
-                    type="checkbox"
-                    checked={avancarFunil}
-                    onChange={(e) => setAvancarFunil(e.target.checked)}
-                    className="size-4 rounded border-slate-300"
-                  />
-                  Avançar funil para «Contrato assinado»
-                </label>
-                <p className="pl-6 text-xs text-slate-500">
-                  Pode pular proposta ou outros estágios — há cliente que manda a documentação e já fecha o
-                  contrato. Desmarque só se quiser deixar o funil onde está.
-                </p>
-              </div>
+              <p className="text-xs text-slate-500">
+                Assinar move o funil para «Contrato assinado» automaticamente — não precisa mexer no Kanban.
+              </p>
             </div>
             <div className="flex justify-end gap-2 pt-4">
               <Button type="button" variant="secondary" onClick={() => setAssinandoId(null)}>
