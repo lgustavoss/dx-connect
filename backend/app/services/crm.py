@@ -20,6 +20,7 @@ from app.models.crm import (
     FUNIL_TIPOS,
     FUNIL_TIPO_PERDIDO,
     SLUG_DOCUMENTACAO,
+    SLUG_PROPOSTA_ENVIADA,
     CrmLead,
     CrmNegociacao,
     CrmNegociacaoAtividade,
@@ -709,6 +710,25 @@ def excluir_linha(db: Session, linha: CrmNegociacaoCnpjLinha) -> None:
     db.flush()
 
 
+def _exigir_proposta_enviada(db: Session, neg: CrmNegociacao) -> None:
+    """O Kanban não mente: «Proposta enviada» exige proposta de fato enviada (#1321)."""
+    from app.models.comercial_proposta import PROPOSTA_ENVIADA, Proposta
+
+    existe = (
+        db.query(Proposta.id)
+        .filter(Proposta.negociacao_id == neg.id, Proposta.status == PROPOSTA_ENVIADA)
+        .first()
+    )
+    if existe is None:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Só dá para mover para «Proposta enviada» quando existe proposta enviada. "
+                "Gere e envie a proposta na ficha da negociação."
+            ),
+        )
+
+
 def mover_estagio(
     db: Session,
     neg: CrmNegociacao,
@@ -722,6 +742,8 @@ def mover_estagio(
     destino = obter_estagio(db, estagio_id=estagio_id, slug=estagio_slug)
     _validar_transicao(origem, destino)
     _validar_cnpjs_obrigatorios(db, neg, destino)
+    if destino.slug == SLUG_PROPOSTA_ENVIADA:
+        _exigir_proposta_enviada(db, neg)
 
     neg.estagio_id = destino.id
     lead = obter_lead(db, neg.lead_id)

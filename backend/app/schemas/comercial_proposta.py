@@ -57,8 +57,8 @@ class PropostaMarcarEnviadaIn(BaseModel):
     @classmethod
     def _canal(cls, v: str) -> str:
         s = (v or "").strip().lower()
-        if s not in {"email", "impresso", "outro"}:
-            raise ValueError("Canal deve ser email, impresso ou outro.")
+        if s not in {"email", "impresso", "outro", "whatsapp"}:
+            raise ValueError("Canal deve ser email, impresso, outro ou whatsapp.")
         return s
 
 
