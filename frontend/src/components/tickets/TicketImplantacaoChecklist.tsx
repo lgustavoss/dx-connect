@@ -105,22 +105,36 @@ export function TicketImplantacaoChecklist({
               <p className="mt-1 pl-7 text-xs text-slate-500 dark:text-slate-400">{item.descricao}</p>
             ) : null}
             {item.chave === CHAVE_PDVS ? (
-              <p className="mt-1 pl-7 text-xs text-slate-600 dark:text-slate-300">
-                PDVs ativos: {data.pdvs_ativos ?? 0}
-                {podeVerPdvs && empresaId ? (
-                  <>
-                    {' · '}
-                    <Link
-                      to={`/empresas/${empresaId}?aba=pdvs`}
-                      className="font-medium text-cyan-700 underline dark:text-cyan-400"
-                    >
-                      Ver PDVs
-                    </Link>
-                  </>
-                ) : (
-                  <span className="text-slate-500"> · os PDVs ficam no cadastro da empresa</span>
-                )}
-              </p>
+              <div className="mt-1 space-y-1 pl-7 text-xs text-slate-600 dark:text-slate-300">
+                <p>
+                  PDVs ativos: <strong>{data.pdvs_ativos ?? 0}</strong>
+                  {data.pdvs_necessarios != null ? (
+                    <>
+                      {' '}
+                      de <strong>{data.pdvs_necessarios}</strong> previstos no contrato
+                    </>
+                  ) : null}
+                  {podeVerPdvs && empresaId ? (
+                    <>
+                      {' · '}
+                      <Link
+                        to={`/empresas/${empresaId}?aba=pdvs`}
+                        className="font-medium text-cyan-700 underline dark:text-cyan-400"
+                      >
+                        Ver PDVs
+                      </Link>
+                    </>
+                  ) : (
+                    <span className="text-slate-500"> · os PDVs ficam no cadastro da empresa</span>
+                  )}
+                </p>
+                {data.pdvs_necessarios != null && (data.pdvs_ativos ?? 0) < data.pdvs_necessarios ? (
+                  <p className="text-amber-800 dark:text-amber-200">
+                    Faltam {(data.pdvs_necessarios ?? 0) - (data.pdvs_ativos ?? 0)} PDV(s): cadastre na empresa ou
+                    registre o desvio na observação para concluir este item.
+                  </p>
+                ) : null}
+              </div>
             ) : null}
             {item.concluido && item.concluido_por_nome ? (
               <p className="mt-1 pl-7 text-[11px] text-slate-400">Marcado por {item.concluido_por_nome}</p>

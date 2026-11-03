@@ -1,4 +1,4 @@
-"""Checklist de implantação: template admin + cópia no ticket (#325 / #358–#361)."""
+﻿"""Checklist de implantação: template admin + cópia no ticket (#325 / #358–#361)."""
 
 from __future__ import annotations
 
@@ -8,7 +8,15 @@ from fastapi import HTTPException, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
-from app.models import EmpresaPdv, Setor, StatusTicket, Ticket, TicketHistorico, TicketMensagem
+from app.models import (
+    EmpresaPdv,
+    PdvRotulo,
+    Setor,
+    StatusTicket,
+    Ticket,
+    TicketHistorico,
+    TicketMensagem,
+)
 from app.models.comercial_contrato import Contrato
 from app.models.crm import CrmNegociacaoCnpjLinha
 from app.models.empresa import Empresa
@@ -296,6 +304,118 @@ def _pdvs_ativos(db: Session, empresa_id: int | None) -> int | None:
     )
 
 
+def _linha_do_contrato(db: Session, contrato_id: int | None):
+    if not contrato_id:
+        return None
+    contrato = db.query(Contrato).filter(Contrato.id == contrato_id).first()
+    if not contrato:
+        return None
+    return contrato.linha or db.query(CrmNegociacaoCnpjLinha).filter(
+        CrmNegociacaoCnpjLinha.id == contrato.negociacao_linha_cnpj_id
+    ).first()
+
+
+def _quantidade_pdvs_do_ticket(db: Session, ticket: Ticket) -> int | None:
+    """Quantidade de PDVs prevista na linha do contrato (#1323)."""
+    linha = _linha_do_contrato(db, ticket.contrato_id)
+    if linha is None:
+        return None
+    return int(linha.quantidade_pdvs or 0)
+
+
+def _garantir_rotulo_pdv(db: Session) -> PdvRotulo:
+    row = (
+        db.query(PdvRotulo)
+        .filter(PdvRotulo.ativo.is_(True))
+        .order_by(PdvRotulo.ordem_exibicao.asc(), PdvRotulo.id.asc())
+        .first()
+    )
+    if row:
+        return row
+    row = PdvRotulo(nome="PDV", ativo=True, ordem_exibicao=0)
+    db.add(row)
+    db.flush()
+    return row
+
+
+def criar_stubs_pdv(db: Session, empresa_id: int | None, quantidade: int | None) -> int:
+    """Rascunho de PDVs (PDV-1…n) conforme a linha do contrato (#1323).
+
+    Nada de serial/TEF inventado: o stub é só código, papel e rótulo padrão;
+    a implantação edita os dados reais.
+    """
+    if not empresa_id:
+        return 0
+    alvo = max(0, int(quantidade or 0))
+    existentes = db.query(EmpresaPdv).filter(EmpresaPdv.empresa_id == empresa_id).all()
+    if alvo <= len(existentes):
+        return 0
+    rotulo = _garantir_rotulo_pdv(db)
+    codigos = {p.codigo for p in existentes}
+    tem_principal = any(p.papel == "principal" and p.ativo for p in existentes)
+    criados = 0
+    indice = 1
+    while len(existentes) + criados < alvo:
+        codigo = f"PDV-{indice}"
+        indice += 1
+        if codigo in codigos:
+            continue
+        papel = "principal" if not tem_principal and criados == 0 else "auxiliar"
+        db.add(
+            EmpresaPdv(
+                empresa_id=empresa_id,
+                codigo=codigo,
+                rotulo_id=rotulo.id,
+                papel=papel,
+                usa_tef=False,
+                ativo=True,
+            )
+        )
+        codigos.add(codigo)
+        criados += 1
+    db.flush()
+    return criados
+
+
+def _mover_funil_para_implantacao(db: Session, ticket: Ticket, ator: Atendente) -> None:
+    """Funil espelha o ticket de implantação, sem clique no Kanban (#1323)."""
+    linha = _linha_do_contrato(db, ticket.contrato_id)
+    if linha is None:
+        return
+    from app.services import crm as crm_svc
+
+    neg = crm_svc.obter_negociacao(db, linha.negociacao_id)
+    atual = crm_svc.obter_estagio(db, estagio_id=neg.estagio_id)
+    if atual.slug == "implantacao":
+        return
+    crm_svc.mover_estagio(
+        db,
+        neg,
+        ator=ator,
+        estagio_slug="implantacao",
+        nota="Ticket de implantação aberto.",
+    )
+
+
+def _validar_pdv_antes_de_concluir(db: Session, ticket: Ticket, observacao: str | None) -> None:
+    necessario = _quantidade_pdvs_do_ticket(db, ticket)
+    if necessario is None:
+        return
+    ativos = _pdvs_ativos(db, ticket.empresa_id) or 0
+    if ativos >= necessario:
+        return
+    if (observacao or "").strip():
+        # Desvio registrado na observação é aceito (ex.: cliente tem menos PDVs).
+        return
+    raise HTTPException(
+        status_code=400,
+        detail=(
+            f"Cadastre {necessario} PDV(s) na empresa (há {ativos} ativo(s)) "
+            "ou registre o desvio na observação do item."
+        ),
+    )
+
+
 def checklist_do_ticket(db: Session, ticket: Ticket) -> dict:
     itens = (
         db.query(TicketChecklistItem)
@@ -335,6 +455,7 @@ def checklist_do_ticket(db: Session, ticket: Ticket) -> dict:
         "progresso_pct": progresso_pct(itens),
         "itens_obrigatorios_pendentes": pend,
         "pdvs_ativos": _pdvs_ativos(db, ticket.empresa_id),
+        "pdvs_necessarios": _quantidade_pdvs_do_ticket(db, ticket),
         "itens": [
             {
                 "id": i.id,
@@ -375,6 +496,9 @@ def atualizar_item_checklist(
         item.observacao = (data.observacao or "").strip() or None
     if "concluido" in payload and data.concluido is not None:
         antes = bool(item.concluido)
+        if data.concluido and item.chave == CHAVE_PDVS:
+            # O item só fecha com o cadastro compatível ou desvio justificado (#1323).
+            _validar_pdv_antes_de_concluir(db, ticket, item.observacao)
         item.concluido = data.concluido
         if data.concluido:
             item.concluido_por_id = ator.id
@@ -455,5 +579,9 @@ def criar_ticket_implantacao(db: Session, contrato: Contrato, ator: Atendente) -
         )
     )
     copiar_checklist_para_ticket(db, ticket, template)
+    if linha is not None:
+        # Stubs de PDV conforme a quantidade da linha e cartão em «Implantação» (#1323).
+        criar_stubs_pdv(db, empresa.id, linha.quantidade_pdvs)
+        _mover_funil_para_implantacao(db, ticket, ator)
     db.flush()
     return ticket

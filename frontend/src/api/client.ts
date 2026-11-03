@@ -4903,6 +4903,8 @@ export namespace Tickets {
     progresso_pct: number;
     itens_obrigatorios_pendentes: number;
     pdvs_ativos?: number | null;
+    /** Quantidade prevista na linha do contrato (#1323). */
+    pdvs_necessarios?: number | null;
     itens: ChecklistItem[];
   }
   export interface ChecklistItemPatch {
