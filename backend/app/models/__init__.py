@@ -73,6 +73,7 @@ from app.models.crm import (
     CrmNegociacao,
     CrmNegociacaoAtividade,
     CrmNegociacaoCnpjLinha,
+    CrmOrigemLead,
     FunilEstagio,
 )
 from app.models.comercial_proposta import Proposta, PropostaTemplate
@@ -199,6 +200,7 @@ __all__ = [
     "CrmNegociacao",
     "CrmNegociacaoCnpjLinha",
     "CrmNegociacaoAtividade",
+    "CrmOrigemLead",
     "PropostaTemplate",
     "Proposta",
     "ContratoTemplate",
