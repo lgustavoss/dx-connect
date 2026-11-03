@@ -55,12 +55,12 @@ const PROPOSTA_STATUS_LABEL: Record<string, string> = {
   substituida: 'Substituída',
 }
 
+// `renovado` fica fora da UI até existir renovação de verdade (#1322).
 const CONTRATO_STATUS_LABEL: Record<string, string> = {
   rascunho: 'Rascunho',
   enviado: 'Enviado',
   assinado: 'Assinado',
   cancelado: 'Cancelado',
-  renovado: 'Renovado',
 }
 
 const CONTRATO_ATIVO = new Set(['rascunho', 'enviado', 'assinado'])
@@ -270,7 +270,11 @@ export function CrmNegociacaoDetalhe() {
       const contrato = cs.find((c) => CONTRATO_ATIVO.has(c.status)) || cs[0]
       setPropostaBadge(proposta ? PROPOSTA_STATUS_LABEL[proposta.status] || proposta.status : null)
       setTemPropostaEnviada(ps.some((p) => p.status === 'enviada'))
-      setContratoBadge(contrato ? CONTRATO_STATUS_LABEL[contrato.status] || contrato.status : null)
+      setContratoBadge(
+        contrato
+          ? `${CONTRATO_STATUS_LABEL[contrato.status] || contrato.status}${contrato.vigente ? ' · vigente' : ''}`
+          : null,
+      )
       setLinhasAssinadas(new Set(cs.filter((c) => c.status === 'assinado').map((c) => c.negociacao_linha_cnpj_id)))
       if (!docInitRef.current) {
         docInitRef.current = true

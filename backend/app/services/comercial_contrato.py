@@ -700,6 +700,44 @@ def listar_contratos(
     return q.order_by(Contrato.created_at.desc()).all()
 
 
+def _ref_vigencia(row: Contrato) -> tuple[float, int]:
+    momento = row.assinado_em or row.created_at
+    if momento is None:
+        return (0.0, row.id)
+    if momento.tzinfo is None:
+        momento = momento.replace(tzinfo=timezone.utc)
+    return (momento.timestamp(), row.id)
+
+
+def marcar_vigentes(db: Session, payloads: list[dict]) -> None:
+    """Diz qual contrato de cada linha é o vigente (#1322).
+
+    Aditivo é um contrato novo na mesma linha; o assinado mais recente é o
+    vigente e os anteriores ficam como histórico consultável.
+    """
+    linhas = {p.get("negociacao_linha_cnpj_id") for p in payloads if p.get("negociacao_linha_cnpj_id")}
+    if not linhas:
+        for p in payloads:
+            p["vigente"] = False
+        return
+    rows = (
+        db.query(Contrato)
+        .filter(
+            Contrato.negociacao_linha_cnpj_id.in_(linhas),
+            Contrato.status == CONTRATO_ASSINADO,
+        )
+        .all()
+    )
+    melhores: dict[int, Contrato] = {}
+    for r in rows:
+        atual = melhores.get(r.negociacao_linha_cnpj_id)
+        if atual is None or _ref_vigencia(r) > _ref_vigencia(atual):
+            melhores[r.negociacao_linha_cnpj_id] = r
+    for p in payloads:
+        vig = melhores.get(p.get("negociacao_linha_cnpj_id"))
+        p["vigente"] = bool(vig is not None and vig.id == p["id"])
+
+
 def _p(texto: str) -> str:
     return f"<p>{texto}</p>"
 
@@ -1207,6 +1245,10 @@ def marcar_assinado(db: Session, row: Contrato, data: ContratoMarcarAssinadoIn, 
         row.referencia_externa = data.referencia_externa.strip() or None
     row.status = CONTRATO_ASSINADO
     row.assinado_em = data.assinado_em or datetime.now(timezone.utc)
+    # «Marcar enviado» deixou de ser passo obrigatório: se ninguém registrou o
+    # envio antes, a assinatura (envelope) é o fato derivado (#1322).
+    if row.enviado_em is None:
+        row.enviado_em = row.assinado_em
     linha = row.linha or obter_linha(db, row.negociacao_linha_cnpj_id)
     converter_pos_assinatura(db, row, linha, ator)
     if data.abrir_ticket_implantacao:
@@ -1221,17 +1263,17 @@ def marcar_assinado(db: Session, row: Contrato, data: ContratoMarcarAssinadoIn, 
             texto=f"Contrato #{row.id} marcado como assinado (registro manual).",
         )
     )
-    if data.avancar_funil:
-        neg = crm_svc.obter_negociacao(db, linha.negociacao_id)
-        atual = crm_svc.obter_estagio(db, estagio_id=neg.estagio_id)
-        if atual.slug != "contrato_assinado":
-            crm_svc.mover_estagio(
-                db,
-                neg,
-                ator=ator,
-                estagio_slug="contrato_assinado",
-                nota="Contrato assinado (registro manual).",
-            )
+    # Assinar move o funil sempre — o opt-in virou ruído e deixava o Kanban mentir (#1322).
+    neg = crm_svc.obter_negociacao(db, linha.negociacao_id)
+    atual = crm_svc.obter_estagio(db, estagio_id=neg.estagio_id)
+    if atual.slug != "contrato_assinado":
+        crm_svc.mover_estagio(
+            db,
+            neg,
+            ator=ator,
+            estagio_slug="contrato_assinado",
+            nota="Contrato assinado (registro manual).",
+        )
     db.flush()
     return obter_contrato(db, row.id)
 

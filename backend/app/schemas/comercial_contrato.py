@@ -128,6 +128,8 @@ class ContratoRead(BaseModel):
     template_versao: int | None = None
     gerado_por_id: int
     status: str
+    # Assinado mais recente da linha CNPJ (aditivo passa a ser o vigente) — #1322.
+    vigente: bool = False
     valor_mensalidade: Decimal
     snapshot_itens: list
     data_inicio: date

@@ -3699,6 +3699,8 @@ export namespace ComercialContrato {
     template_versao?: number | null;
     gerado_por_id: number;
     status: 'rascunho' | 'enviado' | 'assinado' | 'cancelado' | 'renovado' | string;
+    /** Assinado mais recente da linha CNPJ (aditivo passa a ser o vigente) — #1322. */
+    vigente?: boolean;
     valor_mensalidade: string | number;
     snapshot_itens: unknown[];
     data_inicio: string;

@@ -134,7 +134,9 @@ def _digitos(s: str) -> str:
 @router.get("/consultar-cnpj/{cnpj}", response_model=ConsultaCNPJResponse)
 def consultar_cnpj(
     cnpj: str,
-    _: Atendente = Depends(exigir_alguma_permissao("empresas.criar", "empresas.editar")),
+    _: Atendente = Depends(
+        exigir_alguma_permissao("empresas.criar", "empresas.editar", "contratos.emitir")
+    ),
 ):
     """Consulta dados do CNPJ na ReceitaWS e retorna normalizado para preenchimento do formulário."""
     digits = _digitos(cnpj)

@@ -931,3 +931,40 @@ def test_empresa_da_linha_serve_ao_contrato_e_pdf_fica_congelado(client, auth_he
     assert ass.json()["empresa_id"] == linha["empresa_id"]
     assert _total_empresas(client, h_admin) == antes_ass
 
+
+
+def test_assinado_move_funil_sem_opt_in_e_marca_vigente(client, auth_headers, seed_base):
+    h = auth_headers["comercial"]
+    neg_id, linha = _negociacao_com_linha(client, h)
+    c1 = client.post("/v1/comercial/contratos", headers=h, json={"linha_id": linha["id"]})
+    assert c1.status_code == 201, c1.text
+    cid1 = c1.json()["id"]
+    _anexar_pdf_assinado(client, h, cid1)
+
+    # Sem avancar_funil: assinar já move o funil e registra o envio derivado (#1322)
+    ass1 = client.post(f"/v1/comercial/contratos/{cid1}/marcar-assinado", headers=h, json={})
+    assert ass1.status_code == 200, ass1.text
+    assert ass1.json()["status"] == "assinado"
+    assert ass1.json()["enviado_em"]
+    neg = client.get(f"/v1/crm/negociacoes/{neg_id}", headers=h).json()
+    assert neg["estagio_slug"] == "contrato_assinado"
+
+    # Segundo contrato na mesma linha (aditivo): o assinado mais recente é o vigente
+    c2 = client.post("/v1/comercial/contratos", headers=h, json={"linha_id": linha["id"]})
+    assert c2.status_code == 201, c2.text
+    cid2 = c2.json()["id"]
+    assert cid2 != cid1
+
+    lista = client.get("/v1/comercial/contratos", headers=h, params={"negociacao_id": neg_id}).json()
+    por_id = {c["id"]: c for c in lista}
+    assert por_id[cid1]["vigente"] is True
+    assert por_id[cid2]["vigente"] is False
+
+    _anexar_pdf_assinado(client, h, cid2, referencia="aditivo-1")
+    ass2 = client.post(f"/v1/comercial/contratos/{cid2}/marcar-assinado", headers=h, json={})
+    assert ass2.status_code == 200, ass2.text
+
+    lista2 = client.get("/v1/comercial/contratos", headers=h, params={"negociacao_id": neg_id}).json()
+    por_id2 = {c["id"]: c for c in lista2}
+    assert por_id2[cid2]["vigente"] is True
+    assert por_id2[cid1]["vigente"] is False
