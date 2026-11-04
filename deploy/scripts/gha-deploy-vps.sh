@@ -166,7 +166,44 @@ fi
 
 WEBHOOK_BASE_URL="${WEBHOOK_BASE_URL:-}" bash deploy/scripts/ensure-evolution-env.sh backend/.env
 COMPOSE="docker compose --env-file backend/.env -f docker-compose.prod.yml"
+
+# Backup lógico ANTES de qualquer migration. Se o backup falhar, o deploy PARA
+# (fail-closed): é melhor não subir do que subir sem rede de segurança.
+# A imagem nova não toca o volume do Postgres; o risco de dados é a migration.
+backup_cliente_legado() {
+  local db_url major name out ts
+  db_url="$(grep -m1 '^DATABASE_URL=' backend/.env | cut -d= -f2- | tr -d "\"'" )"
+  if [ -z "$db_url" ]; then
+    echo "::error::DATABASE_URL ausente em backend/.env — backup pré-migração impossível; deploy abortado."
+    return 1
+  fi
+  mkdir -p backups
+  ts="$(date -u +%Y%m%dT%H%M%SZ)"
+  out="backups/pre-deploy-duplexsoft-${ts}.dump"
+  name="$(basename "$out")"
+  if command -v pg_dump >/dev/null 2>&1; then
+    pg_dump "$db_url" --format=custom --file="$out"
+  else
+    # Sem pg_dump no host: dump com a MESMA major do servidor (imagem já presente
+    # no VPS por causa da evolution-db). `network host` alcança o Postgres local.
+    major="$($COMPOSE run --rm -T backend python -c "import os, psycopg2; print(psycopg2.connect(os.environ['DATABASE_URL']).server_version // 10000)" < /dev/null | tail -n 1)"
+    if ! printf '%s' "$major" | grep -Eq '^[0-9]+$'; then
+      echo "::error::Não foi possível detectar a versão do Postgres para o backup; deploy abortado."
+      return 1
+    fi
+    docker run --rm --network host -e PGURL="$db_url" -v "$PWD/backups:/backup" "postgres:${major}-alpine" \
+      sh -c "pg_dump \"\$PGURL\" --format=custom --file=/backup/${name}"
+  fi
+  if [ ! -s "$out" ]; then
+    echo "::error::Backup vazio ($out) — deploy abortado antes da migration."
+    return 1
+  fi
+  ls -1t backups/pre-deploy-duplexsoft-*.dump 2>/dev/null | tail -n +6 | xargs -r rm -f
+  echo "==> Backup pré-migração: $out ($(du -h "$out" | cut -f1))"
+}
+
 if [ "$SKIP_MIGRATIONS" != "true" ]; then
+  backup_cliente_legado
   $COMPOSE build --no-cache backend
   $COMPOSE run --rm -T backend alembic upgrade head < /dev/null
 else
@@ -217,6 +254,8 @@ if [ ! -f deploy/admin-center/client.env ] || [ ! -f deploy/admin-center/docker-
 fi
 
 if [ "$SKIP_MIGRATIONS" != "true" ]; then
+  # Backup fail-closed do Postgres do painel ops antes de migrate (stack Docker).
+  bash deploy/scripts/stack-client.sh backup admin-center
   bash deploy/scripts/stack-client.sh migrate admin-center
 fi
 bash deploy/scripts/stack-client.sh up admin-center

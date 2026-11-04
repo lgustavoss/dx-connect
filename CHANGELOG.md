@@ -38,6 +38,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 #### Interno / Infra
 
 - CI: o workflow do app Android passa a gerar **APK de release assinado** (instala e roda sem Metro) junto do `.aab` que a Play Store vai receber; o APK de debug continua disponível escolhendo `variant=debug`
+- Deploy: antes de qualquer migration o release faz **backup lógico do Postgres** (base do cliente e painel ops) e **para se o backup falhar**; o CI também constrói a imagem de produção para pegar bump de imagem base antes do deploy
 
 ## [26.11.001] - 2026-11-01
 
