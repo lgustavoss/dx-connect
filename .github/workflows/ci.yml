@@ -182,6 +182,23 @@ jobs:
         working-directory: .
         run: echo "Sem alterações de mobile — tsc omitido."
 
+  # O deploy constrói a imagem de produção no VPS (Python do Dockerfile, hoje 3.15).
+  # Sem este job, um bump de imagem base só seria descoberto no deploy.
+  docker:
+    needs: changes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        if: needs.changes.outputs.backend == 'true'
+
+      - name: Build da imagem de produção (sem push)
+        if: needs.changes.outputs.backend == 'true'
+        run: docker build -t dx-connect-backend:ci backend
+
+      - name: Imagem omitida (diff sem backend/CI)
+        if: needs.changes.outputs.backend != 'true'
+        run: echo "Sem alterações de backend/Dockerfile — build da imagem omitido."
+
   desktop:
     runs-on: ubuntu-latest
     defaults:

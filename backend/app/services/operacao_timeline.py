@@ -447,17 +447,33 @@ def _eventos_suporte(
     return eventos
 
 
-def coletar_eventos(db: Session, empresa_id: int, tenant_id: int) -> list[EventoTimelineRead]:
-    """Todos os eventos derivados da empresa, sem filtro de período/categoria."""
-    linhas = _linhas_da_empresa(db, empresa_id)
-    neg_ids = _negociacao_ids(linhas)
-    contratos = _contratos_da_empresa(db, empresa_id, [ln.id for ln in linhas])
+def coletar_eventos(
+    db: Session,
+    empresa_id: int,
+    tenant_id: int,
+    *,
+    categorias: list[str] | None = None,
+) -> list[EventoTimelineRead]:
+    """Eventos derivados da empresa, com as fontes filtradas por categoria.
 
-    eventos = [
-        *_eventos_crm(db, neg_ids),
-        *_eventos_contrato(contratos),
-        *_eventos_suporte(db, empresa_id, tenant_id),
-    ]
+    Sem `categorias` devolve tudo. Com filtro, só consulta as fontes que podem
+    gerar aquelas categorias (evita carregar ticket/checklist quando a tela
+    pede só CRM). O filtro por período continua no nível da timeline — o
+    volume de eventos por cliente ainda é modesto; se crescer, paginar no SQL.
+    """
+    cats = set(categorias or [])
+    quer_suporte = not cats or CategoriaEvento.suporte.value in cats or CategoriaEvento.implantacao.value in cats
+    quer_crm = not cats or CategoriaEvento.crm.value in cats
+
+    eventos: list[EventoTimelineRead] = []
+    if quer_crm:
+        linhas = _linhas_da_empresa(db, empresa_id)
+        neg_ids = _negociacao_ids(linhas)
+        contratos = _contratos_da_empresa(db, empresa_id, [ln.id for ln in linhas])
+        eventos.extend(_eventos_crm(db, neg_ids))
+        eventos.extend(_eventos_contrato(contratos))
+    if quer_suporte:
+        eventos.extend(_eventos_suporte(db, empresa_id, tenant_id))
 
     # Deduplicação por id estável (tipo + origem) e ordem cronológica.
     vistos: set[str] = set()
@@ -512,7 +528,9 @@ def timeline_empresa(
     limit: int = 50,
 ) -> tuple[Empresa, list[EventoTimelineRead], int]:
     empresa = _empresa_da_carteira(db, empresa_id, tenant_id)
-    eventos = coletar_eventos(db, empresa.id, tenant_id)
+    # Filtro de categoria também na coleta: evita consultar ticket quando a tela
+    # pede só CRM (e vice-versa). O filtro abaixo mantém o contrato da API.
+    eventos = coletar_eventos(db, empresa.id, tenant_id, categorias=categorias)
 
     if categorias:
         permitidas = set(categorias)

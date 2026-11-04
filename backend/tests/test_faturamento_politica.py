@@ -768,3 +768,37 @@ def test_filtros_rede_empresa_tipo_e_csv(client, auth_headers):
     errado_resumo = client.get("/v1/faturamento/a-receber/resumo", headers=h_fin, params={"rede_id": rede_id + 999})
     assert errado_resumo.status_code == 200
     assert errado_resumo.json()["quantidade_titulos"] == 0
+
+
+def test_csv_a_receber_neutraliza_formula(client, auth_headers):
+    """CSV do A receber: nome de cliente que parece fórmula não vira fórmula no Excel."""
+    h_com = auth_headers["comercial"]
+    h_fin = auth_headers["a2"]
+    h_admin = auth_headers["admin"]
+
+    contrato = _assinar_contrato(client, h_com)
+    inicio = date.fromisoformat(str(contrato["data_inicio"]))
+    comp = _comp(inicio)
+    gen = client.post(
+        "/v1/faturamento/faturas/gerar-competencia",
+        headers=h_admin,
+        json={"competencia": comp},
+    )
+    assert gen.status_code == 200, gen.text
+
+    faturas = client.get("/v1/faturamento/faturas", headers=h_fin, params={"competencia": comp}).json()
+    fatura = next(f for f in faturas if f["contrato_id"] == contrato["id"])
+    assert client.post(f"/v1/faturamento/faturas/{fatura['id']}/aprovar", headers=h_fin).status_code == 200
+
+    malicioso = "=1+1"
+    up = client.patch(
+        f"/v1/crm/negociacoes/{contrato['negociacao_id']}/linhas/{contrato['negociacao_linha_cnpj_id']}",
+        headers=h_com,
+        json={"razao_social": malicioso},
+    )
+    assert up.status_code == 200, up.text
+
+    csv_r = client.get("/v1/faturamento/titulos/export.csv", headers=h_fin)
+    assert csv_r.status_code == 200, csv_r.text
+    assert f"'{malicioso}" in csv_r.text
+    assert f";{malicioso}" not in csv_r.text.replace("\ufeff", "")

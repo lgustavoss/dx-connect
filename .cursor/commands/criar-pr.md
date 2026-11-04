@@ -65,6 +65,8 @@ Preferir `--body-file` (evita problemas no PowerShell):
 1. Escreva o corpo em arquivo temporário (ex.: `.cursor/pr-body-temp.md`)
 2. Siga `.github/pull_request_template.md` (Summary, CHANGELOG, Test plan, Follow-ups)
 3. Para mudanças internas/tooling: marque CHANGELOG como N/A
+4. Se o PR fecha issues, **repita a palavra em cada uma**: `Closes #123, closes #124`.
+   `Closes #123, #124` (sem repetir) fecha **só a primeira** — o resto fica aberto.
 
 ```bash
 gh pr create --base main --title "título descritivo" --body-file .cursor/pr-body-temp.md
@@ -76,7 +78,7 @@ Capture: `PR_NUMBER`, `PR_URL`.
 
 ## Passo 5 — Acompanhar CI (obrigatório)
 
-Workflow esperado: **`CI`** (jobs: `changes`, `changelog`, `backend`, `frontend`).
+Workflow esperado: **`CI`** (jobs: `changes`, `changelog`, `backend`, `frontend`, `mobile`, `docker`, `desktop`).
 
 Os jobs `backend` e `frontend` **sempre** aparecem (branch protection). Se o diff não toca nesse lado, o job conclui em segundos com “omitido” — isso é **sucesso**, não falha. Não trate skip rápido como CI quebrada.
 

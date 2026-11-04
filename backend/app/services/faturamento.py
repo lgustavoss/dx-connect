@@ -1101,6 +1101,18 @@ def resumo_a_receber(
     }
 
 
+def _csv_seguro(valor: object) -> object:
+    """Neutraliza fórmula de planilha (CSV injection) em campos de texto.
+
+    Nome de cliente/rede vem do cadastro e pode começar com `=`, `+`, `-` ou `@`;
+    no Excel isso viraria fórmula. Prefixar com `'` mantém o texto literal.
+    Só é aplicado a colunas de texto — números e datas seguem numéricos.
+    """
+    if isinstance(valor, str) and valor[:1] in ("=", "+", "-", "@", "\t", "\r"):
+        return "'" + valor
+    return valor
+
+
 def titulos_csv(db: Session, *, competencia: str | None, status_filtro: str | None,
                 rede_id: int | None, empresa_id: int | None, tipo: str | None) -> str:
     """CSV do A receber com os mesmos filtros da lista (#375). Separador ';' para Excel pt-BR."""
@@ -1141,9 +1153,9 @@ def titulos_csv(db: Session, *, competencia: str | None, status_filtro: str | No
         writer.writerow(
             [
                 TITULO_TIPO_IMPLANTACAO if (row.tipo or TITULO_TIPO_MENSALIDADE) == TITULO_TIPO_IMPLANTACAO else TITULO_TIPO_MENSALIDADE,
-                dados.get("razao_social") or dados.get("empresa_nome") or "",
-                dados.get("cnpj") or "",
-                dados.get("rede_nome") or "",
+                _csv_seguro(dados.get("razao_social") or dados.get("empresa_nome") or ""),
+                _csv_seguro(dados.get("cnpj") or ""),
+                _csv_seguro(dados.get("rede_nome") or ""),
                 row.contrato_id,
                 row.competencia,
                 f"{Decimal(str(row.valor or 0)):.2f}",

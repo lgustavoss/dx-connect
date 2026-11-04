@@ -2,6 +2,11 @@
 
 Endpoints de leitura, derivados das tabelas de CRM, comercial, implantação e
 suporte. RBAC: `crm.ver` (a operação vê a carteira com o mesmo perfil do CRM).
+
+Decisão de RBAC (revisão pré-release): **não** abrimos para `tickets.ver`.
+A timeline mistura dados comerciais (valores de proposta/contrato), então o
+perfil que não enxerga o CRM também não deve ver a jornada inteira — ticket
+de suporte continua na tela de tickets, com o escopo de setor dele.
 """
 
 from __future__ import annotations
