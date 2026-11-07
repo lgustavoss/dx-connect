@@ -17,7 +17,7 @@
   "dependencies": {
     "@capacitor/android": "^8.5.3",
     "@capacitor/app": "^8.1.2",
-    "@capacitor/core": "^8.5.2",
+    "@capacitor/core": "^8.6.0",
     "@capacitor/geolocation": "^8.2.3",
     "qrcode.react": "^4.2.0",
     "react": "19.3.1",
