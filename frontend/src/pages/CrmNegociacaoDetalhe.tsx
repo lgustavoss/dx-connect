@@ -37,8 +37,6 @@ import { maskCnpjCpf } from '../utils/maskCnpjCpf'
 
 const TIPO_ATIVIDADE_LABEL: Record<string, string> = {
   nota: 'Nota',
-  ligacao: 'Ligação',
-  reuniao: 'Reunião',
   mudanca_estagio: 'Estágio',
   documento_anexado: 'Documento',
 }
