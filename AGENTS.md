@@ -49,6 +49,7 @@ Config: `.cursor/hooks.json`
 | `/criar-pr` | PR → watch CI → approve → **merge automático em main** (nunca staging) |
 | `/release-staging` | Abre PR `main → staging` (não mergeia); após deploy, sync CHANGELOG na `main` (Passo 5) |
 | `/listar-solicitacoes` | Fila SaaS pendente no chat (MCP `deskrudder-saas`; cada dev configura o próprio `mcp.json`) |
+| `/proximos-passos` | Analisa fila SaaS + issues abertas + estado do repo e recomenda o próximo lote (skill `analisar-backlog`) |
 
 ## Subagents (Task tool)
 
@@ -66,6 +67,7 @@ Use subagents para **paralelizar** ou **isolar** trabalho:
 ### Padrão recomendado por feature
 
 ```
+0. /proximos-passos                    → qual lote agora (fila SaaS + issues)
 1. /planejar-feature #322
 2. revisar plano (RBAC, SSE, migrations) — decisões → comentário na issue
 3. /iniciar-feature                    → branch feat/...
@@ -87,6 +89,7 @@ Para desenvolvimento local: `/subir-local` → `/testar-ui` (navegador; sem MCP,
 | `design-feature` | Planejar épicos/features (usado por `/planejar-feature`) |
 | `deploy-cliente` | Deploy/atualização de instância por cliente |
 | `browser-qa` | Smoke tests no navegador (`/testar-ui`) |
+| `analisar-backlog` | Priorizar o próximo lote: fila SaaS × issues × estado do repo (usado por `/proximos-passos`) |
 
 Skills futuras sugeridas:
 
