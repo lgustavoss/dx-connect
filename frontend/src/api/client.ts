@@ -3851,6 +3851,8 @@ export namespace Faturamento {
     pago_em?: string | null;
     valor_pago?: string | number | null;
     baixa_observacao?: string | null;
+    /** Fatura do título tem anexo de boleto (#1387). Título sem fatura vem true. */
+    tem_boleto?: boolean;
     baixado_por_id?: number | null;
     baixado_por_nome?: string | null;
     baixado_em?: string | null;
@@ -4000,7 +4002,13 @@ export const faturamento = {
   },
   baixarTitulo: (
     id: number,
-    data?: { pago_em?: string; valor_pago?: number | string; observacao?: string },
+    data?: {
+      pago_em?: string;
+      valor_pago?: number | string;
+      observacao?: string;
+      /** Exceção auditada: baixa sem boleto anexado (só faturamento.aprovar; #1387). */
+      sem_documento_motivo?: string;
+    },
   ) =>
     api<Faturamento.Titulo>(`/faturamento/titulos/${id}/baixar`, {
       method: 'POST',

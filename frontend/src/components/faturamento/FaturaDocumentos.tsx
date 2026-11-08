@@ -55,6 +55,7 @@ export function FaturaDocumentos({
 
   const aprovada = fatura.status === 'aprovada'
   const edita = podeEditar && aprovada
+  const temBoleto = Boolean(anexoDoTipo(fatura, 'boleto'))
 
   async function salvarDados() {
     setSaving(true)
@@ -139,6 +140,13 @@ export function FaturaDocumentos({
 
       {!aprovada ? (
         <p className="text-sm text-slate-500">Aprove a fatura para anexar boleto e nota.</p>
+      ) : null}
+
+      {aprovada && !temBoleto ? (
+        <p className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs leading-snug text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
+          Boleto não anexado: a baixa do título a receber fica bloqueada até anexar o PDF. A exceção existe só para
+          quem tem a permissão de aprovação, com motivo registrado na auditoria.
+        </p>
       ) : null}
 
       <div className="grid gap-3 sm:grid-cols-2">

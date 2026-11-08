@@ -3,10 +3,22 @@
 from __future__ import annotations
 
 from datetime import date
+from decimal import Decimal
 
 from app.database import SessionLocal
 from app.services.faturamento import processar_faturamento_mensal, vencimento_da_competencia
 from tests.test_implantacao import _assinar_contrato
+
+
+def _anexar_boleto(client, h, fatura_id: int) -> None:
+    """Baixa exige boleto anexado (#1387)."""
+    r = client.post(
+        f"/v1/faturamento/faturas/{fatura_id}/anexos",
+        headers=h,
+        files={"file": ("boleto.pdf", b"%PDF-1.4 teste", "application/pdf")},
+        data={"tipo": "boleto"},
+    )
+    assert r.status_code == 201, r.text
 
 
 def test_vencimento_dia_10_mes_seguinte():
@@ -336,10 +348,16 @@ def test_titulo_receber_baixa_manual_e_vencido(client, auth_headers):
     titulo = aprova.json()["titulo"]
     tid = titulo["id"]
     assert titulo["status"] in {"aberto", "vencido"}
+    assert titulo["tem_boleto"] is False
 
     lista = client.get("/v1/faturamento/titulos", headers=h_fin, params={"competencia": comp})
     assert lista.status_code == 200
-    assert any(x["id"] == tid for x in lista.json())
+    item = next(x for x in lista.json() if x["id"] == tid)
+    assert item["tem_boleto"] is False
+
+    _anexar_boleto(client, h_fin, fid)
+    com_boleto = client.get("/v1/faturamento/titulos", headers=h_fin, params={"competencia": comp})
+    assert next(x for x in com_boleto.json() if x["id"] == tid)["tem_boleto"] is True
 
     from app.models.faturamento import TituloReceber
 
@@ -369,3 +387,138 @@ def test_titulo_receber_baixa_manual_e_vencido(client, auth_headers):
 
     de_novo = client.post(f"/v1/faturamento/titulos/{tid}/baixar", headers=h_fin, json={})
     assert de_novo.status_code == 400
+
+
+def _fatura_aprovada_sem_boleto(client, auth_headers):
+    """Contrato + fatura aprovada (sem boleto) e o título a receber correspondente."""
+    h_com = auth_headers["comercial"]
+    h_fin = auth_headers["a2"]
+    contrato = _assinar_contrato(client, h_com)
+    inicio = date.fromisoformat(str(contrato["data_inicio"]))
+    comp = f"{inicio.year:04d}-{inicio.month:02d}"
+    gerar = client.post(
+        "/v1/faturamento/faturas",
+        headers=h_fin,
+        json={"contrato_id": contrato["id"], "competencia": comp},
+    )
+    assert gerar.status_code == 201, gerar.text
+    fid = gerar.json()["id"]
+    aprova = client.post(f"/v1/faturamento/faturas/{fid}/aprovar", headers=h_fin)
+    assert aprova.status_code == 200, aprova.text
+    return contrato, fid, comp, aprova.json()["titulo"]
+
+
+def test_baixa_exige_boleto_e_excecao_auditada(client, auth_headers):
+    """#1387: sem boleto → 400; exceção com motivo exige faturamento.aprovar e vai para a auditoria."""
+    h_fin = auth_headers["a2"]
+    h_admin = auth_headers["admin"]
+    _contrato, fid, _comp, titulo = _fatura_aprovada_sem_boleto(client, auth_headers)
+    tid = titulo["id"]
+
+    sem_boleto = client.post(f"/v1/faturamento/titulos/{tid}/baixar", headers=h_fin, json={})
+    assert sem_boleto.status_code == 400
+    assert sem_boleto.json()["detail"] == "Anexe o boleto da fatura antes de dar baixa."
+
+    # Financeiro sem a permissão do grupo não usa a exceção.
+    motivo = "Boleto emitido no banco e enviado ao cliente por WhatsApp"
+    sem_permissao = client.post(
+        f"/v1/faturamento/titulos/{tid}/baixar",
+        headers=h_fin,
+        json={"sem_documento_motivo": motivo},
+    )
+    assert sem_permissao.status_code == 403
+    assert "faturamento.aprovar" in sem_permissao.json()["detail"]
+
+    # Motivo curto e motivo ausente continuam bloqueados até para quem pode a exceção.
+    curto = client.post(
+        f"/v1/faturamento/titulos/{tid}/baixar",
+        headers=h_admin,
+        json={"sem_documento_motivo": "curto"},
+    )
+    assert curto.status_code == 400
+    assert "10 a 500" in curto.json()["detail"]
+    longo = client.post(
+        f"/v1/faturamento/titulos/{tid}/baixar",
+        headers=h_admin,
+        json={"sem_documento_motivo": "x" * 501},
+    )
+    assert longo.status_code == 400
+    assert "10 a 500" in longo.json()["detail"]
+    ausente = client.post(f"/v1/faturamento/titulos/{tid}/baixar", headers=h_admin, json={})
+    assert ausente.status_code == 400
+    assert ausente.json()["detail"] == "Anexe o boleto da fatura antes de dar baixa."
+
+    ok = client.post(
+        f"/v1/faturamento/titulos/{tid}/baixar",
+        headers=h_admin,
+        json={"sem_documento_motivo": motivo},
+    )
+    assert ok.status_code == 200, ok.text
+    assert ok.json()["status"] == "pago"
+    assert ok.json()["baixa_observacao"] == f"Baixa sem boleto: {motivo}"
+
+    from app.models import Atendente, AuditLog
+
+    db = SessionLocal()
+    try:
+        log = (
+            db.query(AuditLog)
+            .filter(
+                AuditLog.entity_type == "faturamento_titulo",
+                AuditLog.entity_id == tid,
+                AuditLog.action == "baixa_sem_boleto",
+            )
+            .one()
+        )
+        assert log.payload_json == {"motivo": motivo, "fatura_id": fid}
+        admin = db.query(Atendente).filter(Atendente.email == "admin@test.local").one()
+        assert log.atendente_id == admin.id
+    finally:
+        db.close()
+
+
+def test_baixa_com_boleto_anexado_libera_e_lista_tem_boleto(client, auth_headers):
+    """#1387: boleto anexado libera a baixa normal e a lista expõe tem_boleto."""
+    h_fin = auth_headers["a2"]
+    _contrato, fid, comp, titulo = _fatura_aprovada_sem_boleto(client, auth_headers)
+    tid = titulo["id"]
+
+    _anexar_boleto(client, h_fin, fid)
+    lista = client.get("/v1/faturamento/titulos", headers=h_fin, params={"competencia": comp})
+    assert next(x for x in lista.json() if x["id"] == tid)["tem_boleto"] is True
+
+    baixa = client.post(f"/v1/faturamento/titulos/{tid}/baixar", headers=h_fin, json={"observacao": "PIX"})
+    assert baixa.status_code == 200, baixa.text
+    assert baixa.json()["baixa_observacao"] == "PIX"
+    assert baixa.json()["tem_boleto"] is True
+
+
+def test_baixa_titulo_implantacao_sem_fatura_nao_exige_boleto(client, auth_headers):
+    """#1387: título sem fatura (implantação/multa) continua com baixa normal."""
+    from app.models.faturamento import TITULO_ABERTO, TITULO_TIPO_IMPLANTACAO, TituloReceber
+
+    h_fin = auth_headers["a2"]
+    contrato = _assinar_contrato(client, auth_headers["comercial"])
+    db = SessionLocal()
+    try:
+        row = TituloReceber(
+            fatura_id=None,
+            contrato_id=contrato["id"],
+            empresa_id=contrato["empresa_id"],
+            tipo=TITULO_TIPO_IMPLANTACAO,
+            competencia=f"{date.today().year:04d}-{date.today().month:02d}",
+            valor=Decimal("1500.00"),
+            vencimento=date(2026, 1, 10),
+            status=TITULO_ABERTO,
+        )
+        db.add(row)
+        db.commit()
+        tid = row.id
+    finally:
+        db.close()
+
+    baixa = client.post(f"/v1/faturamento/titulos/{tid}/baixar", headers=h_fin, json={})
+    assert baixa.status_code == 200, baixa.text
+    assert baixa.json()["status"] == "pago"
+    assert baixa.json()["tem_boleto"] is False
+    assert baixa.json()["baixa_observacao"] is None

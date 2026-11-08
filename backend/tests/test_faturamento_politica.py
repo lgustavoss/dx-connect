@@ -47,6 +47,17 @@ def _comp(d: date) -> str:
     return f"{d.year:04d}-{d.month:02d}"
 
 
+def _anexar_boleto(client, h, fatura_id: int) -> None:
+    """Baixa exige boleto anexado (#1387)."""
+    r = client.post(
+        f"/v1/faturamento/faturas/{fatura_id}/anexos",
+        headers=h,
+        files={"file": ("boleto.pdf", b"%PDF-1.4 teste", "application/pdf")},
+        data={"tipo": "boleto"},
+    )
+    assert r.status_code == 201, r.text
+
+
 def _proximo_mes(d: date) -> date:
     if d.month == 12:
         return date(d.year + 1, 1, 1)
@@ -610,6 +621,7 @@ def test_cancelar_fatura_cancela_titulo_nao_pago(client, auth_headers):
     fid3 = gerar3.json()["id"]
     aprova3 = client.post(f"/v1/faturamento/faturas/{fid3}/aprovar", headers=h_fin)
     tid3 = aprova3.json()["titulo"]["id"]
+    _anexar_boleto(client, h_fin, fid3)
     client.post(f"/v1/faturamento/titulos/{tid3}/baixar", headers=h_fin, json={})
     bloqueia = client.post(f"/v1/faturamento/faturas/{fid3}/cancelar", headers=h_fin, json={})
     assert bloqueia.status_code == 400
@@ -628,6 +640,7 @@ def test_estornar_e_cancelar_titulo(client, auth_headers):
     tid = aprova.json()["titulo"]["id"]
 
     assert client.post(f"/v1/faturamento/titulos/{tid}/estornar", headers=h_fin, json={}).status_code == 400
+    _anexar_boleto(client, h_fin, fid)
     client.post(f"/v1/faturamento/titulos/{tid}/baixar", headers=h_fin, json={"observacao": "PIX"})
     estorno = client.post(
         f"/v1/faturamento/titulos/{tid}/estornar",
