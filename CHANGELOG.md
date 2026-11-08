@@ -5,6 +5,17 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ## [Unreleased]
 
+### DeskRudder
+
+#### Correções
+
+- WhatsApp: abrir ticket pelo chat lista somente as empresas vinculadas ao contato — antes vinham todas as empresas cadastradas (#S202611-0003)
+- Acesso remoto: na exclusão de computador offline e sem vínculo, o botão **Cancelar** deixa de ficar vermelho junto com **Excluir** (#S202611-0004)
+
+#### Melhorias
+
+- CRM: a API deixa de aceitar atividades dos tipos «ligação» e «reunião» (código morto — a UI só cria nota) (#1388)
+
 ## [26.11.002] - 2026-11-08
 
 ### DeskRudder
