@@ -231,3 +231,45 @@ def test_marcar_enviada_avanca_funil(client, auth_headers, seed_base):
     acts = client.get(f"/v1/crm/negociacoes/{neg_id}/atividades", headers=h)
     textos = " ".join(a["texto"] for a in acts.json()["items"])
     assert "enviada" in textos.lower()
+
+
+def test_envio_por_whatsapp_registra_canal(client, auth_headers, seed_base):
+    h = auth_headers["comercial"]
+    neg_id, _ = _negociacao_com_linha(client, h)
+    p = client.post("/v1/comercial/propostas", headers=h, json={"negociacao_id": neg_id})
+    assert p.status_code == 201, p.text
+
+    env = client.post(
+        f"/v1/comercial/propostas/{p.json()['id']}/marcar-enviada",
+        headers=h,
+        json={"canal": "whatsapp", "avancar_funil": True},
+    )
+    assert env.status_code == 200, env.text
+    assert env.json()["canal"] == "whatsapp"
+
+    neg = client.get(f"/v1/crm/negociacoes/{neg_id}", headers=h)
+    assert neg.json()["estagio_slug"] == "proposta_enviada"
+
+
+def test_funil_recusa_proposta_enviada_sem_proposta_enviada(client, auth_headers, seed_base):
+    h = auth_headers["comercial"]
+    neg_id, _ = _negociacao_com_linha(client, h)
+
+    r = client.post(
+        f"/v1/crm/negociacoes/{neg_id}/mover-estagio",
+        headers=h,
+        json={"estagio_slug": "proposta_enviada"},
+    )
+    assert r.status_code == 400, r.text
+    assert "proposta enviada" in r.json()["detail"].lower()
+
+    # Com a proposta enviada, o funil anda (fluxo do cartão da proposta)
+    p = client.post("/v1/comercial/propostas", headers=h, json={"negociacao_id": neg_id})
+    env = client.post(
+        f"/v1/comercial/propostas/{p.json()['id']}/marcar-enviada",
+        headers=h,
+        json={"canal": "impresso", "avancar_funil": True},
+    )
+    assert env.status_code == 200, env.text
+    neg = client.get(f"/v1/crm/negociacoes/{neg_id}", headers=h)
+    assert neg.json()["estagio_slug"] == "proposta_enviada"

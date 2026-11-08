@@ -5,6 +5,41 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ## [Unreleased]
 
+### DeskRudder
+
+#### Melhorias
+
+- Faturamento: depois de aprovar, o financeiro anexa o **PDF do boleto** e da **NFS-e** (quando a empresa emite nota), com linha digitável e número da nota — dá para baixar de novo (2ª via) e filtrar quem emite ou não NFS-e
+- Faturamento: ao aprovar a fatura nasce um **título a receber** (em aberto / vencido / pago); a baixa é manual, na aba A receber — sem envio por e-mail do DeskRudder (banco e prefeitura já avisam o cliente)
+- CRM: o **nome do cliente / posto** no lead passa a ser a identidade única — a razão social da linha CNPJ e o nome da Rede veem sugeridos na primeira vez, para o comercial confirmar em vez de redigitar (#1319)
+- CRM: as **observações digitadas ao criar a lead** viram a primeira anotação da negociação — não somem mais quando a negociação abre (#1319)
+- CRM: lead **perdido** volta a ter **Nova negociação** no cartão e na lista, sem cadastrar a lead de novo (#1319)
+- CRM: a **origem da lead** deixa de ser texto livre e passa a ser uma lista configurável em Configurações → Funil CRM (seed: WhatsApp, indicação, site, visita, outro) (#1319)
+- CRM: a linha da negociação passa a editar o **TEF promocional** (custo e valor ao cliente) — antes só a API aceitava; o custo e a margem recalculam na hora (#1320)
+- Configurações → Tipos de negócio: a tela deixa explícito que a classificação é do **cadastro de Empresas** — o funil do CRM não usa (#1320)
+- CRM: **gerar a proposta não mexe mais no funil** — enviar pelo WhatsApp do chat vinculado (ou baixar o PDF) registra o envio e move para «Proposta enviada»; acabou o passo de voltar só para marcar enviada (#1321)
+- CRM: o funil não mente — «Proposta enviada» só aceita o cartão quando existe proposta de fato enviada, e a ficha avisa quando o estágio está à frente do documento (#1321)
+- Contratos: o formulário fiscal da negociação busca **CNPJ na Receita** e **CEP no ViaCEP**; setup e multa aparecem como números na ficha (#1322)
+- Contratos: **marcar assinado move o funil** para «Contrato assinado» sem checkbox, e o passo «marcar enviado» saiu da tela; a lista mostra qual contrato é **vigente** (o aditivo passa a ser o vigente e o anterior fica como histórico) (#1322)
+- Implantação: ao assinar com o ticket, nascem os **PDVs previstos na linha do contrato** (rascunho PDV-1…) e o cartão vai para «Implantação» no funil, sem clique no Kanban (#1323)
+- Implantação: o item **Cadastrar PDVs** só conclui com o cadastro compatível ou com o desvio registrado na observação; o ticket de implantação deixou de aparecer no **portal do cliente** (#1323)
+- Operação: a **timeline 360 do cliente da carteira** reúne em ordem cronológica os marcos de CRM, implantação e suporte (lead, etapa, proposta, contrato, checklist e chamados), com filtros por categoria e período (#912, #913)
+- Operação: a **carteira da operação** mostra o status de cada cliente (saudável, atenção ou risco) com os sinais objetivos e o critério de cada um — dias sem movimentação, chamados reabertos, implantação parada e tempo do lead à assinatura (#914)
+- Faturamento: a instância configura a **política da mensalidade** em Configurações → Faturamento — dia de vencimento, gatilho de início e primeira fatura proporcional; o contrato pode sobrescrever o que for negociação (#1339, #1341)
+- Faturamento: a **primeira venda no PDV** é informada manualmente no contrato; sem ela, a mensalidade não nasce e a ficha avisa «aguardando primeira venda» (#1340)
+- Faturamento: a **taxa de implantação** vira título próprio no momento combinado no contrato (assinatura, data, junto da 1ª mensalidade ou isento), separada da mensalidade (#1342)
+- Faturamento: **cancelar/estornar** fatura e título pelo painel; rescindir o contrato cancela as cobranças em aberto do mês, sem deixar título zumbi (#1324)
+- Faturamento: **A receber** com faixas de atraso 30/60/90, previsão do mês (previsto × recebido), filtros por rede/empresa e exportação CSV (#375)
+
+#### Correções
+
+- Ticket aberto pelo chat: a busca da empresa pelo **CNPJ** volta a funcionar — aceita o número com ou sem pontuação e também para quem não tem acesso ao cadastro de empresas (#S202611-0001)
+
+#### Interno / Infra
+
+- CI: o workflow do app Android passa a gerar **APK de release assinado** (instala e roda sem Metro) junto do `.aab` que a Play Store vai receber; o APK de debug continua disponível escolhendo `variant=debug`
+- Deploy: antes de qualquer migration o release faz **backup lógico do Postgres** (base do cliente e painel ops) e **para se o backup falhar**; o CI também constrói a imagem de produção para pegar bump de imagem base antes do deploy
+
 ## [26.11.001] - 2026-11-01
 
 ### DeskRudder

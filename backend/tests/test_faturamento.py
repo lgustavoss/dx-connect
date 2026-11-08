@@ -136,6 +136,9 @@ def test_gerar_aprovar_rejeitar_e_job_idempotente(client, auth_headers):
     assert aprova.status_code == 200, aprova.text
     assert aprova.json()["status"] == "aprovada"
     assert aprova.json()["aprovada_por_id"]
+    assert aprova.json()["titulo"]
+    assert aprova.json()["titulo"]["status"] in {"aberto", "vencido"}
+    assert aprova.json()["titulo"]["fatura_id"] == fid
 
     recusa_aprovada = client.post(
         "/v1/faturamento/faturas",
@@ -168,3 +171,201 @@ def test_gerar_aprovar_rejeitar_e_job_idempotente(client, auth_headers):
     elig = client.get("/v1/faturamento/contratos-elegiveis", headers=h_fin)
     assert elig.status_code == 200
     assert any(x["id"] == cid for x in elig.json())
+
+
+def test_anexos_manuais_boleto_sem_nf(client, auth_headers):
+    h_com = auth_headers["comercial"]
+    h_fin = auth_headers["a2"]
+    h_admin = auth_headers["admin"]
+    contrato = _assinar_contrato(client, h_com)
+    cid = contrato["id"]
+    empresa_id = contrato["empresa_id"]
+    inicio = date.fromisoformat(str(contrato["data_inicio"]))
+    comp = f"{inicio.year:04d}-{inicio.month:02d}"
+
+    client.patch(f"/v1/empresas/{empresa_id}", headers=h_admin, json={"emite_nfse": False})
+    g = client.post(
+        "/v1/faturamento/faturas",
+        headers=h_fin,
+        json={"contrato_id": cid, "competencia": comp},
+    )
+    assert g.status_code == 201, g.text
+    fid = g.json()["id"]
+    assert client.post(
+        f"/v1/faturamento/faturas/{fid}/anexos",
+        headers=h_fin,
+        files={"file": ("boleto.pdf", b"%PDF-1.4 teste", "application/pdf")},
+        data={"tipo": "boleto"},
+    ).status_code == 400
+
+    aprova = client.post(f"/v1/faturamento/faturas/{fid}/aprovar", headers=h_fin)
+    assert aprova.status_code == 200
+
+    nf_recusado = client.post(
+        f"/v1/faturamento/faturas/{fid}/anexos",
+        headers=h_fin,
+        files={"file": ("nota.pdf", b"%PDF-1.4 nf", "application/pdf")},
+        data={"tipo": "nfse_pdf"},
+    )
+    assert nf_recusado.status_code == 400
+
+    com_recusado = client.post(
+        f"/v1/faturamento/faturas/{fid}/anexos",
+        headers=h_com,
+        files={"file": ("boleto.pdf", b"%PDF-1.4 teste", "application/pdf")},
+        data={"tipo": "boleto"},
+    )
+    assert com_recusado.status_code == 403
+
+    up = client.post(
+        f"/v1/faturamento/faturas/{fid}/anexos",
+        headers=h_fin,
+        files={"file": ("boleto.pdf", b"%PDF-1.4 teste", "application/pdf")},
+        data={"tipo": "boleto"},
+    )
+    assert up.status_code == 201, up.text
+    body = up.json()
+    assert body["documentos_completos"] is True
+    assert len(body["anexos"]) == 1
+    assert body["anexos"][0]["tipo"] == "boleto"
+    anexo_id = body["anexos"][0]["id"]
+
+    linha = "0" * 47
+    docs = client.patch(
+        f"/v1/faturamento/faturas/{fid}/documentos",
+        headers=h_fin,
+        json={"boleto_linha_digitavel": linha, "boleto_nosso_numero": "12345"},
+    )
+    assert docs.status_code == 200, docs.text
+    assert docs.json()["boleto_linha_digitavel"] == linha
+    assert docs.json()["boleto_nosso_numero"] == "12345"
+
+    invalida = client.patch(
+        f"/v1/faturamento/faturas/{fid}/documentos",
+        headers=h_fin,
+        json={"boleto_linha_digitavel": "123"},
+    )
+    assert invalida.status_code == 400
+
+    dl = client.get(f"/v1/faturamento/faturas/{fid}/anexos/{anexo_id}/download", headers=h_fin)
+    assert dl.status_code == 200
+    assert dl.content.startswith(b"%PDF")
+
+    up2 = client.post(
+        f"/v1/faturamento/faturas/{fid}/anexos",
+        headers=h_fin,
+        files={"file": ("boleto-2.pdf", b"%PDF-1.4 segundo", "application/pdf")},
+        data={"tipo": "boleto"},
+    )
+    assert up2.status_code == 201
+    assert len(up2.json()["anexos"]) == 1
+
+    filtrado = client.get("/v1/faturamento/faturas", headers=h_fin, params={"emite_nfse": False, "competencia": comp})
+    assert filtrado.status_code == 200
+    assert any(x["id"] == fid for x in filtrado.json())
+    so_nf = client.get("/v1/faturamento/faturas", headers=h_fin, params={"emite_nfse": True, "competencia": comp})
+    assert all(x["id"] != fid for x in so_nf.json())
+
+
+def test_anexos_manuais_nfse_obrigatoria(client, auth_headers):
+    h_com = auth_headers["comercial"]
+    h_fin = auth_headers["a2"]
+    contrato = _assinar_contrato(client, h_com)
+    cid = contrato["id"]
+    inicio = date.fromisoformat(str(contrato["data_inicio"]))
+    comp = f"{inicio.year:04d}-{inicio.month:02d}"
+    g = client.post(
+        "/v1/faturamento/faturas",
+        headers=h_fin,
+        json={"contrato_id": cid, "competencia": comp},
+    )
+    fid = g.json()["id"]
+    client.post(f"/v1/faturamento/faturas/{fid}/aprovar", headers=h_fin)
+
+    so_boleto = client.post(
+        f"/v1/faturamento/faturas/{fid}/anexos",
+        headers=h_fin,
+        files={"file": ("boleto.pdf", b"%PDF-1.4 teste", "application/pdf")},
+        data={"tipo": "boleto"},
+    )
+    assert so_boleto.status_code == 201
+    assert so_boleto.json()["documentos_completos"] is False
+
+    nf = client.post(
+        f"/v1/faturamento/faturas/{fid}/anexos",
+        headers=h_fin,
+        files={"file": ("nfse.pdf", b"%PDF-1.4 nota", "application/pdf")},
+        data={"tipo": "nfse_pdf"},
+    )
+    assert nf.status_code == 201, nf.text
+    assert nf.json()["documentos_completos"] is True
+    assert {a["tipo"] for a in nf.json()["anexos"]} == {"boleto", "nfse_pdf"}
+
+    xml = client.post(
+        f"/v1/faturamento/faturas/{fid}/anexos",
+        headers=h_fin,
+        files={"file": ("nfse.xml", b"<nfse/>", "application/xml")},
+        data={"tipo": "nfse_xml"},
+    )
+    assert xml.status_code == 201
+    assert len(xml.json()["anexos"]) == 3
+
+    anexo_nf = next(a for a in xml.json()["anexos"] if a["tipo"] == "nfse_pdf")
+    rem = client.delete(f"/v1/faturamento/faturas/{fid}/anexos/{anexo_nf['id']}", headers=h_fin)
+    assert rem.status_code == 200
+    assert rem.json()["documentos_completos"] is False
+
+
+def test_titulo_receber_baixa_manual_e_vencido(client, auth_headers):
+    h_com = auth_headers["comercial"]
+    h_fin = auth_headers["a2"]
+    contrato = _assinar_contrato(client, h_com)
+    cid = contrato["id"]
+    inicio = date.fromisoformat(str(contrato["data_inicio"]))
+    comp = f"{inicio.year:04d}-{inicio.month:02d}"
+    g = client.post(
+        "/v1/faturamento/faturas",
+        headers=h_fin,
+        json={"contrato_id": cid, "competencia": comp},
+    )
+    fid = g.json()["id"]
+    assert client.get("/v1/faturamento/titulos", headers=h_com).status_code == 403
+    assert client.get("/v1/faturamento/titulos", headers=h_fin).json() == []
+
+    aprova = client.post(f"/v1/faturamento/faturas/{fid}/aprovar", headers=h_fin)
+    titulo = aprova.json()["titulo"]
+    tid = titulo["id"]
+    assert titulo["status"] in {"aberto", "vencido"}
+
+    lista = client.get("/v1/faturamento/titulos", headers=h_fin, params={"competencia": comp})
+    assert lista.status_code == 200
+    assert any(x["id"] == tid for x in lista.json())
+
+    from app.models.faturamento import TituloReceber
+
+    db = SessionLocal()
+    try:
+        row = db.query(TituloReceber).filter(TituloReceber.id == tid).one()
+        row.vencimento = date(2020, 1, 10)
+        db.commit()
+    finally:
+        db.close()
+
+    vencidos = client.get("/v1/faturamento/titulos", headers=h_fin, params={"status": "vencido"})
+    assert any(x["id"] == tid and x["status"] == "vencido" for x in vencidos.json())
+    abertos = client.get("/v1/faturamento/titulos", headers=h_fin, params={"status": "aberto"})
+    assert all(x["id"] != tid for x in abertos.json())
+
+    assert client.post(f"/v1/faturamento/titulos/{tid}/baixar", headers=h_com, json={}).status_code == 403
+    baixa = client.post(
+        f"/v1/faturamento/titulos/{tid}/baixar",
+        headers=h_fin,
+        json={"observacao": "PIX conferido no extrato"},
+    )
+    assert baixa.status_code == 200, baixa.text
+    assert baixa.json()["status"] == "pago"
+    assert baixa.json()["baixa_observacao"] == "PIX conferido no extrato"
+    assert float(baixa.json()["valor_pago"]) == float(titulo["valor"])
+
+    de_novo = client.post(f"/v1/faturamento/titulos/{tid}/baixar", headers=h_fin, json={})
+    assert de_novo.status_code == 400

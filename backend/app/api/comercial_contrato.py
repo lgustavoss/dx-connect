@@ -7,7 +7,7 @@ from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from app.core.audit import registrar_audit
-from app.core.auth import exigir_permissao
+from app.core.auth import exigir_permissao, obter_atendente_atual
 from app.services.permissao_grupos import tem_permissao
 from app.database import get_db
 from app.models.atendente import Atendente
@@ -16,6 +16,7 @@ from app.schemas.crm import DadosFiscaisLinha
 from app.schemas.empresa import EmpresaRead
 from app.schemas.comercial_contrato import (
     ContratoChaveCatalogoItem,
+    ContratoCobrancaUpdate,
     ContratoGerarIn,
     ContratoMarcarAssinadoIn,
     ContratoMarcarEnviadoIn,
@@ -31,6 +32,29 @@ from app.schemas.comercial_contrato import (
 from app.services import comercial_contrato as svc
 
 router = APIRouter(prefix="/comercial", tags=["comercial-contratos"])
+
+
+def exigir_cobranca_contrato(
+    atendente: Atendente = Depends(obter_atendente_atual),
+    db: Session = Depends(get_db),
+) -> Atendente:
+    """Cobrança do contrato (#1340): quem emite contrato ou quem gera fatura, e o Financeiro."""
+    from app.core.setor_scope import atendente_e_financeiro
+
+    if tem_permissao(atendente, "contratos.emitir") or tem_permissao(atendente, "faturamento.gerar"):
+        return atendente
+    if atendente_e_financeiro(db, atendente):
+        return atendente
+    raise HTTPException(status_code=403, detail="Sem permissão para editar a cobrança do contrato.")
+
+
+def _contrato_para_cobranca(db: Session, contrato_id: int, atendente: Atendente):
+    """Financeiro/gerador de fatura enxerga qualquer contrato; comercial só o próprio (#1340)."""
+    from app.core.setor_scope import atendente_e_financeiro
+
+    if atendente_e_financeiro(db, atendente) or tem_permissao(atendente, "faturamento.gerar"):
+        return svc.obter_contrato(db, contrato_id)
+    return svc.obter_contrato(db, contrato_id, atendente=atendente)
 
 
 @router.get("/contrato-templates/chaves", response_model=list[ContratoChaveCatalogoItem])
@@ -137,7 +161,7 @@ def listar_contratos(
     elif filtrar_minhas is None:
         filtrar_minhas = False
     incluir_html = negociacao_id is not None
-    return [
+    payloads = [
         svc.contrato_para_read(r, incluir_html=incluir_html)
         for r in svc.listar_contratos(
             db,
@@ -149,6 +173,8 @@ def listar_contratos(
             atendente=atendente,
         )
     ]
+    svc.marcar_vigentes(db, payloads)
+    return payloads
 
 
 @router.get("/contratos/linhas/{linha_id}/empresa", response_model=EmpresaRead)
@@ -220,7 +246,11 @@ def obter_contrato(
     db: Session = Depends(get_db),
     atendente: Atendente = Depends(exigir_permissao("contratos.ver")),
 ):
-    return svc.contrato_para_read(svc.obter_contrato(db, contrato_id, atendente=atendente), incluir_html=True)
+    payload = svc.contrato_para_read(
+        svc.obter_contrato(db, contrato_id, atendente=atendente), incluir_html=True
+    )
+    svc.marcar_vigentes(db, [payload])
+    return payload
 
 
 @router.get("/contratos/{contrato_id}/pdf")
@@ -357,6 +387,33 @@ def marcar_assinado(
     return svc.contrato_para_read(svc.obter_contrato(db, row.id, atendente=atendente), incluir_html=True)
 
 
+@router.patch("/contratos/{contrato_id}/cobranca", response_model=ContratoRead)
+def atualizar_cobranca_contrato(
+    contrato_id: int,
+    data: ContratoCobrancaUpdate,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(exigir_cobranca_contrato),
+):
+    """Primeira venda no PDV e overrides de cobrança da negociação (#1340)."""
+    row = _contrato_para_cobranca(db, contrato_id, atendente)
+    row = svc.atualizar_cobranca(db, row, data, atendente)
+    alterados = {
+        k: (v.isoformat() if hasattr(v, "isoformat") else v)
+        for k, v in data.model_dump(exclude_unset=True).items()
+    }
+    registrar_audit(
+        db,
+        "comercial_contrato",
+        row.id,
+        "update",
+        atendente.id,
+        payload={"cobranca": alterados},
+    )
+    db.commit()
+    db.refresh(row)
+    return svc.contrato_para_read(_contrato_para_cobranca(db, row.id, atendente), incluir_html=True)
+
+
 @router.post("/contratos/{contrato_id}/cancelar", response_model=ContratoRead)
 def cancelar_contrato(
     contrato_id: int,
@@ -386,6 +443,7 @@ def cancelar_contrato(
             "status": row.status,
             "rescisao": era_assinado,
             "multa_rescisao": payload_multa,
+            "cobranca_cancelada": getattr(row, "pendencias_cobranca_canceladas", None),
         },
     )
     db.commit()

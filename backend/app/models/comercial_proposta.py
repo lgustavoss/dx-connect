@@ -26,7 +26,9 @@ PROPOSTA_STATUSES = frozenset({PROPOSTA_RASCUNHO, PROPOSTA_ENVIADA, PROPOSTA_SUB
 CANAL_EMAIL = "email"
 CANAL_IMPRESSO = "impresso"
 CANAL_OUTRO = "outro"
-PROPOSTA_CANAIS = frozenset({CANAL_EMAIL, CANAL_IMPRESSO, CANAL_OUTRO})
+# Envio pelo chat WhatsApp já vinculado à negociação (#1321).
+CANAL_WHATSAPP = "whatsapp"
+PROPOSTA_CANAIS = frozenset({CANAL_EMAIL, CANAL_IMPRESSO, CANAL_OUTRO, CANAL_WHATSAPP})
 
 
 class PropostaTemplate(Base):

@@ -50,6 +50,8 @@ from app.api import (
     implantacao,
     faturamento,
     crm,
+    crm_origens,
+    operacao_timeline,
     system_settings,
     tenant,
     public_csat,
@@ -726,6 +728,8 @@ app.include_router(comercial_contrato.router, prefix=API_V1_PREFIX)
 app.include_router(implantacao.router, prefix=API_V1_PREFIX)
 app.include_router(faturamento.router, prefix=API_V1_PREFIX)
 app.include_router(crm.router, prefix=API_V1_PREFIX)
+app.include_router(crm_origens.router, prefix=API_V1_PREFIX)
+app.include_router(operacao_timeline.router, prefix=API_V1_PREFIX)
 app.include_router(empresa_pdvs.router, prefix=API_V1_PREFIX)
 app.include_router(deskremote.router, prefix=API_V1_PREFIX)
 app.include_router(rustdesk_peers.router, prefix=API_V1_PREFIX)

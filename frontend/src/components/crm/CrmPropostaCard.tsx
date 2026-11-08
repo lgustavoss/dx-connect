@@ -2,13 +2,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   comercialPropostaTemplates,
   comercialPropostas,
+  whatsappChats,
   type ComercialProposta,
   type Crm,
 } from '../../api/client'
 import { mensagemFalhaParaToast } from '../../api/errorMessage'
 import { Button } from '../ui/Button'
 import { Card } from '../ui/Card'
-import { Input, TEXTAREA_FIELD_CLASS } from '../ui/Input'
+import { TEXTAREA_FIELD_CLASS } from '../ui/Input'
 import { Select } from '../ui/Select'
 import { useToast } from '../ui/Toast'
 import { useAuth } from '../../contexts/AuthContext'
@@ -21,11 +22,12 @@ const STATUS_LABEL: Record<string, string> = {
   substituida: 'Substituída',
 }
 
-const CANAL_OPTIONS = [
-  { value: 'email', label: 'E-mail' },
-  { value: 'impresso', label: 'Impresso' },
-  { value: 'outro', label: 'Outro' },
-]
+const CANAL_LABEL: Record<string, string> = {
+  email: 'E-mail',
+  impresso: 'Impresso',
+  outro: 'Outro',
+  whatsapp: 'WhatsApp',
+}
 
 function formatDateTime(iso: string | null | undefined): string {
   if (!iso) return '—'
@@ -55,6 +57,7 @@ export function CrmPropostaCard({ negociacao, onChanged, embedded = false }: Pro
   const { user } = useAuth()
   const podeEmitir = temPermissao(user, 'propostas.emitir')
   const linhas = negociacao.linhas || []
+  const chats = useMemo(() => negociacao.chats || [], [negociacao])
 
   const [templates, setTemplates] = useState<ComercialProposta.Template[]>([])
   const [propostas, setPropostas] = useState<ComercialProposta.Proposta[]>([])
@@ -63,13 +66,9 @@ export function CrmPropostaCard({ negociacao, onChanged, embedded = false }: Pro
   const [condicoes, setCondicoes] = useState('')
   const [gerando, setGerando] = useState(false)
   const [preview, setPreview] = useState<ComercialProposta.Proposta | null>(null)
-
-  const [enviarId, setEnviarId] = useState<number | null>(null)
-  const [canal, setCanal] = useState<'email' | 'impresso' | 'outro'>('email')
-  const [enviadoEm, setEnviadoEm] = useState('')
-  const [avancarFunil, setAvancarFunil] = useState(true)
-  const [marcando, setMarcando] = useState(false)
   const [baixandoId, setBaixandoId] = useState<number | null>(null)
+  const [enviandoId, setEnviandoId] = useState<number | null>(null)
+  const [chatEscolhido, setChatEscolhido] = useState<number | ''>('')
 
   const load = useCallback(async () => {
     const [tmpls, props] = await Promise.all([
@@ -101,9 +100,21 @@ export function CrmPropostaCard({ negociacao, onChanged, embedded = false }: Pro
     setLinhaIds((negociacao.linhas || []).map((ln) => ln.id))
   }, [negociacao])
 
+  useEffect(() => {
+    setChatEscolhido((prev) => {
+      if (prev !== '' && chats.some((c) => c.id === prev)) return prev
+      return chats[0]?.id ?? ''
+    })
+  }, [chats])
+
   const templateOptions = useMemo(
     () => templates.map((t) => ({ value: String(t.id), label: `${t.nome} (v${t.versao})` })),
     [templates],
+  )
+
+  const chatOptions = useMemo(
+    () => chats.map((c) => ({ value: String(c.id), label: c.cliente_nome || c.wa_id })),
+    [chats],
   )
 
   function toggleLinha(id: number) {
@@ -128,7 +139,7 @@ export function CrmPropostaCard({ negociacao, onChanged, embedded = false }: Pro
         condicoes: condicoes.trim() || null,
       })
       setPreview(row)
-      toast.showSuccess('Proposta gerada. Revise o preview antes de enviar.')
+      toast.showSuccess('Proposta gerada. Revise o preview e envie.')
       await load()
       onChanged()
     } catch (err) {
@@ -138,11 +149,26 @@ export function CrmPropostaCard({ negociacao, onChanged, embedded = false }: Pro
     }
   }
 
-  async function handlePdf(id: number) {
-    setBaixandoId(id)
+  /** O envio é o fato que move o funil — não existe mais «marcar enviada» solto (#1321). */
+  async function registrarEnvio(proposta: ComercialProposta.Proposta, canal: 'impresso' | 'whatsapp') {
+    await comercialPropostas.marcarEnviada(proposta.id, { canal, avancar_funil: true })
+    toast.showSuccess(
+      canal === 'whatsapp'
+        ? 'Proposta enviada no WhatsApp. Funil movido para «Proposta enviada».'
+        : 'PDF baixado e envio registrado. Funil movido para «Proposta enviada».',
+    )
+    await load()
+    onChanged()
+  }
+
+  async function handlePdf(proposta: ComercialProposta.Proposta) {
+    setBaixandoId(proposta.id)
     try {
-      const blob = await comercialPropostas.downloadPdf(id)
-      downloadBlob(blob, `proposta-${id}.pdf`)
+      const blob = await comercialPropostas.downloadPdf(proposta.id)
+      downloadBlob(blob, `proposta-${proposta.id}.pdf`)
+      if (proposta.status === 'rascunho' && podeEmitir) {
+        await registrarEnvio(proposta, 'impresso')
+      }
     } catch (err) {
       toast.showError(mensagemFalhaParaToast(err, 'Não foi possível baixar o PDF.'))
     } finally {
@@ -150,32 +176,75 @@ export function CrmPropostaCard({ negociacao, onChanged, embedded = false }: Pro
     }
   }
 
-  async function handleMarcarEnviada() {
-    if (enviarId == null) return
-    setMarcando(true)
-    try {
-      await comercialPropostas.marcarEnviada(enviarId, {
-        canal,
-        enviado_em: enviadoEm ? new Date(enviadoEm).toISOString() : null,
-        avancar_funil: avancarFunil,
-      })
-      toast.showSuccess(
-        avancarFunil ? 'Proposta marcada como enviada e funil atualizado.' : 'Proposta marcada como enviada.',
-      )
-      setEnviarId(null)
-      await load()
-      onChanged()
-    } catch (err) {
-      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível marcar a proposta como enviada.'))
-    } finally {
-      setMarcando(false)
+  async function handleWhatsapp(proposta: ComercialProposta.Proposta) {
+    if (chatEscolhido === '') {
+      toast.showWarning('Vincule um chat do WhatsApp a esta negociação para enviar por lá.')
+      return
     }
+    setEnviandoId(proposta.id)
+    try {
+      const blob = await comercialPropostas.downloadPdf(proposta.id)
+      const file = new File([blob], `proposta-${proposta.id}.pdf`, { type: 'application/pdf' })
+      await whatsappChats.enviarMidia(Number(chatEscolhido), file, `Proposta comercial #${proposta.id}`)
+      await registrarEnvio(proposta, 'whatsapp')
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível enviar a proposta no WhatsApp.'))
+    } finally {
+      setEnviandoId(null)
+    }
+  }
+
+  function acoesDeEnvio(proposta: ComercialProposta.Proposta) {
+    if (!podeEmitir) {
+      return (
+        <Button
+          variant="secondary"
+          onClick={() => void handlePdf(proposta)}
+          disabled={baixandoId === proposta.id}
+        >
+          {baixandoId === proposta.id ? 'Baixando…' : 'Baixar PDF'}
+        </Button>
+      )
+    }
+    if (proposta.status !== 'rascunho') {
+      return (
+        <Button
+          variant="secondary"
+          onClick={() => void handlePdf(proposta)}
+          disabled={baixandoId === proposta.id}
+        >
+          {baixandoId === proposta.id ? 'Baixando…' : 'Baixar PDF'}
+        </Button>
+      )
+    }
+    return (
+      <>
+        {chats.length > 0 ? (
+          <Button
+            variant="secondary"
+            onClick={() => void handleWhatsapp(proposta)}
+            disabled={enviandoId === proposta.id}
+          >
+            {enviandoId === proposta.id ? 'Enviando…' : 'Enviar por WhatsApp'}
+          </Button>
+        ) : null}
+        <Button
+          variant="secondary"
+          onClick={() => void handlePdf(proposta)}
+          disabled={baixandoId === proposta.id}
+        >
+          {baixandoId === proposta.id ? 'Baixando…' : 'Baixar e registrar envio'}
+        </Button>
+      </>
+    )
   }
 
   const inner = (
     <>
       <p className="mb-3 text-sm text-slate-500">
         O documento enviado ao cliente mostra só itens e valores negociados — custo e margem ficam só nesta tela.
+        Gerar não muda o funil: o envio (WhatsApp do chat vinculado, ou download) registra o fato e move para
+        «Proposta enviada».
       </p>
 
       {linhas.length === 0 ? (
@@ -232,19 +301,18 @@ export function CrmPropostaCard({ negociacao, onChanged, embedded = false }: Pro
             <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
               Preview — proposta #{preview.id} ({STATUS_LABEL[preview.status] || preview.status})
             </p>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                variant="secondary"
-                onClick={() => void handlePdf(preview.id)}
-                disabled={baixandoId === preview.id}
-              >
-                {baixandoId === preview.id ? 'Baixando…' : 'Baixar PDF'}
-              </Button>
-              {podeEmitir && preview.status === 'rascunho' ? (
-                <Button variant="secondary" onClick={() => setEnviarId(preview.id)}>
-                  Marcar enviada
-                </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              {chats.length > 1 && preview.status === 'rascunho' ? (
+                <div className="w-52">
+                  <Select
+                    label="Chat do WhatsApp"
+                    value={chatEscolhido === '' ? '' : String(chatEscolhido)}
+                    onChange={(v) => setChatEscolhido(v ? Number(v) : '')}
+                    options={chatOptions}
+                  />
+                </div>
               ) : null}
+              {acoesDeEnvio(preview)}
             </div>
           </div>
           <iframe
@@ -273,66 +341,19 @@ export function CrmPropostaCard({ negociacao, onChanged, embedded = false }: Pro
                   <div className="text-xs text-slate-500">
                     {formatDateTime(p.created_at)}
                     {p.enviado_em
-                      ? ` · enviada ${formatDateTime(p.enviado_em)} (${CANAL_OPTIONS.find((c) => c.value === p.canal)?.label || p.canal})`
+                      ? ` · enviada ${formatDateTime(p.enviado_em)} (${CANAL_LABEL[p.canal || ''] || p.canal})`
                       : ''}
                   </div>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <Button variant="ghost" onClick={() => setPreview(p)}>
                     Ver
                   </Button>
-                  <Button variant="ghost" onClick={() => void handlePdf(p.id)} disabled={baixandoId === p.id}>
-                    PDF
-                  </Button>
-                  {podeEmitir && p.status !== 'substituida' && p.status !== 'enviada' ? (
-                    <Button variant="ghost" onClick={() => setEnviarId(p.id)}>
-                      Enviada
-                    </Button>
-                  ) : null}
+                  {acoesDeEnvio(p)}
                 </div>
               </li>
             ))}
           </ul>
-        </div>
-      ) : null}
-
-      {enviarId != null ? (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4">
-          <div className="w-full rounded-t-2xl bg-white p-5 shadow-xl dark:bg-slate-900 sm:max-w-md sm:rounded-2xl">
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Marcar proposta como enviada</h2>
-            <p className="mt-1 text-sm text-slate-500">Não envia e-mail automático — só registra o canal e a data.</p>
-            <div className="mt-4 space-y-3">
-              <Select
-                label="Canal"
-                value={canal}
-                onChange={(v) => setCanal(String(v) as 'email' | 'impresso' | 'outro')}
-                options={CANAL_OPTIONS}
-              />
-              <Input
-                label="Data de envio (opcional)"
-                type="datetime-local"
-                value={enviadoEm}
-                onChange={(e) => setEnviadoEm(e.target.value)}
-              />
-              <label className="inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
-                <input
-                  type="checkbox"
-                  checked={avancarFunil}
-                  onChange={(e) => setAvancarFunil(e.target.checked)}
-                  className="size-4 rounded border-slate-300"
-                />
-                Avançar funil para «Proposta enviada»
-              </label>
-              <div className="flex justify-end gap-2 pt-2">
-                <Button type="button" variant="cancel" onClick={() => setEnviarId(null)} disabled={marcando}>
-                  Cancelar
-                </Button>
-                <Button onClick={() => void handleMarcarEnviada()} disabled={marcando}>
-                  {marcando ? 'Salvando…' : 'Confirmar'}
-                </Button>
-              </div>
-            </div>
-          </div>
         </div>
       ) : null}
     </>

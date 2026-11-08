@@ -9,6 +9,7 @@ import {
   crmFunil,
   crmLeads,
   crmNegociacoes,
+  crmOrigens,
   type ComercialCustos,
   type Crm,
 } from '../api/client'
@@ -54,12 +55,12 @@ const PROPOSTA_STATUS_LABEL: Record<string, string> = {
   substituida: 'Substituída',
 }
 
+// `renovado` fica fora da UI até existir renovação de verdade (#1322).
 const CONTRATO_STATUS_LABEL: Record<string, string> = {
   rascunho: 'Rascunho',
   enviado: 'Enviado',
   assinado: 'Assinado',
   cancelado: 'Cancelado',
-  renovado: 'Renovado',
 }
 
 const CONTRATO_ATIVO = new Set(['rascunho', 'enviado', 'assinado'])
@@ -118,6 +119,11 @@ type LinhaForm = {
   quantidade_pdvs: string
   desconto_posto_100k: boolean
   item_ids: number[]
+  /** Override TEF (opcional): só vale quando o pacote tem um item TEF (#1320). */
+  tef_custo_base: string
+  tef_custo_adicional: string
+  tef_valor_cliente_base: string
+  tef_valor_cliente_adicional: string
 }
 
 const emptyLinhaForm = (): LinhaForm => ({
@@ -127,6 +133,10 @@ const emptyLinhaForm = (): LinhaForm => ({
   quantidade_pdvs: '1',
   desconto_posto_100k: false,
   item_ids: [],
+  tef_custo_base: '',
+  tef_custo_adicional: '',
+  tef_valor_cliente_base: '',
+  tef_valor_cliente_adicional: '',
 })
 
 export function CrmNegociacaoDetalhe() {
@@ -173,16 +183,25 @@ export function CrmNegociacaoDetalhe() {
   const [leadEmail, setLeadEmail] = useState('')
   const [leadEmpresa, setLeadEmpresa] = useState('')
   const [leadOrigem, setLeadOrigem] = useState('')
+  const [origensLead, setOrigensLead] = useState<Crm.OrigemLead[]>([])
   const [savingLead, setSavingLead] = useState(false)
 
   const [propostaAberta, setPropostaAberta] = useState(false)
   const [contratoAberto, setContratoAberto] = useState(true)
   const docInitRef = useRef(false)
   const [propostaBadge, setPropostaBadge] = useState<string | null>(null)
+  const [temPropostaEnviada, setTemPropostaEnviada] = useState(false)
   const [contratoBadge, setContratoBadge] = useState<string | null>(null)
   const [linhasAssinadas, setLinhasAssinadas] = useState<Set<number>>(() => new Set())
   const [nomeBase, setNomeBase] = useState('')
   const [savingNomeBase, setSavingNomeBase] = useState(false)
+
+  useEffect(() => {
+    crmOrigens
+      .list()
+      .then(setOrigensLead)
+      .catch(() => setOrigensLead([]))
+  }, [])
 
   const load = useCallback(async () => {
     if (!id || Number.isNaN(negociacaoId)) {
@@ -250,7 +269,12 @@ export function CrmNegociacaoDetalhe() {
         ps.find((p) => p.status === 'rascunho') || ps.find((p) => p.status === 'enviada') || ps[0]
       const contrato = cs.find((c) => CONTRATO_ATIVO.has(c.status)) || cs[0]
       setPropostaBadge(proposta ? PROPOSTA_STATUS_LABEL[proposta.status] || proposta.status : null)
-      setContratoBadge(contrato ? CONTRATO_STATUS_LABEL[contrato.status] || contrato.status : null)
+      setTemPropostaEnviada(ps.some((p) => p.status === 'enviada'))
+      setContratoBadge(
+        contrato
+          ? `${CONTRATO_STATUS_LABEL[contrato.status] || contrato.status}${contrato.vigente ? ' · vigente' : ''}`
+          : null,
+      )
       setLinhasAssinadas(new Set(cs.filter((c) => c.status === 'assinado').map((c) => c.negociacao_linha_cnpj_id)))
       if (!docInitRef.current) {
         docInitRef.current = true
@@ -259,6 +283,7 @@ export function CrmNegociacaoDetalhe() {
       }
     } catch {
       setPropostaBadge(null)
+      setTemPropostaEnviada(false)
       setContratoBadge(null)
     }
   }, [negociacaoId])
@@ -300,6 +325,8 @@ export function CrmNegociacaoDetalhe() {
   }
 
   function openEditLinha(ln: Crm.Linha) {
+    const tef = (ln.tef_override || {}) as Record<string, unknown>
+    const texto = (chave: string) => (tef[chave] == null ? '' : String(tef[chave]))
     setLinhaForm({
       cnpj: ln.cnpj || '',
       razao_social: ln.razao_social || '',
@@ -307,6 +334,10 @@ export function CrmNegociacaoDetalhe() {
       quantidade_pdvs: String(ln.quantidade_pdvs ?? 1),
       desconto_posto_100k: Boolean(ln.desconto_posto_100k),
       item_ids: [...(ln.item_ids || [])],
+      tef_custo_base: texto('tef_custo_base'),
+      tef_custo_adicional: texto('tef_custo_adicional'),
+      tef_valor_cliente_base: texto('tef_valor_cliente_base'),
+      tef_valor_cliente_adicional: texto('tef_valor_cliente_adicional'),
     })
     setLinhaModal(ln)
   }
@@ -323,6 +354,42 @@ export function CrmNegociacaoDetalhe() {
   async function saveLinha(e: React.FormEvent) {
     e.preventDefault()
     if (!neg) return
+    const temCustoOverride =
+      linhaForm.tef_custo_base.trim() !== '' || linhaForm.tef_custo_adicional.trim() !== ''
+    const temClienteOverride =
+      linhaForm.tef_valor_cliente_base.trim() !== '' || linhaForm.tef_valor_cliente_adicional.trim() !== ''
+    if (
+      temCustoOverride &&
+      (linhaForm.tef_custo_base.trim() === '' || linhaForm.tef_custo_adicional.trim() === '')
+    ) {
+      toast.showWarning('Informe base e adicional do custo TEF, ou deixe os dois vazios.')
+      return
+    }
+    if (
+      temClienteOverride &&
+      (linhaForm.tef_valor_cliente_base.trim() === '' ||
+        linhaForm.tef_valor_cliente_adicional.trim() === '')
+    ) {
+      toast.showWarning('Informe base e adicional do valor TEF ao cliente, ou deixe os dois vazios.')
+      return
+    }
+    const tefOverride =
+      temCustoOverride || temClienteOverride
+        ? {
+            ...(temCustoOverride
+              ? {
+                  tef_custo_base: linhaForm.tef_custo_base.trim(),
+                  tef_custo_adicional: linhaForm.tef_custo_adicional.trim(),
+                }
+              : {}),
+            ...(temClienteOverride
+              ? {
+                  tef_valor_cliente_base: linhaForm.tef_valor_cliente_base.trim(),
+                  tef_valor_cliente_adicional: linhaForm.tef_valor_cliente_adicional.trim(),
+                }
+              : {}),
+          }
+        : null
     setSavingLinha(true)
     try {
       const payload = {
@@ -332,12 +399,17 @@ export function CrmNegociacaoDetalhe() {
         quantidade_pdvs: Math.max(1, parseInt(linhaForm.quantidade_pdvs, 10) || 1),
         desconto_posto_100k: linhaForm.desconto_posto_100k,
         item_ids: linhaForm.item_ids,
+        tef_override: tefOverride,
       }
       if (linhaModal === 'create') {
         await crmNegociacoes.addLinha(neg.id, payload)
         toast.showSuccess('Linha CNPJ adicionada.')
       } else if (linhaModal && typeof linhaModal === 'object') {
-        await crmNegociacoes.updateLinha(neg.id, linhaModal.id, payload)
+        await crmNegociacoes.updateLinha(neg.id, linhaModal.id, {
+          ...payload,
+          // Campo esvaziado na edição remove o override (antes só a API fazia).
+          limpar_tef_override: tefOverride === null,
+        })
         toast.showSuccess('Linha atualizada (custo/margem recalculados).')
       }
       setLinhaModal(null)
@@ -442,14 +514,15 @@ export function CrmNegociacaoDetalhe() {
     }
   }
 
-  async function saveLead() {
+  async function saveLead(over?: { origem?: string }) {
     if (!lead || !podeEditarLead) return
+    const origemAtual = over?.origem ?? leadOrigem
     const payload = {
       nome: leadNome.trim(),
       telefone: leadTelefone.trim() || null,
       email: leadEmail.trim() || null,
       empresa_texto: leadEmpresa.trim() || null,
-      origem: leadOrigem.trim() || null,
+      origem: origemAtual.trim() || null,
     }
     if (!payload.nome) {
       toast.showWarning('Informe o nome do contato.')
@@ -553,6 +626,13 @@ export function CrmNegociacaoDetalhe() {
         </p>
       </div>
 
+      {neg.estagio_slug === 'proposta_enviada' && !temPropostaEnviada ? (
+        <p className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+          O funil está em «Proposta enviada», mas não há proposta enviada nesta negociação. Gere e envie a proposta
+          (o envio registra o fato) ou mova o estágio.
+        </p>
+      ) : null}
+
       <Card title="Avançar estágio">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
           <div className="min-w-[200px] flex-1">
@@ -581,7 +661,8 @@ export function CrmNegociacaoDetalhe() {
         </div>
         <p className="mt-2 text-xs text-slate-500">
           A partir de Documentação, o CNPJ é obrigatório em todas as linhas. Sem CNPJ válido, o avanço para esse estágio
-          (e posteriores) fica bloqueado.
+          (e posteriores) fica bloqueado. «Proposta enviada» só aceita o avanço quando existe proposta enviada — o
+          envio pelo cartão da proposta é o que move o funil.
         </p>
       </Card>
 
@@ -727,18 +808,24 @@ export function CrmNegociacaoDetalhe() {
                 disabled={!podeEditarLead || savingLead || !neg.ativa}
               />
               <Input
-                label="Empresa / prospecto"
+                label="Nome do cliente / posto"
                 value={leadEmpresa}
                 onChange={(e) => setLeadEmpresa(e.target.value)}
                 onBlur={() => void saveLead()}
                 disabled={!podeEditarLead || savingLead || !neg.ativa}
+                hint="Sugere a razão social da linha e o nome da Rede na primeira vez."
               />
-              <Input
+              <Select
                 label="Origem"
                 value={leadOrigem}
-                onChange={(e) => setLeadOrigem(e.target.value)}
-                onBlur={() => void saveLead()}
-                placeholder="WhatsApp, indicação…"
+                onChange={(v) => {
+                  const proxima = String(v)
+                  setLeadOrigem(proxima)
+                  void saveLead({ origem: proxima })
+                }}
+                options={origensLead.map((o) => ({ value: o.nome, label: o.nome }))}
+                includeEmpty
+                emptyLabel="— selecione —"
                 disabled={!podeEditarLead || savingLead || !neg.ativa}
               />
             </div>
@@ -758,7 +845,7 @@ export function CrmNegociacaoDetalhe() {
                   void saveNomeBase()
                 }
               }}
-              placeholder="Ex.: Rede Postos Norte"
+              placeholder={lead?.empresa_texto || 'Ex.: Rede Postos Norte'}
               disabled={linhasAssinadas.size > 0 || savingNomeBase || !neg.ativa}
               hint={
                 linhasAssinadas.size > 0
@@ -855,6 +942,11 @@ export function CrmNegociacaoDetalhe() {
                             .join(', ')
                         : '—'}
                     </div>
+                    {ln.tef_override ? (
+                      <div className="mt-1 text-xs font-medium text-cyan-700 dark:text-cyan-300">
+                        TEF com override nesta linha
+                      </div>
+                    ) : null}
                   </div>
                   <div className="flex gap-2">
                     <Button variant="secondary" onClick={() => openEditLinha(ln)}>
@@ -930,6 +1022,7 @@ export function CrmNegociacaoDetalhe() {
                 label="Razão social"
                 value={linhaForm.razao_social}
                 onChange={(e) => setLinhaForm((p) => ({ ...p, razao_social: e.target.value }))}
+                placeholder={lead?.empresa_texto || 'Nome do cliente / posto'}
               />
               <p className="text-xs text-slate-500">
                 Endereço, responsável legal e contato da empresa são preenchidos ao gerar o contrato.
@@ -955,6 +1048,43 @@ export function CrmNegociacaoDetalhe() {
                 />
                 Desconto posto &lt;100k L (20% SM)
               </label>
+              <details className="rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700">
+                <summary className="cursor-pointer text-sm font-medium text-slate-700 dark:text-slate-300">
+                  TEF promocional (opcional)
+                </summary>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  Substitui os valores do TEF no cálculo desta linha. Só tem efeito quando o pacote inclui um item
+                  TEF; preencha base e adicional juntos, ou deixe os dois em branco.
+                </p>
+                <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                  <Input
+                    label="Custo base (R$)"
+                    value={linhaForm.tef_custo_base}
+                    onChange={(e) => setLinhaForm((p) => ({ ...p, tef_custo_base: e.target.value }))}
+                    inputMode="decimal"
+                  />
+                  <Input
+                    label="Custo adicional (R$)"
+                    value={linhaForm.tef_custo_adicional}
+                    onChange={(e) => setLinhaForm((p) => ({ ...p, tef_custo_adicional: e.target.value }))}
+                    inputMode="decimal"
+                  />
+                  <Input
+                    label="Valor ao cliente base (R$)"
+                    value={linhaForm.tef_valor_cliente_base}
+                    onChange={(e) => setLinhaForm((p) => ({ ...p, tef_valor_cliente_base: e.target.value }))}
+                    inputMode="decimal"
+                  />
+                  <Input
+                    label="Valor ao cliente adicional (R$)"
+                    value={linhaForm.tef_valor_cliente_adicional}
+                    onChange={(e) =>
+                      setLinhaForm((p) => ({ ...p, tef_valor_cliente_adicional: e.target.value }))
+                    }
+                    inputMode="decimal"
+                  />
+                </div>
+              </details>
               <div>
                 <p className="mb-2 text-sm font-medium text-slate-700 dark:text-slate-300">Composição do pacote</p>
                 {itensCatalogo.length === 0 ? (

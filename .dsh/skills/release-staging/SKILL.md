@@ -14,6 +14,12 @@ deste resumo, o playbook vence.
 
 `staging` = **produção**.
 
+- **Só abrir o PR quando o usuário executar `/release-staging` explicitamente.**
+  Nunca proativamente — nem com “prepare o release”, “release hoje à noite” ou
+  “deixa pronto”. Se abrir por engano, **fechar sem merge** e avisar.
+- Antes de abrir, checar: (a) o time validou a `main` (smoke, não só suíte);
+  (b) `gh pr list --state open` e `git branch -r --no-merged origin/main` —
+  outra entrega pode entrar no mesmo lote; se houver, avisar e aguardar.
 - **NUNCA** `gh pr merge` com base `staging` — nem com CI verde, nem "para
   facilitar".
 - **NUNCA** push direto para `staging`.

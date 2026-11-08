@@ -21,6 +21,8 @@ from app.models.comercial_contrato import (
     CONTRATO_RASCUNHO,
     FIDELIDADE_MESES_PADRAO,
     MULTA_MAX_MENSALIDADES_PADRAO,
+    SETUP_MOMENTO_DATA_COMBINADA,
+    SETUP_MOMENTO_OPCOES,
     Contrato,
     ContratoPdf,
     ContratoPolitica,
@@ -700,6 +702,44 @@ def listar_contratos(
     return q.order_by(Contrato.created_at.desc()).all()
 
 
+def _ref_vigencia(row: Contrato) -> tuple[float, int]:
+    momento = row.assinado_em or row.created_at
+    if momento is None:
+        return (0.0, row.id)
+    if momento.tzinfo is None:
+        momento = momento.replace(tzinfo=timezone.utc)
+    return (momento.timestamp(), row.id)
+
+
+def marcar_vigentes(db: Session, payloads: list[dict]) -> None:
+    """Diz qual contrato de cada linha é o vigente (#1322).
+
+    Aditivo é um contrato novo na mesma linha; o assinado mais recente é o
+    vigente e os anteriores ficam como histórico consultável.
+    """
+    linhas = {p.get("negociacao_linha_cnpj_id") for p in payloads if p.get("negociacao_linha_cnpj_id")}
+    if not linhas:
+        for p in payloads:
+            p["vigente"] = False
+        return
+    rows = (
+        db.query(Contrato)
+        .filter(
+            Contrato.negociacao_linha_cnpj_id.in_(linhas),
+            Contrato.status == CONTRATO_ASSINADO,
+        )
+        .all()
+    )
+    melhores: dict[int, Contrato] = {}
+    for r in rows:
+        atual = melhores.get(r.negociacao_linha_cnpj_id)
+        if atual is None or _ref_vigencia(r) > _ref_vigencia(atual):
+            melhores[r.negociacao_linha_cnpj_id] = r
+    for p in payloads:
+        vig = melhores.get(p.get("negociacao_linha_cnpj_id"))
+        p["vigente"] = bool(vig is not None and vig.id == p["id"])
+
+
 def _p(texto: str) -> str:
     return f"<p>{texto}</p>"
 
@@ -1207,6 +1247,10 @@ def marcar_assinado(db: Session, row: Contrato, data: ContratoMarcarAssinadoIn, 
         row.referencia_externa = data.referencia_externa.strip() or None
     row.status = CONTRATO_ASSINADO
     row.assinado_em = data.assinado_em or datetime.now(timezone.utc)
+    # «Marcar enviado» deixou de ser passo obrigatório: se ninguém registrou o
+    # envio antes, a assinatura (envelope) é o fato derivado (#1322).
+    if row.enviado_em is None:
+        row.enviado_em = row.assinado_em
     linha = row.linha or obter_linha(db, row.negociacao_linha_cnpj_id)
     converter_pos_assinatura(db, row, linha, ator)
     if data.abrir_ticket_implantacao:
@@ -1221,19 +1265,74 @@ def marcar_assinado(db: Session, row: Contrato, data: ContratoMarcarAssinadoIn, 
             texto=f"Contrato #{row.id} marcado como assinado (registro manual).",
         )
     )
-    if data.avancar_funil:
-        neg = crm_svc.obter_negociacao(db, linha.negociacao_id)
-        atual = crm_svc.obter_estagio(db, estagio_id=neg.estagio_id)
-        if atual.slug != "contrato_assinado":
-            crm_svc.mover_estagio(
-                db,
-                neg,
-                ator=ator,
-                estagio_slug="contrato_assinado",
-                nota="Contrato assinado (registro manual).",
-            )
+    # Assinar move o funil sempre — o opt-in virou ruído e deixava o Kanban mentir (#1322).
+    # Se o ticket de implantação já foi aberto, o cartão já está em «Implantação» (#1323):
+    # não regride o estágio.
+    neg = crm_svc.obter_negociacao(db, linha.negociacao_id)
+    atual = crm_svc.obter_estagio(db, estagio_id=neg.estagio_id)
+    destino = crm_svc.obter_estagio(db, slug="contrato_assinado")
+    if atual.ordem < destino.ordem:
+        crm_svc.mover_estagio(
+            db,
+            neg,
+            ator=ator,
+            estagio_slug="contrato_assinado",
+            nota="Contrato assinado (registro manual).",
+        )
+    # Taxa de implantação com momento «assinatura» nasce como título agora (#1342).
+    from app.services import faturamento as faturamento_svc
+
+    faturamento_svc.garantir_titulo_setup(db, row)
     db.flush()
     return obter_contrato(db, row.id)
+
+
+def atualizar_cobranca(db: Session, row: Contrato, data, ator: Atendente) -> Contrato:
+    """Data manual da primeira venda e overrides de cobrança da negociação (#1340).
+
+    Grava o autor e o momento do marco (auditoria), além do AuditLog da rota.
+    """
+    payload = data.model_dump(exclude_unset=True)
+    if "primeira_venda_pdv" in payload:
+        valor = payload["primeira_venda_pdv"]
+        if valor is not None:
+            if valor > date.today():
+                raise HTTPException(
+                    status_code=400,
+                    detail="A primeira venda no PDV não pode estar no futuro.",
+                )
+            row.primeira_venda_pdv = valor
+            row.primeira_venda_pdv_por_id = ator.id
+            row.primeira_venda_pdv_em = datetime.now(timezone.utc)
+        else:
+            row.primeira_venda_pdv = None
+            row.primeira_venda_pdv_por_id = None
+            row.primeira_venda_pdv_em = None
+    if "dia_vencimento_override" in payload:
+        valor = payload["dia_vencimento_override"]
+        if valor is not None and not (1 <= int(valor) <= 28):
+            raise HTTPException(status_code=400, detail="Dia de vencimento deve ficar entre 1 e 28.")
+        row.dia_vencimento_override = int(valor) if valor is not None else None
+    if "inicio_mensalidade_override" in payload:
+        row.inicio_mensalidade_override = payload["inicio_mensalidade_override"]
+    if "setup_momento" in payload:
+        momento = (payload["setup_momento"] or "").strip() or None
+        if momento is not None and momento not in SETUP_MOMENTO_OPCOES:
+            raise HTTPException(status_code=400, detail="Momento da taxa de implantação inválido.")
+        row.setup_momento = momento
+    if "setup_data_combinada" in payload:
+        row.setup_data_combinada = payload["setup_data_combinada"]
+    if row.setup_momento == SETUP_MOMENTO_DATA_COMBINADA and row.setup_data_combinada is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Informe a data combinada para a taxa de implantação.",
+        )
+    db.flush()
+    from app.services import faturamento as faturamento_svc
+
+    faturamento_svc.garantir_titulo_setup(db, row)
+    db.flush()
+    return row
 
 
 def cancelar_contrato(db: Session, row: Contrato, ator: Atendente) -> Contrato:
@@ -1280,6 +1379,25 @@ def cancelar_contrato(db: Session, row: Contrato, ator: Atendente) -> Contrato:
         )
     )
     db.flush()
+    if era_assinado:
+        # Rescisão não deixa fatura/título do mês em aberto (#1324).
+        from app.services import faturamento as faturamento_svc
+
+        canceladas = faturamento_svc.cancelar_pendencias_do_contrato(db, row)
+        row.pendencias_cobranca_canceladas = canceladas  # lido pela API para auditoria
+        if canceladas["faturas_canceladas"] or canceladas["titulos_cancelados"]:
+            db.add(
+                CrmNegociacaoAtividade(
+                    negociacao_id=linha.negociacao_id,
+                    autor_id=ator.id,
+                    tipo=ATIVIDADE_DOCUMENTO,
+                    texto=(
+                        f"Contrato #{row.id}: {canceladas['faturas_canceladas']} fatura(s) e "
+                        f"{canceladas['titulos_cancelados']} título(s) em aberto cancelados na cobrança."
+                    ),
+                )
+            )
+            db.flush()
     return row
 
 
@@ -1373,6 +1491,17 @@ def contrato_para_read(row: Contrato, *, incluir_html: bool = False) -> dict[str
         from app.models.ticket import Ticket
 
         ticket_impl = sess.query(Ticket).filter(Ticket.contrato_id == row.id).first()
+    inicio_mensalidade_efetivo = None
+    dia_vencimento_efetivo = None
+    aguardando_motivo = None
+    if sess is not None:
+        from app.services import faturamento as faturamento_svc
+
+        pol = faturamento_svc.garantir_politica(sess)
+        inicio_mensalidade_efetivo, aguardando_motivo = faturamento_svc.inicio_da_mensalidade(
+            sess, row, politica=pol
+        )
+        dia_vencimento_efetivo = faturamento_svc.dia_vencimento_do_contrato(sess, row, politica=pol)
     return {
         "id": row.id,
         "negociacao_linha_cnpj_id": row.negociacao_linha_cnpj_id,
@@ -1391,6 +1520,17 @@ def contrato_para_read(row: Contrato, *, incluir_html: bool = False) -> dict[str
         "fidelidade_meses": row.fidelidade_meses,
         "setup_valor": row.setup_valor,
         "setup_isento": row.setup_isento,
+        "primeira_venda_pdv": row.primeira_venda_pdv,
+        "primeira_venda_pdv_por_id": row.primeira_venda_pdv_por_id,
+        "primeira_venda_pdv_por_nome": row.primeira_venda_pdv_por.nome if row.primeira_venda_pdv_por else None,
+        "primeira_venda_pdv_em": row.primeira_venda_pdv_em,
+        "setup_momento": row.setup_momento,
+        "setup_data_combinada": row.setup_data_combinada,
+        "dia_vencimento_override": row.dia_vencimento_override,
+        "inicio_mensalidade_override": row.inicio_mensalidade_override,
+        "dia_vencimento_efetivo": dia_vencimento_efetivo,
+        "inicio_mensalidade_efetivo": inicio_mensalidade_efetivo,
+        "aguardando_motivo": aguardando_motivo,
         "deslocamento_cliente": row.deslocamento_cliente,
         "alimentacao_cliente": row.alimentacao_cliente,
         "hospedagem_cliente": row.hospedagem_cliente,

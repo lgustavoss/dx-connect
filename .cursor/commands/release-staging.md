@@ -4,6 +4,22 @@ Abre Pull Request **`main` → `staging`** para o usuário **analisar e aprovar 
 
 > **`staging` = produção.** O agente **NUNCA** faz `gh pr merge` no PR **`main → staging`** — nem com CI verde, nem “para facilitar”. O PR de sync **`→ main`** (Passo 5) **pode** ser mergeado automaticamente como em `/criar-pr`.
 
+## Quando abrir (regra de disparo)
+
+**Só abrir o PR `main → staging` quando o usuário executar `/release-staging` explicitamente.**
+
+- **Nunca** abrir por iniciativa própria — nem quando ele disser “vamos preparar o release”, “release hoje à noite”, “deixa pronto”, nem depois de um lote grande terminar. Preparar análise não é abrir PR.
+- Se já existe PR aberto `main → staging`, **não abrir outro**: reutilizar e dizer o número.
+- Se abriu por engano: **fechar o PR imediatamente** (`gh pr close`), sem merge, e avisar.
+
+## Antes de abrir — checagens obrigatórias
+
+1. **Time validou a `main`?** O release leva tudo o que está nela. Perguntar/confirmar que alguém rodou o smoke (UI + faturamento) na `main` além da suíte automatizada.
+2. **Mais alguém tem entrega para ir junto?** Checar:
+   - `gh pr list --state open` (outro PR para `main` que entraria no lote);
+   - `git branch -r --no-merged origin/main` (branch de outro dev ainda não mergeada);
+   - se houver algo em voo, **avisar e esperar a decisão** — não abrir o release “pela metade”.
+
 ## Pré-requisitos
 
 - Lote testado na `main`

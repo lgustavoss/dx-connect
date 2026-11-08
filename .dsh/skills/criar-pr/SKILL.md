@@ -20,6 +20,8 @@ ele divergir deste resumo, o playbook vence.
 - Se o CI falhar, corrija **só o escopo do PR**. Não altere workflows de CI para
   "passar no gato".
 - Não abandonar enquanto houver check `pending`/`in_progress`.
+- PR que fecha issues: **repita a palavra** em cada uma (`Closes #1, closes #2`) —
+  `Closes #1, #2` fecha só a primeira.
 
 ## Passos
 

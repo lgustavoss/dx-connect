@@ -1,16 +1,30 @@
-# APK de teste do app DeskRudder (Expo/React Native) para instalar no celular
+# APK/AAB do app DeskRudder (Expo/React Native) para instalar no celular
 # sem Play Store e sem conta Expo — build feito no mesmo padrão dos apps desktop.
 #
 # Actions → «DeskRudder Mobile Android» → Run workflow
-# Resultado: artifact DeskRudder-Mobile-android e, se marcar a opção,
-# Release mobile-android com DeskRudder-Mobile.apk + version.json.
-# Duração típica: 10–20 min no primeiro build (Gradle baixa as dependências).
+# - variant=release (padrão): APK **assinado** com keystore próprio e sem Metro;
+#   também gera o AAB que a Play Store usa no futuro.
+# - variant=debug: APK de desenvolvimento (carrega o JS pelo Metro), útil no dia a dia.
+# Resultado: artifact DeskRudder-Mobile-<variant> e, se marcar a opção,
+# Release mobile-android com DeskRudder-Mobile.apk (+ DeskRudder-Mobile.aab no release).
+# Duração típica: 10–25 min no primeiro build (Gradle baixa as dependências).
+#
+# Secrets necessários para o build release (já configurados no repo):
+# ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD.
 
 name: DeskRudder Mobile Android
 
 on:
   workflow_dispatch:
     inputs:
+      variant:
+        description: "Tipo de build"
+        required: true
+        default: release
+        type: choice
+        options:
+          - release
+          - debug
       publish_release:
         description: "Publicar Release mobile-android (APK estável)"
         required: true
@@ -26,7 +40,7 @@ permissions:
 
 jobs:
   apk:
-    name: APK debug (Expo prebuild + Gradle)
+    name: APK ${{ inputs.variant }} (Expo prebuild + Gradle)
     runs-on: ubuntu-latest
     timeout-minutes: 60
     defaults:
@@ -45,13 +59,13 @@ jobs:
           cache-dependency-path: mobile/package-lock.json
 
       - name: Setup Java 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: "17"
 
       - name: Cache do Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
 
       - name: Conferir google-services.json
         run: test -f google-services.json
@@ -62,32 +76,75 @@ jobs:
       - name: Gerar projeto Android (prebuild)
         run: npx expo prebuild --platform android --no-install
 
-      - name: Compilar APK debug
+      - name: Preparar keystore de release
+        if: ${{ inputs.variant == 'release' }}
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "${KEYSTORE_BASE64:-}" ]; then
+            echo "::error::Secrets de assinatura ausentes (ANDROID_KEYSTORE_BASE64)."
+            exit 1
+          fi
+          KEYSTORE="$RUNNER_TEMP/deskrudder-release.keystore"
+          echo "$KEYSTORE_BASE64" | base64 -d > "$KEYSTORE"
+          chmod 600 "$KEYSTORE"
+          {
+            echo "ANDROID_KEYSTORE_PATH=$KEYSTORE"
+            echo "ANDROID_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD"
+            echo "ANDROID_KEY_ALIAS=$KEY_ALIAS"
+            echo "ANDROID_KEY_PASSWORD=$KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
+
+      - name: Compilar
         working-directory: mobile/android
         run: |
           set -euo pipefail
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon \
+          if [ "${{ inputs.variant }}" = "debug" ]; then
+            TAREFAS="assembleDebug"
+          else
+            TAREFAS="assembleRelease bundleRelease"
+          fi
+          ./gradlew $TAREFAS --no-daemon \
             -Dorg.gradle.jvmargs="-Xmx4g -XX:MaxMetaspaceSize=1g" \
             -Dorg.gradle.parallel=true \
             -Dorg.gradle.caching=true
 
-      - name: Resolver artefato
+      - name: Resolver artefatos
         id: art
         run: |
           set -euo pipefail
           VER="$(node -p "require('./app.json').expo.version")"
-          SRC="android/app/build/outputs/apk/debug/app-debug.apk"
-          test -f "$SRC"
+          CODE="$(node -p "require('./app.json').expo.android.versionCode ?? 1")"
           echo "version=${VER}" >> "$GITHUB_OUTPUT"
-          echo "apk_path=${SRC}" >> "$GITHUB_OUTPUT"
-          ls -lh "$SRC"
+          echo "version_code=${CODE}" >> "$GITHUB_OUTPUT"
+          echo "variant=${{ inputs.variant }}" >> "$GITHUB_OUTPUT"
+          if [ "${{ inputs.variant }}" = "release" ]; then
+            APK="android/app/build/outputs/apk/release/app-release.apk"
+            AAB="android/app/build/outputs/bundle/release/app-release.aab"
+          else
+            APK="android/app/build/outputs/apk/debug/app-debug.apk"
+            AAB=""
+          fi
+          test -f "$APK"
+          echo "apk_path=${APK}" >> "$GITHUB_OUTPUT"
+          if [ -n "$AAB" ] && [ -f "$AAB" ]; then
+            echo "aab_path=${AAB}" >> "$GITHUB_OUTPUT"
+          fi
+          ls -lh "$APK"
+          [ -z "$AAB" ] || ls -lh "$AAB"
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
-          name: DeskRudder-Mobile-android
-          path: mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          name: DeskRudder-Mobile-${{ inputs.variant }}
+          path: |
+            mobile/android/app/build/outputs/apk/**/*.apk
+            mobile/android/app/build/outputs/bundle/**/*.aab
           if-no-files-found: error
           retention-days: 30
 
@@ -99,27 +156,42 @@ jobs:
         run: |
           set -euo pipefail
           VER="${{ steps.art.outputs.version }}"
+          CODE="${{ steps.art.outputs.version_code }}"
+          VARIANTE="${{ steps.art.outputs.variant }}"
           SRC="mobile/${{ steps.art.outputs.apk_path }}"
           STABLE_DIR="dist-mobile"
           mkdir -p "$STABLE_DIR"
           STABLE="$STABLE_DIR/DeskRudder-Mobile.apk"
           cp -f "$SRC" "$STABLE"
+          ARQUIVOS=("$STABLE")
+          if [ -n "${{ steps.art.outputs.aab_path }}" ]; then
+            AAB_SRC="mobile/${{ steps.art.outputs.aab_path }}"
+            AAB="$STABLE_DIR/DeskRudder-Mobile.aab"
+            cp -f "$AAB_SRC" "$AAB"
+            ARQUIVOS+=("$AAB")
+          fi
           TAG="mobile-android"
-          TITLE="DeskRudder Mobile ${VER} (Android)"
-          NOTES="APK **${VER}** de teste (debug, fora da Play Store). Login pelo slug da instância; push FCM exige o backend com \`/v1/dispositivos\` publicado."
+          TITLE="DeskRudder Mobile ${VER} (Android, ${VARIANTE})"
+          if [ "$VARIANTE" = "release" ]; then
+            MODO="APK **${VER}** de release (versionCode ${CODE}), assinado e pronto para instalar sem Metro. O \`DeskRudder-Mobile.aab\` é o pacote da Play Store."
+          else
+            MODO="APK **${VER}** de teste (debug, carrega o JS pelo Metro e fica preso à rede local). Use só para desenvolvimento."
+          fi
+          NOTES="${MODO} Login pelo slug da instância; push FCM exige o backend com \`/v1/dispositivos\` publicado."
           VERSION_JSON="$STABLE_DIR/version.json"
           DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${TAG}/DeskRudder-Mobile.apk"
           node -e "require('fs').writeFileSync(process.argv[1], JSON.stringify({ version: process.argv[2], download_url: process.argv[3] }, null, 2) + '\n')" \
             "$VERSION_JSON" "$VER" "$DOWNLOAD_URL"
+          ARQUIVOS+=("$VERSION_JSON")
           if gh release view "$TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
-            gh release upload "$TAG" "$STABLE" "$VERSION_JSON" \
+            gh release upload "$TAG" "${ARQUIVOS[@]}" \
               --repo "${{ github.repository }}" --clobber
             gh release edit "$TAG" \
               --repo "${{ github.repository }}" \
               --title "$TITLE" \
               --notes "$NOTES"
           else
-            gh release create "$TAG" "$STABLE" "$VERSION_JSON" \
+            gh release create "$TAG" "${ARQUIVOS[@]}" \
               --repo "${{ github.repository }}" \
               --title "$TITLE" \
               --notes "$NOTES" \
