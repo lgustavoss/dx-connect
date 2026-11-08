@@ -3851,7 +3851,7 @@ export namespace Faturamento {
     pago_em?: string | null;
     valor_pago?: string | number | null;
     baixa_observacao?: string | null;
-    /** Fatura do título tem anexo de boleto (#1387). Título sem fatura vem true. */
+    /** Fatura do título tem anexo de boleto (#1387). Título sem fatura (implantação/multa) vem false — a regra não se aplica. */
     tem_boleto?: boolean;
     baixado_por_id?: number | null;
     baixado_por_nome?: string | null;

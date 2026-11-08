@@ -72,8 +72,9 @@ function formatarData(valor: string | null | undefined): string {
 export function OperacaoTimeline() {
   const toast = useToast()
   const abrirTicket = useAbrirTicket()
-  const { user } = useAuth()
-  const podeFinanceiro = temPermissao(user, 'faturamento.ver')
+  const { user, isFinanceiroOuAdmin } = useAuth()
+  // Mesmo critério da aba Faturamento: permissão do grupo OU vínculo ao setor Financeiro.
+  const podeFinanceiro = isFinanceiroOuAdmin || temPermissao(user, 'faturamento.ver')
   const [searchParams, setSearchParams] = useSearchParams()
 
   const empresaParam = Number(searchParams.get('empresa_id') ?? '')
