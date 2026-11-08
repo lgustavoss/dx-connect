@@ -73,8 +73,6 @@ _NIVEL_ORDEM = {"info": 0, "saudavel": 1, "atencao": 2, "risco": 3}
 _TIPO_ATIVIDADE_EVENTO: dict[str, tuple[str, str]] = {
     "mudanca_estagio": ("negociacao_mudanca_estagio", "Mudança de etapa no CRM"),
     "documento_anexado": ("negociacao_documento", "Documento anexado ao negócio"),
-    "ligacao": ("negociacao_ligacao", "Ligação registrada"),
-    "reuniao": ("negociacao_reuniao", "Reunião registrada"),
     "nota": ("negociacao_nota", "Nota registrada"),
 }
 

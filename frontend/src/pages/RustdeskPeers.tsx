@@ -671,7 +671,7 @@ export function RustdeskPeers() {
             <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-50">{acaoPendente.titulo}</h3>
             <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">{acaoPendente.texto}</p>
             <div className="mt-6 flex justify-end gap-2">
-              <Button type="button" variant="cancel" onClick={() => setAcaoPendente(null)} disabled={salvando}>
+              <Button type="button" variant="secondary" onClick={() => setAcaoPendente(null)} disabled={salvando}>
                 Cancelar
               </Button>
               <Button

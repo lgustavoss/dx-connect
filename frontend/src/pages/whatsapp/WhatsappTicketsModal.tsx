@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   empresas,
@@ -53,6 +53,23 @@ export function WhatsappTicketsModal({ chat, open, onClose, onSuccess }: Props) 
     motivoOutroTexto: '',
   })
 
+  // #S202611-0003: o ticket aberto pelo chat lista as empresas vinculadas ao contato
+  // (chat.empresas_opcoes vem do funcionário/rede), não o catálogo inteiro.
+  const empresasDoContato = useMemo(() => {
+    const ids = new Set<number>()
+    for (const empresa of chat.empresas_opcoes ?? []) ids.add(empresa.id)
+    if (chat.empresa_id != null) ids.add(chat.empresa_id)
+    return ids
+  }, [chat.empresas_opcoes, chat.empresa_id])
+  const restringirEmpresas = empresasDoContato.size > 0
+  const buscarEmpresasTicket = useCallback(
+    async (termo: string) => {
+      const opcoes = await buscarOpcoesEmpresa(termo)
+      return restringirEmpresas ? opcoes.filter((o) => empresasDoContato.has(o.id)) : opcoes
+    },
+    [empresasDoContato, restringirEmpresas],
+  )
+
   const empresaItems = useMemo(() => empresasList.map(opcaoEmpresa), [empresasList])
 
   const setoresAtivos = useMemo(
@@ -74,14 +91,14 @@ export function WhatsappTicketsModal({ chat, open, onClose, onSuccess }: Props) 
       coletarTodasPaginas<Setores.Setor>((o, l) => setores.list({ incluir_inativos: true, offset: o, limit: l })),
     ])
       .then(([emps, sets]) => {
-        setEmpresasList(emps)
+        setEmpresasList(restringirEmpresas ? emps.filter((e) => empresasDoContato.has(e.id)) : emps)
         setSetoresList(sets)
       })
       .catch((err) => {
         toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível carregar empresas e setores.'))
       })
       .finally(() => setCatalogoLoading(false))
-  }, [chat.cliente_nome, chat.setor_id, chat.wa_id, open, toast])
+  }, [chat.cliente_nome, chat.setor_id, chat.wa_id, empresasDoContato, open, restringirEmpresas, toast])
 
   if (!open) return null
 
@@ -222,8 +239,19 @@ export function WhatsappTicketsModal({ chat, open, onClose, onSuccess }: Props) 
                 disabled={salvando}
                 required
                 menuPlacement="inline"
-                onSearch={buscarOpcoesEmpresa}
+                hint={
+                  restringirEmpresas
+                    ? 'Somente empresas vinculadas a este contato.'
+                    : 'Contato sem empresa vinculada — exibindo todas.'
+                }
+                onSearch={buscarEmpresasTicket}
               />
+              {restringirEmpresas && empresaItems.length === 0 ? (
+                <p className="text-sm text-amber-700 dark:text-amber-400">
+                  Nenhuma empresa do contato está disponível para seleção. Vincule o contato a uma
+                  empresa no chat ou verifique o cadastro.
+                </p>
+              ) : null}
               <Select
                 label="Setor"
                 value={setorId}

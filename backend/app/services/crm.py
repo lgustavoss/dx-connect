@@ -11,10 +11,8 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.models.atendente import Atendente
 from app.models.crm import (
-    ATIVIDADE_LIGACAO,
     ATIVIDADE_MUDANCA_ESTAGIO,
     ATIVIDADE_NOTA,
-    ATIVIDADE_REUNIAO,
     ATIVIDADE_TIPOS,
     FUNIL_SEED,
     FUNIL_TIPOS,
@@ -49,7 +47,7 @@ from app.services.crm_origens import ensure_origens_padrao, normalizar_origem
 NOTA_EDICAO = timedelta(minutes=5)
 # Sem confirmação do autor, outro aviso só depois desta folga (evita rajada entre workers).
 LEMBRETE_RETRY = timedelta(minutes=2)
-TIPOS_NOTA_EDITAVEIS = frozenset({ATIVIDADE_NOTA, ATIVIDADE_LIGACAO, ATIVIDADE_REUNIAO})
+TIPOS_NOTA_EDITAVEIS = frozenset({ATIVIDADE_NOTA})
 
 
 def ensure_funil_padrao(db: Session) -> None:
@@ -879,7 +877,7 @@ def editar_atividade(
     if row is None:
         raise HTTPException(status_code=404, detail="Nota não encontrada.")
     if row.tipo not in TIPOS_NOTA_EDITAVEIS:
-        raise HTTPException(status_code=400, detail="Só é possível editar notas, ligações e reuniões.")
+        raise HTTPException(status_code=400, detail="Só é possível editar notas.")
     if row.autor_id != ator.id:
         raise HTTPException(status_code=403, detail="Só o autor pode editar esta nota.")
     if not nota_pode_editar(row, ator):
