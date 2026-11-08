@@ -8,7 +8,10 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { ApiError, empresas } from '../../api/client'
+import { ApiError, empresas, faturamento, type Faturamento } from '../../api/client'
+import { temPermissao } from '../../lib/permissoes'
+import { useAuth } from '../../contexts/AuthContext'
+import { ResumoAReceberCards } from '../../components/faturamento/ResumoAReceberCards'
 import { mensagemFalhaParaToast } from '../../api/errorMessage'
 import {
   CATEGORIA_BADGE_CLASS,
@@ -54,9 +57,23 @@ function statusResumo(saude: SaudeEmpresa): string {
   return ultimo?.valor ?? 'Sinais disponíveis no detalhe abaixo.'
 }
 
+function formatarMoeda(valor: string | number): string {
+  const numero = typeof valor === 'number' ? valor : Number(valor)
+  if (Number.isNaN(numero)) return String(valor)
+  return numero.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+}
+
+function formatarData(valor: string | null | undefined): string {
+  if (!valor) return '—'
+  const [ano, mes, dia] = valor.slice(0, 10).split('-')
+  return ano && mes && dia ? `${dia}/${mes}/${ano}` : valor
+}
+
 export function OperacaoTimeline() {
   const toast = useToast()
   const abrirTicket = useAbrirTicket()
+  const { user } = useAuth()
+  const podeFinanceiro = temPermissao(user, 'faturamento.ver')
   const [searchParams, setSearchParams] = useSearchParams()
 
   const empresaParam = Number(searchParams.get('empresa_id') ?? '')
@@ -67,6 +84,10 @@ export function OperacaoTimeline() {
   const [de, setDe] = useState('')
   const [ate, setAte] = useState('')
   const [offset, setOffset] = useState(0)
+  const [resumo, setResumo] = useState<Faturamento.ResumoAReceber | null>(null)
+  const [resumoLoading, setResumoLoading] = useState(false)
+  const [titulosEmpresa, setTitulosEmpresa] = useState<Faturamento.Titulo[]>([])
+  const [erroFinanceiro, setErroFinanceiro] = useState<string | null>(null)
 
   const [eventos, setEventos] = useState<EventoTimeline[]>([])
   const [total, setTotal] = useState(0)
@@ -153,6 +174,40 @@ export function OperacaoTimeline() {
     carregarTimeline()
   }, [carregarTimeline])
 
+  // Situação financeira da ficha (#1385): só para quem tem faturamento.ver.
+  useEffect(() => {
+    if (empresaId == null || !podeFinanceiro) {
+      setResumo(null)
+      setTitulosEmpresa([])
+      setErroFinanceiro(null)
+      return
+    }
+    let cancelado = false
+    setResumoLoading(true)
+    setErroFinanceiro(null)
+    Promise.all([
+      faturamento.resumoAReceber({ empresa_id: empresaId }),
+      faturamento.listTitulos({ empresa_id: empresaId }).catch(() => [] as Faturamento.Titulo[]),
+    ])
+      .then(([resumoAtual, titulos]) => {
+        if (cancelado) return
+        setResumo(resumoAtual)
+        setTitulosEmpresa(titulos)
+      })
+      .catch((err) => {
+        if (cancelado) return
+        setResumo(null)
+        setTitulosEmpresa([])
+        setErroFinanceiro(mensagemFalhaParaToast(err, 'Não foi possível carregar a situação financeira.'))
+      })
+      .finally(() => {
+        if (!cancelado) setResumoLoading(false)
+      })
+    return () => {
+      cancelado = true
+    }
+  }, [empresaId, podeFinanceiro])
+
   const selecionarEmpresa = (valor: string | number | '') => {
     const proximo = new URLSearchParams(searchParams)
     if (valor === '') {
@@ -179,6 +234,17 @@ export function OperacaoTimeline() {
   }
 
   const podeLimparFiltros = Boolean(categoria || de || ate)
+
+  const anoAtual = new Date().getFullYear()
+  const titulosAbertos = titulosEmpresa.filter((t) => t.status === 'aberto' || t.status === 'vencido')
+  const proximoVencimento =
+    titulosAbertos
+      .map((t) => t.vencimento)
+      .filter(Boolean)
+      .sort()[0] ?? null
+  const pagoNoAno = titulosEmpresa
+    .filter((t) => t.status === 'pago' && t.pago_em && new Date(t.pago_em).getFullYear() === anoAtual)
+    .reduce((soma, t) => soma + Number(t.valor_pago ?? t.valor ?? 0), 0)
 
   return (
     <PageContainer>
@@ -335,9 +401,50 @@ export function OperacaoTimeline() {
             )}
           </Card>
 
+          {podeFinanceiro ? (
+            <Card
+              title="Situação financeira"
+              description="Cobranças do cliente na ficha 360 (visível para quem tem faturamento.ver)."
+              titleActions={
+                <Link
+                  to="/faturamento"
+                  className="text-sm font-medium text-cyan-700 hover:underline dark:text-cyan-300"
+                >
+                  Abrir faturamento
+                </Link>
+              }
+            >
+              {erroFinanceiro ? (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-100">
+                  {erroFinanceiro}
+                </div>
+              ) : resumoLoading && !resumo ? (
+                <p className="text-sm text-slate-500 dark:text-slate-400">Carregando situação financeira…</p>
+              ) : (
+                <div className="space-y-3">
+                  <ResumoAReceberCards resumo={resumo} loading={false} />
+                  <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-slate-600 dark:text-slate-300">
+                    <span>
+                      <strong className="text-slate-800 dark:text-slate-100">Próximo vencimento:</strong>{' '}
+                      {formatarData(proximoVencimento)}
+                    </span>
+                    <span>
+                      <strong className="text-slate-800 dark:text-slate-100">Pago em {anoAtual}:</strong>{' '}
+                      {formatarMoeda(pagoNoAno)}
+                    </span>
+                    <span>
+                      <strong className="text-slate-800 dark:text-slate-100">Títulos em aberto:</strong>{' '}
+                      {titulosAbertos.length}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </Card>
+          ) : null}
+
           <Card
             title="Eventos"
-            description="Marcos derivados de CRM, proposta/contrato, implantação e suporte."
+            description="Marcos derivados de CRM, proposta/contrato, implantação, suporte e cobrança."
             titleActions={
               <span className="text-xs text-slate-500 dark:text-slate-400">
                 {total === 0 ? 'Nenhum evento' : `${offset + 1}–${Math.min(offset + eventos.length, total)} de ${total}`}
@@ -356,7 +463,7 @@ export function OperacaoTimeline() {
             ) : eventos.length === 0 ? (
               <p className="text-sm text-slate-500 dark:text-slate-400">
                 Nenhum evento para os filtros atuais. Este cliente pode ainda não ter histórico
-                derivável de CRM, implantação ou suporte.
+                derivável de CRM, implantação, suporte ou cobrança.
               </p>
             ) : (
               <ol className="space-y-3">
@@ -413,6 +520,14 @@ export function OperacaoTimeline() {
                         <span className="text-xs text-slate-500 dark:text-slate-400">
                           Proposta #{evento.ref_id}
                         </span>
+                      ) : null}
+                      {evento.ref_tipo === 'fatura' || evento.ref_tipo === 'titulo' ? (
+                        <Link
+                          to="/faturamento"
+                          className="font-medium text-cyan-700 hover:underline dark:text-cyan-300"
+                        >
+                          Ver faturamento
+                        </Link>
                       ) : null}
                     </div>
                   </li>

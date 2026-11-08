@@ -6,7 +6,7 @@
 
 import { api, type Paginated } from './client'
 
-export type CategoriaEvento = 'crm' | 'implantacao' | 'suporte'
+export type CategoriaEvento = 'crm' | 'implantacao' | 'suporte' | 'cobranca'
 
 export type SaudeStatus = 'saudavel' | 'atencao' | 'risco'
 
@@ -20,7 +20,14 @@ export type EventoTimeline = {
   tipo: string
   titulo: string
   detalhe: string | null
-  ref_tipo: 'crm_negociacao' | 'comercial_proposta' | 'comercial_contrato' | 'ticket' | null
+  ref_tipo:
+    | 'crm_negociacao'
+    | 'comercial_proposta'
+    | 'comercial_contrato'
+    | 'ticket'
+    | 'fatura'
+    | 'titulo'
+    | null
   ref_id: number | null
 }
 
@@ -50,12 +57,14 @@ export const CATEGORIAS_TIMELINE: ReadonlyArray<{ value: CategoriaEvento; label:
   { value: 'crm', label: 'CRM' },
   { value: 'implantacao', label: 'Implantação' },
   { value: 'suporte', label: 'Suporte' },
+  { value: 'cobranca', label: 'Cobrança' },
 ]
 
 export const CATEGORIA_LABEL: Record<CategoriaEvento, string> = {
   crm: 'CRM',
   implantacao: 'Implantação',
   suporte: 'Suporte',
+  cobranca: 'Cobrança',
 }
 
 export const SAUDE_STATUS_OPCOES: ReadonlyArray<{ value: SaudeStatus; label: string }> = [
@@ -86,6 +95,8 @@ export const CATEGORIA_BADGE_CLASS: Record<CategoriaEvento, string> = {
     'bg-violet-100 text-violet-800 ring-violet-200 dark:bg-violet-950/40 dark:text-violet-200 dark:ring-violet-900/60',
   suporte:
     'bg-slate-100 text-slate-700 ring-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700',
+  cobranca:
+    'bg-emerald-100 text-emerald-800 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-200 dark:ring-emerald-900/60',
 }
 
 export type TimelineParams = {
