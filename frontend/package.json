@@ -18,7 +18,7 @@
     "@capacitor/android": "^8.5.3",
     "@capacitor/app": "^8.1.2",
     "@capacitor/core": "^8.6.0",
-    "@capacitor/geolocation": "^8.2.3",
+    "@capacitor/geolocation": "^8.2.4",
     "qrcode.react": "^4.2.0",
     "react": "19.3.1",
     "react-dom": "19.3.1",
