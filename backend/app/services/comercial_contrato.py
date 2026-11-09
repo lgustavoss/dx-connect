@@ -8,6 +8,7 @@ import html
 from datetime import date, datetime, timezone
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException
 from sqlalchemy import func
@@ -43,6 +44,14 @@ from app.services.permissao_grupos import tem_permissao
 from app.services import comercial_proposta as proposta_svc
 from app.services import crm as crm_svc
 from app.services.ticket_anexo_storage import caminho_absoluto_arquivo, gravar_bytes_em_disco, validar_upload
+
+_TZ_SP = ZoneInfo("America/Sao_Paulo")
+
+
+def _hoje() -> date:
+    """Data de hoje no fuso da instância — evita virada UTC nos marcos do contrato."""
+    return datetime.now(_TZ_SP).date()
+
 
 TEMPLATE_PADRAO_HTML = """<!DOCTYPE html>
 <html lang="pt-BR">
@@ -1082,7 +1091,7 @@ def _montar_snapshots(
 
 
 def _aplicar_campos_geracao(row: Contrato, data: ContratoGerarIn, snaps: dict[str, Any], tmpl: ContratoTemplate) -> None:
-    inicio = data.data_inicio or date.today()
+    inicio = data.data_inicio or _hoje()
     meses = int(data.fidelidade_meses or FIDELIDADE_MESES_PADRAO)
     row.template_id = tmpl.id
     row.valor_mensalidade = snaps["valor_mensalidade"]
@@ -1296,7 +1305,7 @@ def atualizar_cobranca(db: Session, row: Contrato, data, ator: Atendente) -> Con
     if "primeira_venda_pdv" in payload:
         valor = payload["primeira_venda_pdv"]
         if valor is not None:
-            if valor > date.today():
+            if valor > _hoje():
                 raise HTTPException(
                     status_code=400,
                     detail="A primeira venda no PDV não pode estar no futuro.",
@@ -1420,7 +1429,7 @@ def estimar_multa_rescisao(row: Contrato, *, hoje: date | None = None) -> dict[s
     Ajuda operacional: min(meses_restantes, multa_max) × mensalidade.
     Só aplicável dentro da fidelidade e com teto > 0.
     """
-    ref = hoje or date.today()
+    ref = hoje or _hoje()
     fim = row.data_fim_fidelidade
     max_m = int(row.multa_max_mensalidades or 0)
     valor = Decimal(str(row.valor_mensalidade or 0)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
@@ -1471,7 +1480,7 @@ def contrato_para_read(row: Contrato, *, incluir_html: bool = False) -> dict[str
     atual = pdfs[-1] if pdfs else None
     dias: int | None = None
     if row.data_fim_fidelidade:
-        dias = (row.data_fim_fidelidade - date.today()).days
+        dias = (row.data_fim_fidelidade - _hoje()).days
     snap_com = row.snapshot_comercial if isinstance(row.snapshot_comercial, dict) else {}
     versao_snapshot = snap_com.get("template_versao")
     try:
