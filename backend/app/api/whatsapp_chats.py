@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import FileResponse, JSONResponse, Response
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, selectinload
 from sqlalchemy import desc, func, or_
 
 from app.database import get_db
@@ -15,7 +15,7 @@ from app.models.status_ticket import StatusTicket
 from app.models.empresa import Empresa
 from app.models.setor import Setor
 from app.models.rede import Rede
-from app.models.funcionario_rede import FuncionarioRede, FuncionarioRedeEmpresa
+from app.models.funcionario_rede import FuncionarioRede, FuncionarioRedeEmpresa, FuncionarioRedeVinculo
 from app.models.whatsapp_chat import WhatsappChat, WhatsappChatTicket, WhatsappMensagem, WhatsappSettings
 from app.services import whatsapp_media_retencao as wpp_midia_retencao
 from app.services.whatsapp_chat_anterior import candidatos_chat_anterior
@@ -47,9 +47,10 @@ from app.schemas.whatsapp_chat import (
     WhatsappFuncionarioOpcaoRead,
     WhatsappFuncionarioCatalogoRead,
     WhatsappRedeCatalogoRead,
+    WhatsappRedeOpcaoRead,
     WhatsappEmpresaCatalogoRead,
 )
-from app.services.funcionario_escopo import empresa_ids_vinculados, funcionario_visivel_no_tenant, rede_id_efetiva, sincronizar_vinculos_empresas, validar_empresa_ids_na_rede
+from app.services.funcionario_escopo import empresa_ids_vinculados, funcionario_visivel_no_tenant, rede_id_efetiva, redes_efetivas, redes_ids_efetivas, sincronizar_vinculos_empresas, sincronizar_vinculos_redes, validar_empresa_ids_na_rede
 from app.services.funcionario_rede_resolver import assert_email_unico_por_rede
 from app.core.audit import registrar_audit
 from app.core.auth import obter_atendente_atual, exigir_permissao, exigir_alguma_permissao
@@ -107,6 +108,11 @@ _CHAT_LOAD_OPTIONS = (
     joinedload(WhatsappChat.setor),
     joinedload(WhatsappChat.funcionario_rede),
     joinedload(WhatsappChat.empresa),
+)
+
+# #1407 — contatos podem estar vinculados a mais de uma rede.
+_FUNCIONARIO_LOAD_OPTIONS = (
+    selectinload(FuncionarioRede.vinculos_redes).joinedload(FuncionarioRedeVinculo.rede),
 )
 
 
@@ -478,15 +484,30 @@ def _empresa_nome_exibicao(emp: Empresa | None) -> str | None:
     return None
 
 
+def _funcionario_tem_rede_do_tenant(db: Session, atendente: Atendente, func: FuncionarioRede) -> bool:
+    """Alguma rede do contato pertence ao tenant? Usa a junction já carregada quando possível (#1407)."""
+    vinculos = func.__dict__.get("vinculos_redes")
+    if vinculos:
+        redes_carregadas = [v.__dict__.get("rede") for v in vinculos]
+        if all(rede is not None for rede in redes_carregadas):
+            return any(int(rede.tenant_id) == int(atendente.tenant_id) for rede in redes_carregadas)
+    rede_ids = redes_ids_efetivas(db, func)
+    if not rede_ids:
+        return False
+    return (
+        db.query(Rede.id)
+        .filter(Rede.id.in_(rede_ids), Rede.tenant_id == atendente.tenant_id)
+        .first()
+        is not None
+    )
+
+
 def _funcionario_no_tenant(db: Session, atendente: Atendente, funcionario_id: int) -> FuncionarioRede | None:
     func = db.query(FuncionarioRede).filter(FuncionarioRede.id == funcionario_id).first()
     if not func or not func.ativo:
         return None
-    rede_id = rede_id_efetiva(db, func)
-    if rede_id is not None:
-        rede = db.query(Rede).filter(Rede.id == rede_id, Rede.tenant_id == atendente.tenant_id).first()
-        if rede:
-            return func
+    if _funcionario_tem_rede_do_tenant(db, atendente, func):
+        return func
     if func.empresa_id is not None:
         emp = (
             db.query(Empresa)
@@ -513,6 +534,21 @@ def _empresas_funcionario(db: Session, func: FuncionarioRede) -> list[WhatsappEm
         return []
     rows = db.query(Empresa).filter(Empresa.id.in_(ids)).order_by(Empresa.nome.asc(), Empresa.id.asc()).all()
     return [WhatsappEmpresaOpcaoRead(id=e.id, nome=_empresa_nome_exibicao(e) or e.nome) for e in rows]
+
+
+def _redes_funcionario_opcoes(
+    db: Session,
+    func: FuncionarioRede,
+    redes_cache: dict[int, str],
+) -> list[WhatsappRedeOpcaoRead]:
+    """Redes do contato visíveis no tenant do atendente (#1407)."""
+    out: list[WhatsappRedeOpcaoRead] = []
+    for rede in redes_efetivas(db, func):
+        nome = redes_cache.get(int(rede.id))
+        if nome is None:
+            continue
+        out.append(WhatsappRedeOpcaoRead(id=int(rede.id), nome=nome))
+    return out
 
 
 def _resolver_empresa_contexto_opcional(
@@ -644,12 +680,14 @@ def _criar_funcionario_rede(
     db.add(f)
     db.flush()
     registrar_audit(db, "funcionario_rede", f.id, "create", atendente.id)
+    sincronizar_vinculos_redes(db, f, [int(rede_id)])
     sincronizar_vinculos_empresas(
         db,
         f,
         escopo=escopo,
         rede_id=int(rede_id),
         empresa_ids=ids if escopo == "selected" else None,
+        rede_ids=[int(rede_id)],
     )
     db.refresh(f)
     return f
@@ -1027,6 +1065,7 @@ def buscar_funcionarios(
         return []
     q = (
         db.query(FuncionarioRede)
+        .options(*_FUNCIONARIO_LOAD_OPTIONS)
         .filter(
             FuncionarioRede.ativo.is_(True),
             or_(*filtros),
@@ -1042,9 +1081,9 @@ def buscar_funcionarios(
     }
     out: list[WhatsappFuncionarioOpcaoRead] = []
     for func in rows:
-        if _funcionario_no_tenant(db, atendente, func.id) is None:
-            continue
-        rid = rede_id_efetiva(db, func)
+        # Os filtros do tenant acima já cobrem rede/empresa/junction (#1407).
+        redes_opcao = _redes_funcionario_opcoes(db, func, redes_cache)
+        rid = redes_opcao[0].id if redes_opcao else rede_id_efetiva(db, func)
         out.append(
             WhatsappFuncionarioOpcaoRead(
                 id=func.id,
@@ -1055,6 +1094,7 @@ def buscar_funcionarios(
                 empresas=_empresas_funcionario(db, func),
                 rede_id=rid,
                 rede_nome=redes_cache.get(int(rid)) if rid is not None else None,
+                redes=redes_opcao,
             )
         )
     return out
@@ -1095,6 +1135,14 @@ def _filtros_funcionario_tenant(db: Session, atendente: Atendente) -> list:
         .distinct()
         .all()
     ]
+    func_ids_redes = [
+        int(r[0])
+        for r in db.query(FuncionarioRedeVinculo.funcionario_id)
+        .join(Rede, Rede.id == FuncionarioRedeVinculo.rede_id)
+        .filter(Rede.tenant_id == atendente.tenant_id)
+        .distinct()
+        .all()
+    ]
     filtros = []
     if rede_ids:
         filtros.append(FuncionarioRede.rede_id.in_(rede_ids))
@@ -1102,6 +1150,8 @@ def _filtros_funcionario_tenant(db: Session, atendente: Atendente) -> list:
         filtros.append(FuncionarioRede.empresa_id.in_(empresa_ids))
     if func_ids_junction:
         filtros.append(FuncionarioRede.id.in_(func_ids_junction))
+    if func_ids_redes:
+        filtros.append(FuncionarioRede.id.in_(func_ids_redes))
     return filtros
 
 
@@ -1132,15 +1182,18 @@ def buscar_funcionarios_similares(
 
     tokens = tokens_significativos(nome_norm)[:2]
     token_filters = [FuncionarioRede.nome.ilike(f"%{t}%") for t in tokens] if tokens else []
-    q = db.query(FuncionarioRede).filter(FuncionarioRede.ativo.is_(True), or_(*filtros))
+    q = (
+        db.query(FuncionarioRede)
+        .options(*_FUNCIONARIO_LOAD_OPTIONS)
+        .filter(FuncionarioRede.ativo.is_(True), or_(*filtros))
+    )
     if token_filters:
         q = q.filter(or_(*token_filters))
     candidatos_rows = q.order_by(FuncionarioRede.nome.asc(), FuncionarioRede.id.asc()).limit(300).all()
 
     candidatos: list[tuple[int, str]] = []
     for func in candidatos_rows:
-        if _funcionario_no_tenant(db, atendente, func.id) is None:
-            continue
+        # Os filtros do tenant acima já cobrem rede/empresa/junction (#1407).
         candidatos.append((int(func.id), func.nome or ""))
 
     ranked = ranquear_similares(nome_q, candidatos, limiar=LIMIAR_SIMILARIDADE, limit=limit)
@@ -1157,7 +1210,8 @@ def buscar_funcionarios_similares(
         func = by_id.get(fid)
         if func is None:
             continue
-        rid = rede_id_efetiva(db, func)
+        redes_opcao = _redes_funcionario_opcoes(db, func, redes_cache)
+        rid = redes_opcao[0].id if redes_opcao else rede_id_efetiva(db, func)
         out.append(
             WhatsappFuncionarioOpcaoRead(
                 id=func.id,
@@ -1168,6 +1222,7 @@ def buscar_funcionarios_similares(
                 empresas=_empresas_funcionario(db, func),
                 rede_id=rid,
                 rede_nome=redes_cache.get(int(rid)) if rid is not None else None,
+                redes=redes_opcao,
                 similaridade=round(float(score), 3),
                 similaridade_alta=float(score) >= LIMIAR_ALTA,
             )
@@ -1234,6 +1289,14 @@ def listar_contatos(
         .distinct()
         .all()
     ]
+    func_ids_redes = [
+        int(r[0])
+        for r in db.query(FuncionarioRedeVinculo.funcionario_id)
+        .join(Rede, Rede.id == FuncionarioRedeVinculo.rede_id)
+        .filter(Rede.tenant_id == atendente.tenant_id)
+        .distinct()
+        .all()
+    ]
     filtros = []
     if rede_ids:
         filtros.append(FuncionarioRede.rede_id.in_(rede_ids))
@@ -1241,10 +1304,16 @@ def listar_contatos(
         filtros.append(FuncionarioRede.empresa_id.in_(empresa_ids))
     if func_ids_junction:
         filtros.append(FuncionarioRede.id.in_(func_ids_junction))
+    if func_ids_redes:
+        filtros.append(FuncionarioRede.id.in_(func_ids_redes))
     if not filtros:
         return ListaPaginada(items=[], total=0)
 
-    q = db.query(FuncionarioRede).filter(FuncionarioRede.ativo.is_(True), or_(*filtros))
+    q = (
+        db.query(FuncionarioRede)
+        .options(*_FUNCIONARIO_LOAD_OPTIONS)
+        .filter(FuncionarioRede.ativo.is_(True), or_(*filtros))
+    )
     term_raw = (busca or "").strip()
     if term_raw:
         term = f"%{term_raw}%"
@@ -1285,9 +1354,9 @@ def listar_contatos(
     }
     items: list[WhatsappContatoRead] = []
     for func in rows:
-        if _funcionario_no_tenant(db, atendente, func.id) is None:
-            continue
-        rid = rede_id_efetiva(db, func)
+        # Os filtros do tenant acima já cobrem rede/empresa/junction (#1407).
+        redes_opcao = _redes_funcionario_opcoes(db, func, redes_cache)
+        rid = redes_opcao[0].id if redes_opcao else rede_id_efetiva(db, func)
         items.append(
             WhatsappContatoRead(
                 id=func.id,
@@ -1298,6 +1367,7 @@ def listar_contatos(
                 empresas=_empresas_funcionario(db, func),
                 rede_id=rid,
                 rede_nome=redes_cache.get(int(rid)) if rid is not None else None,
+                redes=redes_opcao,
             )
         )
     return ListaPaginada(items=items, total=total)

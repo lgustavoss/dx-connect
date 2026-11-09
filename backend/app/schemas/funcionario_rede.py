@@ -35,7 +35,8 @@ class FuncionarioRedeBase(BaseModel):
 
 
 class FuncionarioRedeCreate(FuncionarioRedeBase):
-    rede_id: int | None = None
+    rede_id: int | None = None  # legado: primeira rede
+    rede_ids: list[int] | None = None  # #1407: N:N contato × rede
     empresa_id: int | None = None  # legado colaborador (preferir empresa_ids)
     empresa_ids: list[int] = []  # obrigatório se escopo_empresas == selected
     # Portal do cliente (#300): senha inicial opcional
@@ -50,7 +51,8 @@ class FuncionarioRedeUpdate(BaseModel):
     tipo: str | None = None
     escopo_empresas: str | None = None
     ativo: bool | None = None
-    rede_id: int | None = None
+    rede_id: int | None = None  # legado: primeira rede
+    rede_ids: list[int] | None = None  # #1407: substitui o conjunto de redes
     empresa_id: int | None = None
     empresa_ids: list[int] | None = None
     senha_portal: str | None = None
@@ -74,10 +76,16 @@ class EmpresaOpcaoRead(BaseModel):
     nome: str
 
 
+class RedeOpcaoRead(BaseModel):
+    id: int
+    nome: str
+
+
 class FuncionarioRedeRead(FuncionarioRedeBase):
     id: int
-    rede_id: int | None = None
+    rede_id: int | None = None  # legado: primeira rede
     rede_nome: str | None = None
+    redes: list[RedeOpcaoRead] = []  # #1407: todas as redes do contato
     empresa_id: int | None = None
     empresa_ids: list[int] = []  # preenchido quando escopo_empresas == selected
     empresas_vinculo: list[EmpresaOpcaoRead] = []
