@@ -11,6 +11,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 - WhatsApp: abrir ticket pelo chat lista somente as empresas vinculadas ao contato — antes vinham todas as empresas cadastradas (#S202611-0003)
 - Acesso remoto: na exclusão de computador offline e sem vínculo, o botão **Cancelar** deixa de ficar vermelho junto com **Excluir** (#S202611-0004)
+- Faturamento: a data da assinatura e da aprovação da primeira fatura passa a ser lida no fuso de São Paulo — contrato assinado à noite não atrasa mais em um dia a implantação e o gatilho da mensalidade
 
 #### Melhorias
 

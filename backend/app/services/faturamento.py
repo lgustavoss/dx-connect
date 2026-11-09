@@ -187,6 +187,20 @@ def _hoje() -> date:
     return datetime.now(TZ_SP).date()
 
 
+def _data_local(momento: datetime | None) -> date | None:
+    """Data de calendário no fuso da instância.
+
+    Colunas `DateTime(timezone=True)` chegam em UTC (no SQLite, naive): usar
+    `.date()` direto faz a assinatura feita depois das 21h de São Paulo contar
+    como o dia seguinte e atrasar setup/gatilho da mensalidade em um dia.
+    """
+    if momento is None:
+        return None
+    if momento.tzinfo is None:
+        momento = momento.replace(tzinfo=timezone.utc)
+    return momento.astimezone(TZ_SP).date()
+
+
 def status_titulo_efetivo(row: TituloReceber, hoje: date | None = None) -> str:
     if row.status == TITULO_ABERTO and row.vencimento < (hoje or _hoje()):
         return TITULO_VENCIDO
@@ -265,7 +279,7 @@ def _data_do_momento_setup(db: Session, contrato: Contrato) -> date | None:
         return None
     if momento == SETUP_MOMENTO_ASSINATURA:
         if contrato.assinado_em is not None:
-            return contrato.assinado_em.date()
+            return _data_local(contrato.assinado_em)
         if contrato.status == CONTRATO_ASSINADO:
             return contrato.data_inicio
         return None
@@ -281,7 +295,7 @@ def _data_do_momento_setup(db: Session, contrato: Contrato) -> date | None:
         if primeira is None:
             return None
         if primeira.aprovada_em is not None:
-            return primeira.aprovada_em.date()
+            return _data_local(primeira.aprovada_em)
         return primeira.vencimento
     return None
 
@@ -447,7 +461,7 @@ def inicio_da_mensalidade(
         if base is None:
             return None, MOTIVO_AGUARDANDO_IMPLANTACAO
     elif gatilho == GATILHO_DIAS_APOS_ASSINATURA:
-        base = contrato.assinado_em.date() if contrato.assinado_em else contrato.data_inicio
+        base = _data_local(contrato.assinado_em) or contrato.data_inicio
     else:
         base = contrato.data_inicio
     if base is None:
