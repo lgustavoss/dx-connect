@@ -14,7 +14,7 @@ from app.models.ponto_competencia import PontoCompetencia, PontoEspelhoCiencia
 from app.models.ponto_settings import PontoFeriado, PontoLocal, PontoSettings
 from app.models.setor import Setor
 from app.models.setor_distribuicao_round_robin import SetorDistribuicaoRoundRobin
-from app.models.funcionario_rede import FuncionarioRede, FuncionarioRedeEmpresa
+from app.models.funcionario_rede import FuncionarioRede, FuncionarioRedeEmpresa, FuncionarioRedeVinculo
 from app.models.status_ticket import StatusTicket
 from app.models.ticket import Ticket, TicketHistorico, TicketMensagem
 from app.models.ticket_anexo import TicketAnexo
@@ -128,6 +128,7 @@ __all__ = [
     "PontoFeriado",
     "FuncionarioRede",
     "FuncionarioRedeEmpresa",
+    "FuncionarioRedeVinculo",
     "StatusTicket",
     "Ticket",
     "TicketHistorico",

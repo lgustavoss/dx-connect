@@ -54,6 +54,11 @@ class WhatsappEmpresaOpcaoRead(BaseModel):
     nome: str
 
 
+class WhatsappRedeOpcaoRead(BaseModel):
+    id: int
+    nome: str
+
+
 class WhatsappChatRead(BaseModel):
     id: int
     protocolo: str
@@ -122,6 +127,7 @@ class WhatsappFuncionarioOpcaoRead(BaseModel):
     empresas: list[WhatsappEmpresaOpcaoRead] = Field(default_factory=list)
     rede_id: int | None = None
     rede_nome: str | None = None
+    redes: list[WhatsappRedeOpcaoRead] = Field(default_factory=list)
     similaridade: float | None = Field(
         None,
         description="Score 0–1 quando a listagem é por similaridade de nome (#593).",
@@ -138,6 +144,7 @@ class WhatsappContatoRead(BaseModel):
     empresas: list[WhatsappEmpresaOpcaoRead] = Field(default_factory=list)
     rede_id: int | None = None
     rede_nome: str | None = None
+    redes: list[WhatsappRedeOpcaoRead] = Field(default_factory=list)
 
 
 class WhatsappIniciarChatBody(BaseModel):

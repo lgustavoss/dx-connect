@@ -2,23 +2,34 @@ from enum import Enum
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy import or_
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.database import get_db
 from app.core.ordenacao_lista import OrdemLista, expr_ordem
-from app.models import FuncionarioRede, FuncionarioRedeEmpresa, Ticket, Empresa, Rede
+from app.models import (
+    FuncionarioRede,
+    FuncionarioRedeEmpresa,
+    FuncionarioRedeVinculo,
+    Ticket,
+    Empresa,
+    Rede,
+)
 from app.models.atendente import Atendente
 from app.schemas.funcionario_rede import (
     EmpresaOpcaoRead,
     FuncionarioRedeCreate,
     FuncionarioRedeRead,
     FuncionarioRedeUpdate,
+    RedeOpcaoRead,
     RemetenteFuncionarioResolveRead,
 )
 from app.services.funcionario_escopo import (
     escopo_efetivo,
     funcionario_visivel_no_tenant,
+    redes_efetivas,
+    redes_ids_efetivas,
     sincronizar_vinculos_empresas,
+    sincronizar_vinculos_redes,
     validar_empresa_ids_na_rede,
 )
 from app.services.inbound_ticket_reconcile import reconciliar_tickets_pendentes_por_email
@@ -33,6 +44,11 @@ router = APIRouter(prefix="/funcionarios-rede", tags=["funcionarios-rede"])
 _MAX_PAGE = 100
 _DEFAULT_PAGE = 20
 
+_FUNCIONARIO_LOAD_OPTIONS = (
+    selectinload(FuncionarioRede.vinculos_redes).joinedload(FuncionarioRedeVinculo.rede),
+    selectinload(FuncionarioRede.empresas_supervisor),
+)
+
 
 class OrdenarFuncionariosPor(str, Enum):
     nome = "nome"
@@ -40,6 +56,17 @@ class OrdenarFuncionariosPor(str, Enum):
     tipo = "tipo"
     ativo = "ativo"
     rede_id = "rede_id"
+
+
+def _dedupe_ids(valores) -> list[int]:
+    ids: list[int] = []
+    for valor in valores or []:
+        if valor is None:
+            continue
+        inteiro = int(valor)
+        if inteiro not in ids:
+            ids.append(inteiro)
+    return ids
 
 
 def _empresa_ids_leitura(f: FuncionarioRede) -> list[int]:
@@ -51,7 +78,36 @@ def _empresa_ids_leitura(f: FuncionarioRede) -> list[int]:
     return ids
 
 
-def _para_read(f: FuncionarioRede) -> FuncionarioRedeRead:
+def _carregar_funcionario(db: Session, funcionario_id: int) -> FuncionarioRede:
+    f = (
+        db.query(FuncionarioRede)
+        .options(*_FUNCIONARIO_LOAD_OPTIONS)
+        .filter(FuncionarioRede.id == funcionario_id)
+        .first()
+    )
+    assert f is not None
+    return f
+
+
+def _redes_do_funcionario(db: Session, f: FuncionarioRede) -> list[RedeOpcaoRead]:
+    """Redes do contato (usa a junction já carregada; fallback para o vínculo legado)."""
+    vinculos = f.__dict__.get("vinculos_redes")
+    if vinculos:
+        redes: list[RedeOpcaoRead] = []
+        for vinculo in vinculos:
+            rede = vinculo.__dict__.get("rede")
+            if rede is None and vinculo.rede_id is not None:
+                rede = db.query(Rede).filter(Rede.id == int(vinculo.rede_id)).first()
+            if rede is not None:
+                redes.append(RedeOpcaoRead(id=int(rede.id), nome=rede.nome))
+        if redes:
+            return redes
+    return [RedeOpcaoRead(id=int(rede.id), nome=rede.nome) for rede in redes_efetivas(db, f)]
+
+
+def _para_read(db: Session, f: FuncionarioRede) -> FuncionarioRedeRead:
+    redes = _redes_do_funcionario(db, f)
+    primeira = redes[0] if redes else None
     return FuncionarioRedeRead(
         id=f.id,
         nome=f.nome,
@@ -60,7 +116,9 @@ def _para_read(f: FuncionarioRede) -> FuncionarioRedeRead:
         tipo=f.tipo,
         escopo_empresas=escopo_efetivo(f),
         ativo=f.ativo,
-        rede_id=f.rede_id,
+        rede_id=primeira.id if primeira is not None else (int(f.rede_id) if f.rede_id is not None else None),
+        rede_nome=primeira.nome if primeira is not None else None,
+        redes=redes,
         empresa_id=f.empresa_id,
         empresa_ids=_empresa_ids_leitura(f),
         portal_habilitado=bool((getattr(f, "senha_hash", None) or "").strip()),
@@ -72,18 +130,50 @@ def _para_read(f: FuncionarioRede) -> FuncionarioRedeRead:
 
 
 def _para_read_detalhe(db: Session, f: FuncionarioRede) -> FuncionarioRedeRead:
-    base = _para_read(f)
-    rede_nome: str | None = None
-    if f.rede_id is not None:
-        rede = db.query(Rede).filter(Rede.id == f.rede_id).first()
-        if rede:
-            rede_nome = rede.nome
+    base = _para_read(db, f)
     empresa_ids = _empresa_ids_leitura(f)
     empresas_vinculo: list[EmpresaOpcaoRead] = []
     if empresa_ids:
         rows = db.query(Empresa).filter(Empresa.id.in_(empresa_ids)).order_by(Empresa.nome).all()
         empresas_vinculo = [EmpresaOpcaoRead(id=e.id, nome=e.nome) for e in rows]
-    return base.model_copy(update={"rede_nome": rede_nome, "empresas_vinculo": empresas_vinculo})
+    return base.model_copy(update={"empresas_vinculo": empresas_vinculo})
+
+
+def _redes_pedidas(rede_ids: list[int] | None, rede_id: int | None) -> list[int] | None:
+    """Redes informadas no payload (None = não mexer no vínculo)."""
+    if rede_ids is not None:
+        return _dedupe_ids(rede_ids)
+    if rede_id is not None:
+        return [int(rede_id)]
+    return None
+
+
+def _validar_redes_tenant(db: Session, atendente: Atendente, rede_ids: list[int]) -> list[Rede]:
+    ids = _dedupe_ids(rede_ids)
+    if not ids:
+        return []
+    rows = db.query(Rede).filter(Rede.id.in_(ids), Rede.tenant_id == atendente.tenant_id).all()
+    por_id = {int(r.id): r for r in rows}
+    if len(por_id) != len(ids):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Rede inválida para este tenant.")
+    return [por_id[i] for i in ids]
+
+
+def _derivar_redes_de_empresas(db: Session, empresa_ids: list[int]) -> list[int]:
+    if not empresa_ids:
+        return []
+    emps = db.query(Empresa).filter(Empresa.id.in_(empresa_ids)).all()
+    if len(emps) != len({int(eid) for eid in empresa_ids}):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Empresa inválida na lista.")
+    return list(dict.fromkeys(int(e.rede_id) for e in emps))
+
+
+def _validar_tenant_empresas(db: Session, atendente: Atendente, empresa_ids: list[int]) -> None:
+    if not empresa_ids:
+        return
+    emps = db.query(Empresa).filter(Empresa.id.in_(empresa_ids)).all()
+    if any(int(e.tenant_id) != int(atendente.tenant_id) for e in emps):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Empresa inválida para este tenant.")
 
 
 def _escopo_para_tipo(tipo: str, escopo_informado: str | None) -> str:
@@ -130,9 +220,12 @@ def listar(
     db: Session = Depends(get_db),
     _: Atendente = Depends(exigir_permissao("funcionarios.ver")),
 ):
-    q = db.query(FuncionarioRede)
+    q = db.query(FuncionarioRede).options(*_FUNCIONARIO_LOAD_OPTIONS)
     if rede_id is not None:
-        q = q.filter(FuncionarioRede.rede_id == rede_id)
+        sub_rede = db.query(FuncionarioRedeVinculo.funcionario_id).filter(
+            FuncionarioRedeVinculo.rede_id == rede_id
+        )
+        q = q.filter(or_(FuncionarioRede.rede_id == rede_id, FuncionarioRede.id.in_(sub_rede)))
     if empresa_id is not None:
         emp = db.query(Empresa).filter(Empresa.id == empresa_id).first()
         if not emp:
@@ -140,8 +233,14 @@ def listar(
         sub_junction = db.query(FuncionarioRedeEmpresa.funcionario_id).filter(
             FuncionarioRedeEmpresa.empresa_id == empresa_id
         )
+        sub_rede_empresa = db.query(FuncionarioRedeVinculo.funcionario_id).filter(
+            FuncionarioRedeVinculo.rede_id == emp.rede_id
+        )
         q = q.filter(
-            FuncionarioRede.rede_id == emp.rede_id,
+            or_(
+                FuncionarioRede.rede_id == emp.rede_id,
+                FuncionarioRede.id.in_(sub_rede_empresa),
+            ),
             or_(
                 FuncionarioRede.escopo_empresas == "all",
                 FuncionarioRede.tipo == "socio",
@@ -170,7 +269,7 @@ def listar(
     else:
         order_cols = [expr_ordem(FuncionarioRede.rede_id, ordem), expr_ordem(FuncionarioRede.id, ordem)]
     rows = q.order_by(*order_cols).offset(offset).limit(limit).all()
-    return ListaPaginada(items=[_para_read(f) for f in rows], total=total)
+    return ListaPaginada(items=[_para_read(db, f) for f in rows], total=total)
 
 
 @router.get("/resolver-por-email", response_model=RemetenteFuncionarioResolveRead)
@@ -205,35 +304,35 @@ def criar(
     escopo = _escopo_para_tipo(data.tipo, data.escopo_empresas)
     if escopo not in ("all", "selected"):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="escopo_empresas deve ser all ou selected")
-    empresa_ids = list(data.empresa_ids or [])
-    if data.empresa_id and data.empresa_id not in empresa_ids:
-        empresa_ids.insert(0, data.empresa_id)
-    rede_id_final = data.rede_id
+    empresa_ids = _dedupe_ids(data.empresa_ids or [])
+    if data.empresa_id and int(data.empresa_id) not in empresa_ids:
+        empresa_ids.insert(0, int(data.empresa_id))
     if escopo == "selected" and not empresa_ids:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Selecione ao menos uma empresa ou marque todas as empresas da rede.",
         )
+    rede_ids_pedidos = _redes_pedidas(data.rede_ids, data.rede_id)
+    if rede_ids_pedidos is None:
+        rede_ids_pedidos = _derivar_redes_de_empresas(db, empresa_ids)
+    redes = _validar_redes_tenant(db, atendente, rede_ids_pedidos)
+    if not redes:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Informe a rede.")
+    rede_ids = [int(rede.id) for rede in redes]
     if escopo == "selected":
-        if rede_id_final is None and empresa_ids:
-            emp = db.query(Empresa).filter(Empresa.id == empresa_ids[0]).first()
-            if not emp:
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Empresa não encontrada")
-            rede_id_final = emp.rede_id
         try:
-            validar_empresa_ids_na_rede(db, int(rede_id_final), empresa_ids)
+            validar_empresa_ids_na_rede(db, rede_ids, empresa_ids)
         except ValueError as e:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
-    elif not rede_id_final:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Informe a rede.")
-    if rede_id_final is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="rede_id não definido para o vínculo.")
+    _validar_tenant_empresas(db, atendente, empresa_ids)
     email_eff = data.email
     if email_eff:
-        try:
-            assert_email_unico_por_rede(db, email=str(email_eff), rede_id=int(rede_id_final))
-        except ValueError as e:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+        for rede_id in rede_ids:
+            try:
+                assert_email_unico_por_rede(db, email=str(email_eff), rede_id=int(rede_id))
+            except ValueError as e:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+    rede_principal = int(rede_ids[0])
     f = FuncionarioRede(
         nome=data.nome,
         email=email_eff,
@@ -241,26 +340,28 @@ def criar(
         tipo=data.tipo,
         escopo_empresas=escopo,
         ativo=data.ativo,
-        rede_id=rede_id_final,
+        rede_id=rede_principal,
         empresa_id=data.empresa_id if escopo == "selected" and data.tipo == "colaborador" else None,
     )
     db.add(f)
     db.flush()
     _aplicar_senha_portal(f, data.senha_portal, must_change=data.must_change_password)
     registrar_audit(db, "funcionario_rede", f.id, "create", atendente.id)
+    sincronizar_vinculos_redes(db, f, rede_ids)
     sincronizar_vinculos_empresas(
         db,
         f,
         escopo=escopo,
-        rede_id=int(rede_id_final),
+        rede_id=rede_principal,
         empresa_ids=empresa_ids if escopo == "selected" else None,
+        rede_ids=rede_ids,
     )
     db.commit()
-    db.refresh(f)
+    f = _carregar_funcionario(db, f.id)
     if f.email:
         reconciliar_tickets_pendentes_por_email(db, f.email)
     db.commit()
-    return _para_read(f)
+    return _para_read_detalhe(db, f)
 
 
 @router.get("/{funcionario_id}", response_model=FuncionarioRedeRead)
@@ -272,6 +373,7 @@ def obter(
     f = funcionario_visivel_no_tenant(db, atendente, funcionario_id, exigir_ativo=False)
     if not f:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Funcionário não encontrado")
+    f = _carregar_funcionario(db, f.id)
     return _para_read_detalhe(db, f)
 
 
@@ -282,13 +384,20 @@ def atualizar(
     db: Session = Depends(get_db),
     atendente: Atendente = Depends(exigir_permissao("funcionarios.editar")),
 ):
-    f = db.query(FuncionarioRede).filter(FuncionarioRede.id == funcionario_id).first()
+    f = (
+        db.query(FuncionarioRede)
+        .options(*_FUNCIONARIO_LOAD_OPTIONS)
+        .filter(FuncionarioRede.id == funcionario_id)
+        .first()
+    )
     if not f:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Funcionário não encontrado")
     update = data.model_dump(exclude_unset=True)
     empresa_ids = update.pop("empresa_ids", None)
     empresa_id_upd = update.pop("empresa_id", None)
     escopo_upd = update.pop("escopo_empresas", None)
+    rede_ids_upd = update.pop("rede_ids", None)
+    rede_id_upd = update.pop("rede_id", None)
     senha_portal = update.pop("senha_portal", None)
     must_change = update.pop("must_change_password", None)
     revogar = update.pop("revogar_sessoes_portal", None)
@@ -303,52 +412,61 @@ def atualizar(
     escopo = _escopo_para_tipo(f.tipo, escopo_upd or escopo_efetivo(f))
     if escopo not in ("all", "selected"):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="escopo_empresas deve ser all ou selected")
-    ids = list(empresa_ids) if empresa_ids is not None else _empresa_ids_leitura(f)
-    if empresa_id_upd is not None and empresa_id_upd not in ids:
-        ids.insert(0, empresa_id_upd)
-    rede_id = f.rede_id
+    redes_pedidas = _redes_pedidas(rede_ids_upd, rede_id_upd)
+    if redes_pedidas is not None:
+        redes = _validar_redes_tenant(db, atendente, redes_pedidas)
+        if not redes:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Informe a rede.")
+        rede_ids_validacao = [int(rede.id) for rede in redes]
+    else:
+        rede_ids_validacao = redes_ids_efetivas(db, f)
+    ids = _dedupe_ids(list(empresa_ids)) if empresa_ids is not None else _empresa_ids_leitura(f)
+    if empresa_id_upd is not None and int(empresa_id_upd) not in ids:
+        ids.insert(0, int(empresa_id_upd))
+    ids = _dedupe_ids(ids)
+    if not rede_ids_validacao:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Informe a rede.")
     if escopo == "selected":
         if not ids:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Selecione ao menos uma empresa ou marque todas as empresas da rede.",
             )
-        if rede_id is None and ids:
-            emp = db.query(Empresa).filter(Empresa.id == ids[0]).first()
-            if emp:
-                rede_id = emp.rede_id
-        if rede_id is None:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="rede_id não definido.")
         try:
-            validar_empresa_ids_na_rede(db, int(rede_id), ids)
+            validar_empresa_ids_na_rede(db, rede_ids_validacao, ids)
         except ValueError as e:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
-    elif rede_id is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Informe a rede.")
+        if empresa_ids is not None or empresa_id_upd is not None:
+            _validar_tenant_empresas(db, atendente, ids)
+    if redes_pedidas is not None:
+        sincronizar_vinculos_redes(db, f, rede_ids_validacao)
+    rede_principal = int(rede_ids_validacao[0])
     sincronizar_vinculos_empresas(
         db,
         f,
         escopo=escopo,
-        rede_id=int(rede_id),
+        rede_id=rede_principal,
         empresa_ids=ids if escopo == "selected" else None,
+        rede_ids=rede_ids_validacao,
     )
-    if f.rede_id is not None and f.email:
-        try:
-            assert_email_unico_por_rede(
-                db,
-                email=str(f.email),
-                rede_id=int(f.rede_id),
-                ignorar_funcionario_id=f.id,
-            )
-        except ValueError as e:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+    if f.email:
+        for rede_id in rede_ids_validacao:
+            try:
+                assert_email_unico_por_rede(
+                    db,
+                    email=str(f.email),
+                    rede_id=int(rede_id),
+                    ignorar_funcionario_id=f.id,
+                )
+            except ValueError as e:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
     registrar_audit(db, "funcionario_rede", funcionario_id, "update", atendente.id)
     db.commit()
-    db.refresh(f)
+    f = _carregar_funcionario(db, funcionario_id)
     if f.email:
         reconciliar_tickets_pendentes_por_email(db, f.email)
     db.commit()
-    return _para_read(f)
+    return _para_read_detalhe(db, f)
 
 
 @router.delete("/{funcionario_id}", status_code=status.HTTP_204_NO_CONTENT)
