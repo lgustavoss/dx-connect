@@ -50,6 +50,7 @@ class _DeskRemoteAuthGateState extends State<DeskRemoteAuthGate> {
     });
     var sessao = lerSessaoDeskRemote();
     if (sessao == null) {
+      limparIdentidadeDeskRemote();
       if (mounted) {
         setState(() {
           _verificando = false;

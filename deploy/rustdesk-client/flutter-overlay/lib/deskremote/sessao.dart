@@ -150,8 +150,11 @@ const kDeskRemoteIdentidadePath = r'C:\ProgramData\DeskRudder\identidade.txt';
 const kDeskRemoteIdentidadeMax = 80;
 
 void publicarIdentidadeDeskRemote(Map<String, dynamic> me) {
-  final nome = (me['nome'] ?? '').toString().trim();
-  if (nome.isEmpty || nome.length > kDeskRemoteIdentidadeMax) return;
+  var nome = (me['nome'] ?? '').toString().trim();
+  if (nome.isEmpty) return;
+  if (nome.length > kDeskRemoteIdentidadeMax) {
+    nome = nome.substring(0, kDeskRemoteIdentidadeMax);
+  }
   try {
     final arquivo = File(kDeskRemoteIdentidadePath);
     arquivo.parent.createSync(recursive: true);

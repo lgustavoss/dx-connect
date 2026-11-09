@@ -8,7 +8,7 @@ on:
   workflow_call:
     inputs:
       profile:
-        description: "posto | controle"
+        description: "cliente | atendente"
         type: string
         required: true
       rustdesk_ref:
@@ -155,7 +155,7 @@ jobs:
           mkdir -p ../dist
           CLIENT_VER="${CLIENT_VERSION:?}"
           RD_VER="${VERSION:-1.5.0}"
-          if [ "${PROFILE}" = "controle" ]; then
+          if [ "${PROFILE}" = "atendente" ]; then
             OUT="DeskRudder-AcessoRemoto-Controle-${CLIENT_VER}.exe"
           else
             OUT="DeskRudder-AcessoRemoto-${CLIENT_VER}.exe"
@@ -181,7 +181,7 @@ jobs:
           CLIENT_VER="${CLIENT_VERSION:?}"
           RD_VER="${VERSION:-1.5.0}"
           PROFILE="${PROFILE:?}"
-          if [ "$PROFILE" = "controle" ]; then
+          if [ "$PROFILE" = "atendente" ]; then
             TAG="acesso-remoto-controle-windows"
             SRC="dist/DeskRudder-AcessoRemoto-Controle-${CLIENT_VER}.exe"
             STABLE="dist/DeskRudder-AcessoRemoto-Controle.exe"

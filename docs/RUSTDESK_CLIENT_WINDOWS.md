@@ -106,7 +106,7 @@ Fonte Sciter: `deploy/rustdesk-client/server.config.json`.
 3. Compila o Windows (Sciter v1 congelado, ou Flutter 2.x), renomeia o binário para `DeskRudder.exe` e empacota o portable
 4. Publica o artefato e atualiza o Release do canal (`acesso-remoto-windows-flutter` no cliente 2.x; `acesso-remoto-controle-flutter-windows` no atendente 2.x)
 
-## Comportamento do cliente (postos)
+## Comportamento do cliente (PC acessado)
 
 O instalador é pensado para o PC que **vai ser acessado** (PDV / posto):
 
