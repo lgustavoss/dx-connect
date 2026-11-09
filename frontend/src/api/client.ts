@@ -3882,6 +3882,11 @@ export namespace Faturamento {
     total_vencido: string | number;
     quantidade_titulos: number;
     faixas: ResumoFaixa[];
+    /** #1385: menor vencimento em aberto (ou o mais antigo, se só houver atrasados). */
+    proximo_vencimento?: string | null;
+    /** #1385: total pago no ano corrente, com os mesmos filtros do resumo. */
+    pago_ano?: string | number;
+    pago_ano_quantidade?: number;
     previsao_mes: {
       competencia: string;
       titulos: string | number;

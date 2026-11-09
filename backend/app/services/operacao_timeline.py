@@ -498,6 +498,9 @@ def _eventos_cobranca(db: Session, empresa_id: int) -> list[EventoTimelineRead]:
     ficam fora do evento. O bloco financeiro da ficha vem de
     /v1/faturamento/a-receber/resumo (RBAC `faturamento.ver`); aqui só
     competência, vencimento e status em texto.
+
+    Escopo por `empresa_id`: faturamento não tem `tenant_id`; a empresa já foi
+    validada no tenant por `_empresa_da_carteira` (chamador).
     """
     faturas = (
         db.query(Fatura)

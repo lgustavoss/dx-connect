@@ -1082,6 +1082,39 @@ def resumo_a_receber(
         faixas[chave]["quantidade"] += 1
         faixas[chave]["valor"] += valor
 
+    # Próximo vencimento (#1385): menor vencimento ainda em aberto; se só houver
+    # atrasados, devolve o mais antigo (a dívida mais urgente). A ficha usa este
+    # resumo em vez de baixar a lista inteira de títulos.
+    vencimentos = sorted(t.vencimento for t in titulos if t.vencimento is not None)
+    futuros = [v for v in vencimentos if v >= hoje]
+    proximo_vencimento = futuros[0] if futuros else (vencimentos[0] if vencimentos else None)
+
+    # Pago no ano corrente (#1385): respeita os mesmos filtros do resumo.
+    inicio_ano = date(hoje.year, 1, 1)
+    q_pagos = db.query(TituloReceber).filter(
+        TituloReceber.status == TITULO_PAGO,
+        TituloReceber.pago_em.isnot(None),
+        TituloReceber.pago_em >= inicio_ano,
+        TituloReceber.pago_em <= date(hoje.year, 12, 31),
+    )
+    q_pagos = _filtrar_titulos(
+        q_pagos,
+        db,
+        competencia=competencia,
+        status_filtro=None,
+        rede_id=rede_id,
+        empresa_id=empresa_id,
+        tipo=tipo,
+    )
+    pagos = q_pagos.all()
+    pago_ano = sum(
+        (
+            Decimal(str(t.valor_pago if t.valor_pago is not None else (t.valor or 0)))
+            for t in pagos
+        ),
+        Decimal("0.00"),
+    )
+
     competencia_mes = competencia_atual(hoje)
     titulos_mes = sum(
         (Decimal(str(t.valor or 0)) for t in titulos if t.competencia == competencia_mes),
@@ -1107,6 +1140,9 @@ def resumo_a_receber(
         "total_vencido": total_vencido,
         "quantidade_titulos": len(titulos),
         "faixas": list(faixas.values()),
+        "proximo_vencimento": proximo_vencimento,
+        "pago_ano": pago_ano,
+        "pago_ano_quantidade": len(pagos),
         "previsao_mes": {
             "competencia": competencia_mes,
             "titulos": titulos_mes,
@@ -1202,17 +1238,17 @@ def _validar_baixa_sem_boleto(
         return None
     if motivo is None:
         raise HTTPException(status_code=400, detail="Anexe o boleto da fatura antes de dar baixa.")
-    # max_len+1 garante que motivo acima de 500 seja rejeitado, não truncado.
-    texto = _normalizar_texto_curto(motivo, max_len=SEM_BOLETO_MOTIVO_MAX + 1)
-    if texto is None or not (SEM_BOLETO_MOTIVO_MIN <= len(texto) <= SEM_BOLETO_MOTIVO_MAX):
-        raise HTTPException(
-            status_code=400,
-            detail="Descreva o motivo da baixa sem boleto (10 a 500 caracteres).",
-        )
+    # Permissão antes do formato: quem não pode a exceção recebe 403, não 400 por motivo curto.
     if not tem_permissao(ator, "faturamento.aprovar"):
         raise HTTPException(
             status_code=403,
             detail="Sem permissão para dar baixa sem boleto. A exceção exige a permissão faturamento.aprovar.",
+        )
+    texto = _normalizar_texto_curto(motivo, max_len=SEM_BOLETO_MOTIVO_MAX)
+    if texto is None or not (SEM_BOLETO_MOTIVO_MIN <= len(texto) <= SEM_BOLETO_MOTIVO_MAX):
+        raise HTTPException(
+            status_code=400,
+            detail="Descreva o motivo da baixa sem boleto (10 a 500 caracteres).",
         )
     registrar_audit(
         db,

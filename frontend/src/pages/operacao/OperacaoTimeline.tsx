@@ -87,7 +87,6 @@ export function OperacaoTimeline() {
   const [offset, setOffset] = useState(0)
   const [resumo, setResumo] = useState<Faturamento.ResumoAReceber | null>(null)
   const [resumoLoading, setResumoLoading] = useState(false)
-  const [titulosEmpresa, setTitulosEmpresa] = useState<Faturamento.Titulo[]>([])
   const [erroFinanceiro, setErroFinanceiro] = useState<string | null>(null)
 
   const [eventos, setEventos] = useState<EventoTimeline[]>([])
@@ -179,26 +178,21 @@ export function OperacaoTimeline() {
   useEffect(() => {
     if (empresaId == null || !podeFinanceiro) {
       setResumo(null)
-      setTitulosEmpresa([])
       setErroFinanceiro(null)
       return
     }
     let cancelado = false
     setResumoLoading(true)
     setErroFinanceiro(null)
-    Promise.all([
-      faturamento.resumoAReceber({ empresa_id: empresaId }),
-      faturamento.listTitulos({ empresa_id: empresaId }).catch(() => [] as Faturamento.Titulo[]),
-    ])
-      .then(([resumoAtual, titulos]) => {
+    faturamento
+      .resumoAReceber({ empresa_id: empresaId })
+      .then((resumoAtual) => {
         if (cancelado) return
         setResumo(resumoAtual)
-        setTitulosEmpresa(titulos)
       })
       .catch((err) => {
         if (cancelado) return
         setResumo(null)
-        setTitulosEmpresa([])
         setErroFinanceiro(mensagemFalhaParaToast(err, 'Não foi possível carregar a situação financeira.'))
       })
       .finally(() => {
@@ -236,16 +230,12 @@ export function OperacaoTimeline() {
 
   const podeLimparFiltros = Boolean(categoria || de || ate)
 
+  // O resumo já traz próximo vencimento, pago no ano e quantidade de títulos
+  // abertos (#1385) — a ficha não baixa a lista inteira de títulos.
   const anoAtual = new Date().getFullYear()
-  const titulosAbertos = titulosEmpresa.filter((t) => t.status === 'aberto' || t.status === 'vencido')
-  const proximoVencimento =
-    titulosAbertos
-      .map((t) => t.vencimento)
-      .filter(Boolean)
-      .sort()[0] ?? null
-  const pagoNoAno = titulosEmpresa
-    .filter((t) => t.status === 'pago' && t.pago_em && new Date(t.pago_em).getFullYear() === anoAtual)
-    .reduce((soma, t) => soma + Number(t.valor_pago ?? t.valor ?? 0), 0)
+  const proximoVencimento = resumo?.proximo_vencimento ?? null
+  const pagoNoAno = Number(resumo?.pago_ano ?? 0)
+  const titulosAbertos = resumo?.quantidade_titulos ?? 0
 
   return (
     <PageContainer>
@@ -435,7 +425,7 @@ export function OperacaoTimeline() {
                     </span>
                     <span>
                       <strong className="text-slate-800 dark:text-slate-100">Títulos em aberto:</strong>{' '}
-                      {titulosAbertos.length}
+                      {titulosAbertos}
                     </span>
                   </div>
                 </div>

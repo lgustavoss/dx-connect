@@ -442,8 +442,16 @@ def test_baixa_exige_boleto_e_excecao_auditada(client, auth_headers):
         headers=h_admin,
         json={"sem_documento_motivo": "x" * 501},
     )
-    assert longo.status_code == 400
-    assert "10 a 500" in longo.json()["detail"]
+    # Limite de 500 é do schema (#1387): FastAPI devolve 422 antes do service.
+    assert longo.status_code == 422
+
+    # Permissão vem antes do formato: sem o código, motivo curto também dá 403.
+    curto_sem_permissao = client.post(
+        f"/v1/faturamento/titulos/{tid}/baixar",
+        headers=h_fin,
+        json={"sem_documento_motivo": "curto"},
+    )
+    assert curto_sem_permissao.status_code == 403
     ausente = client.post(f"/v1/faturamento/titulos/{tid}/baixar", headers=h_admin, json={})
     assert ausente.status_code == 400
     assert ausente.json()["detail"] == "Anexe o boleto da fatura antes de dar baixa."

@@ -7,6 +7,7 @@ continuar produzindo exatamente as faturas anteriores.
 from __future__ import annotations
 
 from datetime import date, timedelta
+from decimal import Decimal
 
 from app.database import SessionLocal
 from app.services.faturamento import processar_faturamento_mensal, vencimento_da_competencia
@@ -727,6 +728,35 @@ def test_resumo_a_receber_aging_e_previsao(client, auth_headers):
     assert float(body["total_vencido"]) >= 900.0
     assert float(body["previsao_mes"]["mensalidades_ativas"]) >= 900.0
     assert body["previsao_mes"]["competencia"] == _comp(date.today())
+    # #1385: o resumo alimenta a ficha 360 sem baixar a lista de títulos.
+    assert body["proximo_vencimento"] is not None
+
+    from app.models.faturamento import TITULO_PAGO, TITULO_TIPO_MENSALIDADE
+
+    db = SessionLocal()
+    try:
+        pago = TituloReceber(
+            fatura_id=None,
+            contrato_id=cid,
+            empresa_id=contrato["empresa_id"],
+            tipo=TITULO_TIPO_MENSALIDADE,
+            competencia=_comp(date.today()),
+            valor=Decimal("250.00"),
+            vencimento=date.today() - timedelta(days=5),
+            status=TITULO_PAGO,
+            pago_em=date.today(),
+            valor_pago=Decimal("250.00"),
+        )
+        db.add(pago)
+        db.commit()
+    finally:
+        db.close()
+
+    resumo_pago = client.get("/v1/faturamento/a-receber/resumo", headers=h_fin)
+    assert resumo_pago.status_code == 200, resumo_pago.text
+    body_pago = resumo_pago.json()
+    assert float(body_pago["pago_ano"]) >= 250.0
+    assert body_pago["pago_ano_quantidade"] >= 1
 
 
 def test_filtros_rede_empresa_tipo_e_csv(client, auth_headers):
