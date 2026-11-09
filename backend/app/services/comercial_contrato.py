@@ -1358,23 +1358,43 @@ def cancelar_contrato(db: Session, row: Contrato, ator: Atendente) -> Contrato:
     row.status = CONTRATO_CANCELADO
     linha = row.linha or obter_linha(db, row.negociacao_linha_cnpj_id)
 
+    canceladas: dict[str, int] | None = None
+    titulo_multa = None
+    if era_assinado:
+        # Rescisão não deixa fatura/título do mês em aberto (#1324). A multa nasce
+        # **depois** desta limpeza para não ser cancelada junto (#1386).
+        from app.services import faturamento as faturamento_svc
+
+        canceladas = faturamento_svc.cancelar_pendencias_do_contrato(db, row)
+        row.pendencias_cobranca_canceladas = canceladas  # lido pela API para auditoria
+        if estimativa is not None:
+            titulo_multa = faturamento_svc.garantir_titulo_multa(db, row, estimativa)
+
     if era_assinado and estimativa is not None:
         if estimativa["aplicavel"] and estimativa["valor_estimado"] is not None:
-            texto = (
-                f"Contrato #{row.id} rescindido. Estimativa de multa: "
-                f"{estimativa['mensalidades_estimadas']} mensalidade(s) = "
-                f"{proposta_svc._money_br(estimativa['valor_estimado'])} "
-                f"(ajuda operacional; não é cobrança)."
-            )
+            valor_mult = proposta_svc._money_br(estimativa["valor_estimado"])
+            if titulo_multa is not None:
+                texto = (
+                    f"Contrato #{row.id} rescindido. Multa de rescisão: "
+                    f"{estimativa['mensalidades_estimadas']} mensalidade(s) = {valor_mult} — "
+                    f"título a receber #{titulo_multa.id} criado (tipo multa, "
+                    f"vencimento {titulo_multa.vencimento.strftime('%d/%m/%Y')})."
+                )
+            else:
+                texto = (
+                    f"Contrato #{row.id} rescindido. Multa de rescisão: "
+                    f"{estimativa['mensalidades_estimadas']} mensalidade(s) = {valor_mult} — "
+                    "título de multa já existia no A receber (não duplicado)."
+                )
         elif estimativa["dentro_fidelidade"] and estimativa["multa_max_mensalidades"] <= 0:
             texto = (
                 f"Contrato #{row.id} rescindido dentro da fidelidade; "
-                "teto de multa é 0 — sem estimativa."
+                "teto de multa é 0 — sem título de multa."
             )
         else:
             texto = (
                 f"Contrato #{row.id} rescindido fora do período de fidelidade "
-                "(ou sem meses restantes) — sem estimativa de multa."
+                "(ou sem meses restantes) — sem título de multa."
             )
     else:
         texto = f"Contrato #{row.id} cancelado."
@@ -1388,25 +1408,21 @@ def cancelar_contrato(db: Session, row: Contrato, ator: Atendente) -> Contrato:
         )
     )
     db.flush()
-    if era_assinado:
-        # Rescisão não deixa fatura/título do mês em aberto (#1324).
-        from app.services import faturamento as faturamento_svc
-
-        canceladas = faturamento_svc.cancelar_pendencias_do_contrato(db, row)
-        row.pendencias_cobranca_canceladas = canceladas  # lido pela API para auditoria
-        if canceladas["faturas_canceladas"] or canceladas["titulos_cancelados"]:
-            db.add(
-                CrmNegociacaoAtividade(
-                    negociacao_id=linha.negociacao_id,
-                    autor_id=ator.id,
-                    tipo=ATIVIDADE_DOCUMENTO,
-                    texto=(
-                        f"Contrato #{row.id}: {canceladas['faturas_canceladas']} fatura(s) e "
-                        f"{canceladas['titulos_cancelados']} título(s) em aberto cancelados na cobrança."
-                    ),
-                )
+    if canceladas is not None and (
+        canceladas["faturas_canceladas"] or canceladas["titulos_cancelados"]
+    ):
+        db.add(
+            CrmNegociacaoAtividade(
+                negociacao_id=linha.negociacao_id,
+                autor_id=ator.id,
+                tipo=ATIVIDADE_DOCUMENTO,
+                texto=(
+                    f"Contrato #{row.id}: {canceladas['faturas_canceladas']} fatura(s) e "
+                    f"{canceladas['titulos_cancelados']} título(s) em aberto cancelados na cobrança."
+                ),
             )
-            db.flush()
+        )
+        db.flush()
     return row
 
 
@@ -1503,6 +1519,7 @@ def contrato_para_read(row: Contrato, *, incluir_html: bool = False) -> dict[str
     inicio_mensalidade_efetivo = None
     dia_vencimento_efetivo = None
     aguardando_motivo = None
+    titulo_multa = None
     if sess is not None:
         from app.services import faturamento as faturamento_svc
 
@@ -1511,6 +1528,7 @@ def contrato_para_read(row: Contrato, *, incluir_html: bool = False) -> dict[str
             sess, row, politica=pol
         )
         dia_vencimento_efetivo = faturamento_svc.dia_vencimento_do_contrato(sess, row, politica=pol)
+        titulo_multa = faturamento_svc.titulo_multa_do_contrato(sess, row.id)
     return {
         "id": row.id,
         "negociacao_linha_cnpj_id": row.negociacao_linha_cnpj_id,
@@ -1571,6 +1589,8 @@ def contrato_para_read(row: Contrato, *, incluir_html: bool = False) -> dict[str
         "conteudo_html_snapshot": atual.conteudo_html_snapshot if incluir_html and atual else None,
         "dias_restantes_fidelidade": dias,
         "multa_rescisao": estimar_multa_rescisao(row),
+        # Título a receber da multa, quando a rescisão já o criou (#1386).
+        "titulo_multa": titulo_multa,
         "interno": _interno_read(row, linha),
         "implantacao_ticket_id": ticket_impl.id if ticket_impl else None,
         "implantacao_ticket_protocolo": ticket_impl.protocolo if ticket_impl else None,
