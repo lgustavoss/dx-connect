@@ -3741,6 +3741,8 @@ export namespace ComercialContrato {
     conteudo_html_snapshot?: string | null;
     dias_restantes_fidelidade?: number | null;
     multa_rescisao?: MultaRescisao | null;
+    /** Título avulso de multa gerado na rescisão do contrato assinado (#1386). */
+    titulo_multa?: { id: number; valor: string | number; vencimento: string; status: string } | null;
     interno?: Interno | null;
     implantacao_ticket_id?: number | null;
     implantacao_ticket_protocolo?: string | null;
@@ -3842,7 +3844,7 @@ export namespace Faturamento {
     rede_nome?: string | null;
     cnpj: string | null;
     razao_social: string | null;
-    tipo?: 'mensalidade' | 'implantacao' | string;
+    tipo?: 'mensalidade' | 'implantacao' | 'multa' | string;
     competencia: string;
     valor: string | number;
     vencimento: string;

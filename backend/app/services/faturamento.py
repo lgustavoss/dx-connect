@@ -45,6 +45,7 @@ from app.models.faturamento import (
     TITULO_STATUS_FILTRO,
     TITULO_TIPO_IMPLANTACAO,
     TITULO_TIPO_MENSALIDADE,
+    TITULO_TIPO_MULTA,
     TITULO_TIPOS,
     TITULO_VENCIDO,
     VENCIMENTO_DIA_PADRAO,
@@ -344,6 +345,89 @@ def garantir_titulos_setup(db: Session, *, hoje: date | None = None) -> int:
             criados += 1
     return criados
 
+
+def garantir_titulo_multa(
+    db: Session,
+    contrato: Contrato,
+    estimativa: dict,
+    *,
+    hoje: date | None = None,
+) -> TituloReceber | None:
+    """Cria (uma única vez) o título da multa de rescisão (#1386).
+
+    Título avulso (`fatura_id` nulo), igual ao de implantação (#1342). A
+    rescisão chama esta função **depois** de `cancelar_pendencias_do_contrato`
+    para a multa não nascer cancelada. Se já existe multa do contrato, devolve
+    `None` — o índice único parcial é a defesa final contra duplicidade.
+
+    Contrato sem `empresa_id` gera título sem empresa (aparece na lista geral
+    do A receber, não nos filtros por empresa) — caso raro de cadastro
+    incompleto; a cobrança continua existindo.
+    """
+    if not estimativa or not estimativa.get("aplicavel"):
+        return None
+    valor = estimativa.get("valor_estimado")
+    if valor is None or Decimal(str(valor)) <= 0:
+        return None
+    existente = titulo_multa_do_contrato(db, contrato.id)
+    if existente is not None:
+        return None
+    competencia = competencia_atual(hoje)
+    dia = dia_vencimento_do_contrato(db, contrato, politica=garantir_politica(db))
+    row = TituloReceber(
+        fatura_id=None,
+        contrato_id=contrato.id,
+        empresa_id=contrato.empresa_id,
+        tipo=TITULO_TIPO_MULTA,
+        competencia=competencia,
+        valor=Decimal(str(valor)),
+        vencimento=vencimento_da_competencia(competencia, dia=dia),
+        status=TITULO_ABERTO,
+    )
+    db.add(row)
+    db.flush()
+    return row
+
+
+def _titulo_multa_payload(row: TituloReceber) -> dict:
+    return {
+        "id": row.id,
+        "valor": row.valor,
+        "vencimento": row.vencimento,
+        "status": status_titulo_efetivo(row),
+    }
+
+
+def titulo_multa_do_contrato(db: Session, contrato_id: int) -> dict | None:
+    """Título da multa de rescisão do contrato, se já criado (#1386)."""
+    row = (
+        db.query(TituloReceber)
+        .filter(
+            TituloReceber.contrato_id == contrato_id,
+            TituloReceber.tipo == TITULO_TIPO_MULTA,
+        )
+        .first()
+    )
+    return _titulo_multa_payload(row) if row is not None else None
+
+
+def titulos_multa_por_contrato(db: Session, contrato_ids: list[int]) -> dict[int, dict]:
+    """Mapa contrato_id -> título da multa numa única consulta (#1386).
+
+    Usado nas listagens para não pagar uma query por contrato.
+    """
+    ids = [cid for cid in contrato_ids if cid is not None]
+    if not ids:
+        return {}
+    rows = (
+        db.query(TituloReceber)
+        .filter(
+            TituloReceber.contrato_id.in_(ids),
+            TituloReceber.tipo == TITULO_TIPO_MULTA,
+        )
+        .all()
+    )
+    return {row.contrato_id: _titulo_multa_payload(row) for row in rows}
 
 
 def documentos_completos(row: Fatura) -> bool:
@@ -814,7 +898,8 @@ def cancelar_pendencias_do_contrato(db: Session, contrato: Contrato, *, desde_co
     """Rescisão não deixa fatura/título do mês em aberto (#1324).
 
     Cancela faturas não pagas da competência atual em diante e títulos não pagos
-    (mensalidade e implantação) do contrato.
+    (mensalidade e implantação) do contrato. A multa de rescisão fica de fora
+    (#1386): ela nasce depois desta chamada e não é pendência a cancelar.
     """
     comp = validar_competencia(desde_competencia)
     faturas_canceladas = 0
@@ -843,6 +928,8 @@ def cancelar_pendencias_do_contrato(db: Session, contrato: Contrato, *, desde_co
     ):
         if titulo.status in (TITULO_PAGO, TITULO_CANCELADO):
             continue
+        if titulo.tipo == TITULO_TIPO_MULTA:
+            continue  # multa da rescisão não é pendência a cancelar (#1386)
         if titulo.fatura_id is not None:
             continue  # já tratado junto da fatura
         titulo.status = TITULO_CANCELADO
@@ -1179,6 +1266,7 @@ def _csv_seguro(valor: object) -> object:
 
 
 def titulos_csv(db: Session, *, competencia: str | None, status_filtro: str | None,
+                # #1386: a coluna Tipo pode trazer "multa" (título avulso da rescisão).
                 rede_id: int | None, empresa_id: int | None, tipo: str | None) -> str:
     """CSV do A receber com os mesmos filtros da lista (#375). Separador ';' para Excel pt-BR."""
     import csv
@@ -1215,9 +1303,12 @@ def titulos_csv(db: Session, *, competencia: str | None, status_filtro: str | No
         dados = titulo_para_read(db, row)
         status = dados["status"]
         atraso = max((hoje - row.vencimento).days, 0) if status == TITULO_VENCIDO else 0
+        tipo_titulo = row.tipo or TITULO_TIPO_MENSALIDADE
+        if tipo_titulo not in TITULO_TIPOS:
+            tipo_titulo = TITULO_TIPO_MENSALIDADE
         writer.writerow(
             [
-                TITULO_TIPO_IMPLANTACAO if (row.tipo or TITULO_TIPO_MENSALIDADE) == TITULO_TIPO_IMPLANTACAO else TITULO_TIPO_MENSALIDADE,
+                tipo_titulo,
                 _csv_seguro(dados.get("razao_social") or dados.get("empresa_nome") or ""),
                 _csv_seguro(dados.get("cnpj") or ""),
                 _csv_seguro(dados.get("rede_nome") or ""),

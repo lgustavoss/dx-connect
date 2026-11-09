@@ -48,6 +48,7 @@ from app.models.faturamento import (
     TITULO_CANCELADO,
     TITULO_PAGO,
     TITULO_TIPO_IMPLANTACAO,
+    TITULO_TIPO_MULTA,
 )
 from app.schemas.operacao_timeline import (
     CategoriaEvento,
@@ -483,6 +484,8 @@ def _rotulo_tipo_titulo(tipo: str | None) -> str:
     """Rótulo pt-BR do tipo do título, sem expor códigos internos."""
     if tipo == TITULO_TIPO_IMPLANTACAO:
         return "implantação"
+    if tipo == TITULO_TIPO_MULTA:
+        return "multa"
     return "mensalidade"
 
 

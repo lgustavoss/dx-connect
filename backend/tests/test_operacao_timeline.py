@@ -410,6 +410,38 @@ def test_timeline_cobranca_nao_vaza_entre_empresas_e_sem_cobranca_nao_gera(
     assert vazio["total"] == 0 and vazio["items"] == []
 
 
+def test_timeline_cobranca_rotulo_multa(client, auth_headers, db_session):
+    """#1386: título de multa aparece como «multa» na timeline, não como mensalidade."""
+    from datetime import date as _date
+    from decimal import Decimal
+
+    from app.models.faturamento import TITULO_ABERTO, TITULO_TIPO_MULTA, TituloReceber
+
+    ctx = _fluxo_cobranca(client, auth_headers, aprovar=True)
+    db_session.add(
+        TituloReceber(
+            fatura_id=None,
+            contrato_id=ctx["contrato_id"],
+            empresa_id=ctx["empresa_id"],
+            tipo=TITULO_TIPO_MULTA,
+            competencia=ctx["competencia"],
+            valor=Decimal("150.00"),
+            vencimento=_date(2030, 1, 10),
+            status=TITULO_ABERTO,
+        )
+    )
+    db_session.commit()
+
+    itens = _eventos_cobranca(client, auth_headers["comercial"], ctx["empresa_id"])
+    aberto = next(
+        item
+        for item in itens
+        if item["tipo"] == "titulo_aberto" and "Tipo: multa" in (item["detalhe"] or "")
+    )
+    assert aberto["ref_tipo"] == "titulo"
+    assert "vencimento em 10/01/2030" in aberto["detalhe"]
+
+
 def test_timeline_cobranca_vencido_sem_evento_por_dia(client, auth_headers, db_session):
     from app.models.faturamento import TituloReceber
 
