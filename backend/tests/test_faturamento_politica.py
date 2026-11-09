@@ -6,12 +6,24 @@ continuar produzindo exatamente as faturas anteriores.
 
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
+from decimal import Decimal
+from zoneinfo import ZoneInfo
 
 from app.database import SessionLocal
 from app.services.faturamento import processar_faturamento_mensal, vencimento_da_competencia
 from tests.test_comercial_contrato import _anexar_pdf_assinado, _negociacao_com_linha
 from tests.test_implantacao import _assinar_contrato
+
+
+def _hoje_sp() -> date:
+    """Hoje no fuso da instância — espelha `_hoje()` do faturamento.
+
+    `date.today()` usa o fuso do runner (UTC no CI): entre 21h e 24h de São
+    Paulo a data UTC já é outra e os testes de gatilho/setup quebravam sem
+    nenhuma mudança de produto (flakiness de virada de dia).
+    """
+    return datetime.now(ZoneInfo("America/Sao_Paulo")).date()
 
 
 def _assinar_contrato_com_setup(client, h, *, setup_valor: str = "1500.00", setup_isento: bool = False):
@@ -45,6 +57,17 @@ def _titulos(client, h, **params):
 
 def _comp(d: date) -> str:
     return f"{d.year:04d}-{d.month:02d}"
+
+
+def _anexar_boleto(client, h, fatura_id: int) -> None:
+    """Baixa exige boleto anexado (#1387)."""
+    r = client.post(
+        f"/v1/faturamento/faturas/{fatura_id}/anexos",
+        headers=h,
+        files={"file": ("boleto.pdf", b"%PDF-1.4 teste", "application/pdf")},
+        data={"tipo": "boleto"},
+    )
+    assert r.status_code == 201, r.text
 
 
 def _proximo_mes(d: date) -> date:
@@ -476,7 +499,7 @@ def test_setup_vira_titulo_no_momento_assinatura_e_nao_duplica(client, auth_head
     client.post(
         "/v1/faturamento/faturas/gerar-competencia",
         headers=h_admin,
-        json={"competencia": _comp(date.today())},
+        json={"competencia": _comp(_hoje_sp())},
     )
     db = SessionLocal()
     try:
@@ -515,7 +538,7 @@ def test_setup_data_combinada_espera_a_data(client, auth_headers):
     )
     assert sem_data.status_code == 400
 
-    futuro = (date.today() + timedelta(days=30)).isoformat()
+    futuro = (_hoje_sp() + timedelta(days=30)).isoformat()
     r = client.patch(
         f"/v1/comercial/contratos/{cid}/cobranca",
         headers=h_com,
@@ -550,7 +573,7 @@ def test_setup_junto_da_primeira_mensalidade(client, auth_headers):
     assert r.status_code == 200, r.text
     assert [t for t in _titulos(client, h_fin) if t["tipo"] == "implantacao"] == []
 
-    comp = _comp(date.today())
+    comp = _comp(_hoje_sp())
     gerar = client.post(
         "/v1/faturamento/faturas", headers=h_fin, json={"contrato_id": cid, "competencia": comp}
     )
@@ -574,7 +597,7 @@ def test_cancelar_fatura_cancela_titulo_nao_pago(client, auth_headers):
     h_at = auth_headers["a1"]
     contrato = _assinar_contrato(client, h_com)
     cid = contrato["id"]
-    comp = _comp(date.today())
+    comp = _comp(_hoje_sp())
 
     gerar = client.post("/v1/faturamento/faturas", headers=h_fin, json={"contrato_id": cid, "competencia": comp})
     assert gerar.status_code == 201, gerar.text
@@ -591,7 +614,7 @@ def test_cancelar_fatura_cancela_titulo_nao_pago(client, auth_headers):
     assert regerar.status_code == 400
 
     # Fatura aprovada com título em aberto: cancelar a fatura cancela o título junto.
-    comp2 = _comp(date.today() + timedelta(days=32))
+    comp2 = _comp(_hoje_sp() + timedelta(days=32))
     gerar2 = client.post("/v1/faturamento/faturas", headers=h_fin, json={"contrato_id": cid, "competencia": comp2})
     assert gerar2.status_code == 201, gerar2.text
     fid2 = gerar2.json()["id"]
@@ -605,11 +628,12 @@ def test_cancelar_fatura_cancela_titulo_nao_pago(client, auth_headers):
     assert cancela2.json()["titulo"]["status_persistido"] == "cancelado"
 
     # Título pago obriga estorno antes de cancelar.
-    comp3 = _comp(date.today() + timedelta(days=64))
+    comp3 = _comp(_hoje_sp() + timedelta(days=64))
     gerar3 = client.post("/v1/faturamento/faturas", headers=h_fin, json={"contrato_id": cid, "competencia": comp3})
     fid3 = gerar3.json()["id"]
     aprova3 = client.post(f"/v1/faturamento/faturas/{fid3}/aprovar", headers=h_fin)
     tid3 = aprova3.json()["titulo"]["id"]
+    _anexar_boleto(client, h_fin, fid3)
     client.post(f"/v1/faturamento/titulos/{tid3}/baixar", headers=h_fin, json={})
     bloqueia = client.post(f"/v1/faturamento/faturas/{fid3}/cancelar", headers=h_fin, json={})
     assert bloqueia.status_code == 400
@@ -621,13 +645,14 @@ def test_estornar_e_cancelar_titulo(client, auth_headers):
     h_fin = auth_headers["a2"]
     contrato = _assinar_contrato(client, h_com)
     cid = contrato["id"]
-    comp = _comp(date.today())
+    comp = _comp(_hoje_sp())
     gerar = client.post("/v1/faturamento/faturas", headers=h_fin, json={"contrato_id": cid, "competencia": comp})
     fid = gerar.json()["id"]
     aprova = client.post(f"/v1/faturamento/faturas/{fid}/aprovar", headers=h_fin)
     tid = aprova.json()["titulo"]["id"]
 
     assert client.post(f"/v1/faturamento/titulos/{tid}/estornar", headers=h_fin, json={}).status_code == 400
+    _anexar_boleto(client, h_fin, fid)
     client.post(f"/v1/faturamento/titulos/{tid}/baixar", headers=h_fin, json={"observacao": "PIX"})
     estorno = client.post(
         f"/v1/faturamento/titulos/{tid}/estornar",
@@ -658,7 +683,7 @@ def test_rescisao_cancela_faturas_e_titulos_pendentes(client, auth_headers):
     h_fin = auth_headers["a2"]
     contrato = _assinar_contrato(client, h_com)
     cid = contrato["id"]
-    comp = _comp(date.today())
+    comp = _comp(_hoje_sp())
     gerar = client.post("/v1/faturamento/faturas", headers=h_fin, json={"contrato_id": cid, "competencia": comp})
     fid = gerar.json()["id"]
     aprova = client.post(f"/v1/faturamento/faturas/{fid}/aprovar", headers=h_fin)
@@ -675,18 +700,27 @@ def test_rescisao_cancela_faturas_e_titulos_pendentes(client, auth_headers):
     assert alvo["status_persistido"] == "cancelado"
 
 
+def test_data_local_le_assinatura_no_fuso_de_sao_paulo():
+    """#1387: assinatura depois das 21h (SP) não pode contar como o dia seguinte (UTC)."""
+    from app.services.faturamento import _data_local
+
+    assert _data_local(datetime(2026, 11, 9, 0, 30, tzinfo=timezone.utc)) == date(2026, 11, 8)
+    assert _data_local(datetime(2026, 11, 9, 3, 30, tzinfo=timezone.utc)) == date(2026, 11, 9)
+    assert _data_local(None) is None
+
+
 def test_resumo_a_receber_aging_e_previsao(client, auth_headers):
     h_com = auth_headers["comercial"]
     h_fin = auth_headers["a2"]
     contrato = _assinar_contrato(client, h_com)
     cid = contrato["id"]
-    comp = _comp(date.today())
+    comp = _comp(_hoje_sp())
     gerar = client.post("/v1/faturamento/faturas", headers=h_fin, json={"contrato_id": cid, "competencia": comp})
     fid = gerar.json()["id"]
     aprova = client.post(f"/v1/faturamento/faturas/{fid}/aprovar", headers=h_fin)
     tid_a_vencer = aprova.json()["titulo"]["id"]
 
-    comp2 = _comp(date.today() + timedelta(days=32))
+    comp2 = _comp(_hoje_sp() + timedelta(days=32))
     gerar2 = client.post("/v1/faturamento/faturas", headers=h_fin, json={"contrato_id": cid, "competencia": comp2})
     fid2 = gerar2.json()["id"]
     aprova2 = client.post(f"/v1/faturamento/faturas/{fid2}/aprovar", headers=h_fin)
@@ -697,7 +731,7 @@ def test_resumo_a_receber_aging_e_previsao(client, auth_headers):
     db = SessionLocal()
     try:
         row = db.query(TituloReceber).filter(TituloReceber.id == tid_atrasado).one()
-        row.vencimento = date.today() - timedelta(days=45)
+        row.vencimento = _hoje_sp() - timedelta(days=45)
         db.commit()
     finally:
         db.close()
@@ -713,7 +747,36 @@ def test_resumo_a_receber_aging_e_previsao(client, auth_headers):
     assert float(body["total_aberto"]) >= 900.0
     assert float(body["total_vencido"]) >= 900.0
     assert float(body["previsao_mes"]["mensalidades_ativas"]) >= 900.0
-    assert body["previsao_mes"]["competencia"] == _comp(date.today())
+    assert body["previsao_mes"]["competencia"] == _comp(_hoje_sp())
+    # #1385: o resumo alimenta a ficha 360 sem baixar a lista de títulos.
+    assert body["proximo_vencimento"] is not None
+
+    from app.models.faturamento import TITULO_PAGO, TITULO_TIPO_MENSALIDADE
+
+    db = SessionLocal()
+    try:
+        pago = TituloReceber(
+            fatura_id=None,
+            contrato_id=cid,
+            empresa_id=contrato["empresa_id"],
+            tipo=TITULO_TIPO_MENSALIDADE,
+            competencia=_comp(_hoje_sp()),
+            valor=Decimal("250.00"),
+            vencimento=_hoje_sp() - timedelta(days=5),
+            status=TITULO_PAGO,
+            pago_em=_hoje_sp(),
+            valor_pago=Decimal("250.00"),
+        )
+        db.add(pago)
+        db.commit()
+    finally:
+        db.close()
+
+    resumo_pago = client.get("/v1/faturamento/a-receber/resumo", headers=h_fin)
+    assert resumo_pago.status_code == 200, resumo_pago.text
+    body_pago = resumo_pago.json()
+    assert float(body_pago["pago_ano"]) >= 250.0
+    assert body_pago["pago_ano_quantidade"] >= 1
 
 
 def test_filtros_rede_empresa_tipo_e_csv(client, auth_headers):
@@ -728,7 +791,7 @@ def test_filtros_rede_empresa_tipo_e_csv(client, auth_headers):
 
     client.patch(f"/v1/comercial/contratos/{cid}/cobranca", headers=h_com, json={"setup_momento": "assinatura"})
     gerar = client.post(
-        "/v1/faturamento/faturas", headers=h_fin, json={"contrato_id": cid, "competencia": _comp(date.today())}
+        "/v1/faturamento/faturas", headers=h_fin, json={"contrato_id": cid, "competencia": _comp(_hoje_sp())}
     )
     assert gerar.status_code == 201, gerar.text
     client.post(f"/v1/faturamento/faturas/{gerar.json()['id']}/aprovar", headers=h_fin)

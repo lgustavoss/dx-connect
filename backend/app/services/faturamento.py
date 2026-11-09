@@ -9,8 +9,9 @@ from decimal import ROUND_HALF_UP, Decimal
 from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, selectinload
 
+from app.core.audit import registrar_audit
 from app.models.comercial_contrato import (
     CONTRATO_ASSINADO,
     SETUP_MOMENTO_ASSINATURA,
@@ -53,9 +54,15 @@ from app.models.faturamento import (
     TituloReceber,
 )
 from app.services import faturamento_anexo_storage as anexo_storage
+from app.services.permissao_grupos import tem_permissao
 
 TZ_SP = ZoneInfo("America/Sao_Paulo")
 _COMPETENCIA_RE = re.compile(r"^(\d{4})-(\d{2})$")
+
+# Baixa sem boleto (#1387): exceção auditada só para quem aprova fatura.
+SEM_BOLETO_MOTIVO_MIN = 10
+SEM_BOLETO_MOTIVO_MAX = 500
+SEM_BOLETO_PREFIXO = "Baixa sem boleto:"
 
 
 def competencia_atual(hoje: date | None = None) -> str:
@@ -180,10 +187,29 @@ def _hoje() -> date:
     return datetime.now(TZ_SP).date()
 
 
+def _data_local(momento: datetime | None) -> date | None:
+    """Data de calendário no fuso da instância.
+
+    Colunas `DateTime(timezone=True)` chegam em UTC (no SQLite, naive): usar
+    `.date()` direto faz a assinatura feita depois das 21h de São Paulo contar
+    como o dia seguinte e atrasar setup/gatilho da mensalidade em um dia.
+    """
+    if momento is None:
+        return None
+    if momento.tzinfo is None:
+        momento = momento.replace(tzinfo=timezone.utc)
+    return momento.astimezone(TZ_SP).date()
+
+
 def status_titulo_efetivo(row: TituloReceber, hoje: date | None = None) -> str:
     if row.status == TITULO_ABERTO and row.vencimento < (hoje or _hoje()):
         return TITULO_VENCIDO
     return row.status
+
+
+def fatura_tem_boleto(fatura: Fatura | None) -> bool:
+    """A fatura tem o PDF do boleto anexado (independe da NFS-e)."""
+    return fatura is not None and any(a.tipo == ANEXO_BOLETO for a in (fatura.anexos or []))
 
 
 def titulo_para_read(db: Session, row: TituloReceber) -> dict:
@@ -219,6 +245,7 @@ def titulo_para_read(db: Session, row: TituloReceber) -> dict:
         "baixado_por_id": row.baixado_por_id,
         "baixado_por_nome": row.baixado_por.nome if row.baixado_por else None,
         "baixado_em": row.baixado_em,
+        "tem_boleto": fatura_tem_boleto(fatura),
     }
 
 
@@ -252,7 +279,7 @@ def _data_do_momento_setup(db: Session, contrato: Contrato) -> date | None:
         return None
     if momento == SETUP_MOMENTO_ASSINATURA:
         if contrato.assinado_em is not None:
-            return contrato.assinado_em.date()
+            return _data_local(contrato.assinado_em)
         if contrato.status == CONTRATO_ASSINADO:
             return contrato.data_inicio
         return None
@@ -268,7 +295,7 @@ def _data_do_momento_setup(db: Session, contrato: Contrato) -> date | None:
         if primeira is None:
             return None
         if primeira.aprovada_em is not None:
-            return primeira.aprovada_em.date()
+            return _data_local(primeira.aprovada_em)
         return primeira.vencimento
     return None
 
@@ -434,7 +461,7 @@ def inicio_da_mensalidade(
         if base is None:
             return None, MOTIVO_AGUARDANDO_IMPLANTACAO
     elif gatilho == GATILHO_DIAS_APOS_ASSINATURA:
-        base = contrato.assinado_em.date() if contrato.assinado_em else contrato.data_inicio
+        base = _data_local(contrato.assinado_em) or contrato.data_inicio
     else:
         base = contrato.data_inicio
     if base is None:
@@ -945,6 +972,7 @@ def obter_titulo(db: Session, titulo_id: int) -> TituloReceber:
         .options(
             joinedload(TituloReceber.fatura).joinedload(Fatura.contrato).joinedload(Contrato.linha),
             joinedload(TituloReceber.fatura).joinedload(Fatura.empresa),
+            joinedload(TituloReceber.fatura).selectinload(Fatura.anexos),
             joinedload(TituloReceber.empresa),
             joinedload(TituloReceber.baixado_por),
         )
@@ -1003,6 +1031,7 @@ def listar_titulos(
     q = db.query(TituloReceber).options(
         joinedload(TituloReceber.fatura).joinedload(Fatura.contrato).joinedload(Contrato.linha),
         joinedload(TituloReceber.fatura).joinedload(Fatura.empresa),
+        joinedload(TituloReceber.fatura).selectinload(Fatura.anexos),
         joinedload(TituloReceber.empresa),
         joinedload(TituloReceber.baixado_por),
     )
@@ -1067,6 +1096,39 @@ def resumo_a_receber(
         faixas[chave]["quantidade"] += 1
         faixas[chave]["valor"] += valor
 
+    # Próximo vencimento (#1385): menor vencimento ainda em aberto; se só houver
+    # atrasados, devolve o mais antigo (a dívida mais urgente). A ficha usa este
+    # resumo em vez de baixar a lista inteira de títulos.
+    vencimentos = sorted(t.vencimento for t in titulos if t.vencimento is not None)
+    futuros = [v for v in vencimentos if v >= hoje]
+    proximo_vencimento = futuros[0] if futuros else (vencimentos[0] if vencimentos else None)
+
+    # Pago no ano corrente (#1385): respeita os mesmos filtros do resumo.
+    inicio_ano = date(hoje.year, 1, 1)
+    q_pagos = db.query(TituloReceber).filter(
+        TituloReceber.status == TITULO_PAGO,
+        TituloReceber.pago_em.isnot(None),
+        TituloReceber.pago_em >= inicio_ano,
+        TituloReceber.pago_em <= date(hoje.year, 12, 31),
+    )
+    q_pagos = _filtrar_titulos(
+        q_pagos,
+        db,
+        competencia=competencia,
+        status_filtro=None,
+        rede_id=rede_id,
+        empresa_id=empresa_id,
+        tipo=tipo,
+    )
+    pagos = q_pagos.all()
+    pago_ano = sum(
+        (
+            Decimal(str(t.valor_pago if t.valor_pago is not None else (t.valor or 0)))
+            for t in pagos
+        ),
+        Decimal("0.00"),
+    )
+
     competencia_mes = competencia_atual(hoje)
     titulos_mes = sum(
         (Decimal(str(t.valor or 0)) for t in titulos if t.competencia == competencia_mes),
@@ -1092,6 +1154,9 @@ def resumo_a_receber(
         "total_vencido": total_vencido,
         "quantidade_titulos": len(titulos),
         "faixas": list(faixas.values()),
+        "proximo_vencimento": proximo_vencimento,
+        "pago_ano": pago_ano,
+        "pago_ano_quantidade": len(pagos),
         "previsao_mes": {
             "competencia": competencia_mes,
             "titulos": titulos_mes,
@@ -1169,6 +1234,55 @@ def titulos_csv(db: Session, *, competencia: str | None, status_filtro: str | No
     return "\ufeff" + buf.getvalue()
 
 
+def _validar_baixa_sem_boleto(
+    db: Session,
+    row: TituloReceber,
+    ator: Atendente,
+    motivo: str | None,
+) -> str | None:
+    """Exige boleto anexado; devolve o motivo quando a exceção auditada é usada (#1387).
+
+    Título sem fatura (implantação/multa) fica fora da regra. A exceção é só para
+    quem tem `faturamento.aprovar` — o vínculo ao setor Financeiro não basta.
+    """
+    if not row.fatura_id:
+        return None
+    fatura = row.fatura or db.query(Fatura).filter(Fatura.id == row.fatura_id).first()
+    if fatura_tem_boleto(fatura):
+        return None
+    if motivo is None:
+        raise HTTPException(status_code=400, detail="Anexe o boleto da fatura antes de dar baixa.")
+    # Permissão antes do formato: quem não pode a exceção recebe 403, não 400 por motivo curto.
+    if not tem_permissao(ator, "faturamento.aprovar"):
+        raise HTTPException(
+            status_code=403,
+            detail="Sem permissão para dar baixa sem boleto. A exceção exige a permissão faturamento.aprovar.",
+        )
+    texto = _normalizar_texto_curto(motivo, max_len=SEM_BOLETO_MOTIVO_MAX)
+    if texto is None or not (SEM_BOLETO_MOTIVO_MIN <= len(texto) <= SEM_BOLETO_MOTIVO_MAX):
+        raise HTTPException(
+            status_code=400,
+            detail="Descreva o motivo da baixa sem boleto (10 a 500 caracteres).",
+        )
+    registrar_audit(
+        db,
+        "faturamento_titulo",
+        row.id,
+        "baixa_sem_boleto",
+        ator.id,
+        payload={"motivo": texto, "fatura_id": row.fatura_id},
+    )
+    return texto
+
+
+def _compor_observacao_baixa(observacao: str | None, motivo_sem_boleto: str | None) -> str | None:
+    texto = _normalizar_texto_curto(observacao, max_len=2000)
+    if not motivo_sem_boleto:
+        return texto
+    prefixada = f"{SEM_BOLETO_PREFIXO} {motivo_sem_boleto}"
+    return f"{prefixada} — {texto}" if texto else prefixada
+
+
 def baixar_titulo(
     db: Session,
     row: TituloReceber,
@@ -1177,6 +1291,7 @@ def baixar_titulo(
     pago_em: date | None,
     valor_pago: Decimal | None,
     observacao: str | None,
+    sem_documento_motivo: str | None = None,
 ) -> TituloReceber:
     efetivo = status_titulo_efetivo(row)
     if efetivo not in {TITULO_ABERTO, TITULO_VENCIDO}:
@@ -1184,10 +1299,11 @@ def baixar_titulo(
     valor = Decimal(str(valor_pago if valor_pago is not None else row.valor))
     if valor <= 0:
         raise HTTPException(status_code=400, detail="Informe um valor pago maior que zero.")
+    motivo_sem_boleto = _validar_baixa_sem_boleto(db, row, ator, sem_documento_motivo)
     row.status = TITULO_PAGO
     row.valor_pago = valor
     row.pago_em = pago_em or _hoje()
-    row.baixa_observacao = _normalizar_texto_curto(observacao, max_len=2000)
+    row.baixa_observacao = _compor_observacao_baixa(observacao, motivo_sem_boleto)
     row.baixado_por_id = ator.id
     row.baixado_em = datetime.now(timezone.utc)
     db.flush()

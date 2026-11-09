@@ -3851,6 +3851,8 @@ export namespace Faturamento {
     pago_em?: string | null;
     valor_pago?: string | number | null;
     baixa_observacao?: string | null;
+    /** Fatura do título tem anexo de boleto (#1387). Título sem fatura (implantação/multa) vem false — a regra não se aplica. */
+    tem_boleto?: boolean;
     baixado_por_id?: number | null;
     baixado_por_nome?: string | null;
     baixado_em?: string | null;
@@ -3880,6 +3882,11 @@ export namespace Faturamento {
     total_vencido: string | number;
     quantidade_titulos: number;
     faixas: ResumoFaixa[];
+    /** #1385: menor vencimento em aberto (ou o mais antigo, se só houver atrasados). */
+    proximo_vencimento?: string | null;
+    /** #1385: total pago no ano corrente, com os mesmos filtros do resumo. */
+    pago_ano?: string | number;
+    pago_ano_quantidade?: number;
     previsao_mes: {
       competencia: string;
       titulos: string | number;
@@ -4000,7 +4007,13 @@ export const faturamento = {
   },
   baixarTitulo: (
     id: number,
-    data?: { pago_em?: string; valor_pago?: number | string; observacao?: string },
+    data?: {
+      pago_em?: string;
+      valor_pago?: number | string;
+      observacao?: string;
+      /** Exceção auditada: baixa sem boleto anexado (só faturamento.aprovar; #1387). */
+      sem_documento_motivo?: string;
+    },
   ) =>
     api<Faturamento.Titulo>(`/faturamento/titulos/${id}/baixar`, {
       method: 'POST',

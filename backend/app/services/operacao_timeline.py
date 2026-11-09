@@ -8,7 +8,10 @@ suporte via tickets/histórico). O vínculo empresa → jornada usa:
   empresa da linha, #324) → negociações, atividades, propostas e leads;
 - `Contrato.empresa_id` (e o fallback pela linha do contrato) → marcos de contrato;
 - `Ticket.empresa_id` → chamados de suporte e o ticket de implantação
-  (`Ticket.contrato_id` preenchido).
+  (`Ticket.contrato_id` preenchido);
+- `Fatura.empresa_id` / `TituloReceber.empresa_id` → cobrança (#1385): eventos
+  de fatura e título a receber, **sem valores monetários** (o bloco financeiro da
+  ficha vem de /v1/faturamento/a-receber/resumo, sob `faturamento.ver`).
 
 Empresas sem linha de negociação vinculada aparecem apenas com os eventos de
 ticket — a limitação é registrada no relatório do lote, sem inventar vínculo.
@@ -17,8 +20,9 @@ ticket — a limitação é registrada no relatório do lote, sem inventar vínc
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
+from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException
 from sqlalchemy import or_
@@ -31,10 +35,19 @@ from app.models import (
     CrmNegociacaoAtividade,
     CrmNegociacaoCnpjLinha,
     Empresa,
+    Fatura,
     Proposta,
     Ticket,
     TicketChecklistItem,
     TicketHistorico,
+    TituloReceber,
+)
+from app.models.faturamento import (
+    FATURA_CANCELADA,
+    TITULO_ABERTO,
+    TITULO_CANCELADO,
+    TITULO_PAGO,
+    TITULO_TIPO_IMPLANTACAO,
 )
 from app.schemas.operacao_timeline import (
     CategoriaEvento,
@@ -67,6 +80,10 @@ REABERTURAS_ATENCAO = 1
 REABERTURAS_RISCO = 2
 
 _CATEGORIA_VALORES = frozenset(c.value for c in CategoriaEvento)
+
+# Fuso do faturamento (mesmo critério de app/services/faturamento.py): define
+# «hoje» do sinal de título vencido sem depender do fuso do servidor.
+_TZ_SP = ZoneInfo("America/Sao_Paulo")
 
 _NIVEL_ORDEM = {"info": 0, "saudavel": 1, "atencao": 2, "risco": 3}
 
@@ -105,6 +122,23 @@ def _dias_desde(momento: datetime | None, agora: datetime) -> int | None:
 def _fmt_data(momento: datetime | None) -> str:
     normal = _aware(momento)
     return normal.strftime("%d/%m/%Y") if normal else "—"
+
+
+def _fmt_data_dia(dia: date | None) -> str:
+    """Formata datas «puras» (vencimento de fatura/título) em pt-BR."""
+    return dia.strftime("%d/%m/%Y") if dia else "—"
+
+
+def _momento_do_dia(dia: date | None) -> datetime | None:
+    """Converte data «pura» em instante UTC (meia-noite) para o marco da timeline."""
+    if dia is None:
+        return None
+    return datetime(dia.year, dia.month, dia.day, tzinfo=timezone.utc)
+
+
+def _hoje() -> date:
+    """Data civil no fuso do faturamento (America/Sao_Paulo)."""
+    return datetime.now(_TZ_SP).date()
 
 
 def _moeda(valor: object) -> str:
@@ -445,6 +479,188 @@ def _eventos_suporte(
     return eventos
 
 
+def _rotulo_tipo_titulo(tipo: str | None) -> str:
+    """Rótulo pt-BR do tipo do título, sem expor códigos internos."""
+    if tipo == TITULO_TIPO_IMPLANTACAO:
+        return "implantação"
+    return "mensalidade"
+
+
+def _eventos_cobranca(db: Session, empresa_id: int) -> list[EventoTimelineRead]:
+    """Faturas e títulos a receber da empresa (#1385).
+
+    Derivado do **estado atual** das tabelas de faturamento (não há histórico de
+    status). Cancelamento/estorno não têm coluna própria de data: o evento usa
+    `updated_at` e o detalhe deixa isso explícito — mesmo critério de
+    `_eventos_contrato`.
+
+    **Sem valores monetários**: `valor`, `valor_pago` e observações de baixa
+    ficam fora do evento. O bloco financeiro da ficha vem de
+    /v1/faturamento/a-receber/resumo (RBAC `faturamento.ver`); aqui só
+    competência, vencimento e status em texto.
+
+    Escopo por `empresa_id`: faturamento não tem `tenant_id`; a empresa já foi
+    validada no tenant por `_empresa_da_carteira` (chamador).
+    """
+    faturas = (
+        db.query(Fatura)
+        .filter(Fatura.empresa_id == empresa_id)
+        .order_by(Fatura.id.asc())
+        .all()
+    )
+    titulos = (
+        db.query(TituloReceber)
+        .filter(TituloReceber.empresa_id == empresa_id)
+        .order_by(TituloReceber.id.asc())
+        .all()
+    )
+    if not faturas and not titulos:
+        return []
+
+    eventos: list[EventoTimelineRead] = []
+
+    for fatura in faturas:
+        competencia = fatura.competencia or "—"
+        referencia = f"Competência {competencia} · vencimento em {_fmt_data_dia(fatura.vencimento)}."
+        eventos.append(
+            EventoTimelineRead(
+                id=f"fatura_gerada-{fatura.id}",
+                em=_aware(fatura.gerada_em) or _aware(fatura.created_at) or _agora(),
+                categoria=CategoriaEvento.cobranca,
+                tipo="fatura_gerada",
+                titulo=f"Fatura da competência {competencia} gerada",
+                detalhe=referencia,
+                ref_tipo="fatura",
+                ref_id=fatura.id,
+            )
+        )
+        aprovada_em = _aware(fatura.aprovada_em)
+        if aprovada_em is not None:
+            eventos.append(
+                EventoTimelineRead(
+                    id=f"fatura_aprovada-{fatura.id}",
+                    em=aprovada_em,
+                    categoria=CategoriaEvento.cobranca,
+                    tipo="fatura_aprovada",
+                    titulo=f"Fatura da competência {competencia} aprovada",
+                    detalhe=referencia,
+                    ref_tipo="fatura",
+                    ref_id=fatura.id,
+                )
+            )
+        if fatura.status == FATURA_CANCELADA:
+            eventos.append(
+                EventoTimelineRead(
+                    id=f"fatura_cancelada-{fatura.id}",
+                    em=(
+                        _aware(fatura.updated_at)
+                        or _aware(fatura.created_at)
+                        or _aware(fatura.gerada_em)
+                        or _agora()
+                    ),
+                    categoria=CategoriaEvento.cobranca,
+                    tipo="fatura_cancelada",
+                    titulo=f"Fatura da competência {competencia} cancelada",
+                    detalhe=(
+                        "Registro de cancelamento (data da última atualização da fatura). "
+                        f"{referencia}"
+                    ),
+                    ref_tipo="fatura",
+                    ref_id=fatura.id,
+                )
+            )
+
+    hoje = _hoje()
+    for titulo in titulos:
+        competencia = titulo.competencia or "—"
+        referencia = (
+            f"Tipo: {_rotulo_tipo_titulo(titulo.tipo)} · competência {competencia} · "
+            f"vencimento em {_fmt_data_dia(titulo.vencimento)}."
+        )
+        # Sinal de vencido derivado (sem evento por dia): só enriquece o detalhe
+        # do marco de abertura, com o mesmo critério de status_titulo_efetivo.
+        vencido = (
+            titulo.status == TITULO_ABERTO
+            and titulo.vencimento is not None
+            and titulo.vencimento < hoje
+        )
+        detalhe_aberto = referencia
+        if vencido:
+            detalhe_aberto += f" Vencido desde {_fmt_data_dia(titulo.vencimento)}."
+        eventos.append(
+            EventoTimelineRead(
+                id=f"titulo_aberto-{titulo.id}",
+                em=_aware(titulo.created_at) or _agora(),
+                categoria=CategoriaEvento.cobranca,
+                tipo="titulo_aberto",
+                titulo=f"Título a receber da competência {competencia} emitido",
+                detalhe=detalhe_aberto,
+                ref_tipo="titulo",
+                ref_id=titulo.id,
+            )
+        )
+        if titulo.status == TITULO_PAGO:
+            eventos.append(
+                EventoTimelineRead(
+                    id=f"titulo_baixado-{titulo.id}",
+                    em=(
+                        _aware(titulo.baixado_em)
+                        or _momento_do_dia(titulo.pago_em)
+                        or _aware(titulo.updated_at)
+                        or _aware(titulo.created_at)
+                        or _agora()
+                    ),
+                    categoria=CategoriaEvento.cobranca,
+                    tipo="titulo_baixado",
+                    titulo=f"Título da competência {competencia} baixado",
+                    detalhe=f"Baixa registrada. {referencia}",
+                    ref_tipo="titulo",
+                    ref_id=titulo.id,
+                )
+            )
+        elif titulo.status == TITULO_CANCELADO:
+            eventos.append(
+                EventoTimelineRead(
+                    id=f"titulo_cancelado-{titulo.id}",
+                    em=(
+                        _aware(titulo.updated_at)
+                        or _aware(titulo.created_at)
+                        or _agora()
+                    ),
+                    categoria=CategoriaEvento.cobranca,
+                    tipo="titulo_cancelado",
+                    titulo=f"Título da competência {competencia} cancelado",
+                    detalhe=(
+                        "Registro de cancelamento (data da última atualização do título). "
+                        f"{referencia}"
+                    ),
+                    ref_tipo="titulo",
+                    ref_id=titulo.id,
+                )
+            )
+        elif (titulo.baixa_observacao or "").startswith("Baixa estornada"):
+            # O estorno devolve o título para «aberto» e limpa baixado_em/pago_em;
+            # a marcação da baixa estornada é o que resta do fato no estado atual.
+            eventos.append(
+                EventoTimelineRead(
+                    id=f"titulo_estornado-{titulo.id}",
+                    em=(
+                        _aware(titulo.updated_at)
+                        or _aware(titulo.created_at)
+                        or _agora()
+                    ),
+                    categoria=CategoriaEvento.cobranca,
+                    tipo="titulo_estornado",
+                    titulo=f"Baixa do título da competência {competencia} estornada",
+                    detalhe=f"Título voltou a ficar em aberto. {referencia}",
+                    ref_tipo="titulo",
+                    ref_id=titulo.id,
+                )
+            )
+
+    return eventos
+
+
 def coletar_eventos(
     db: Session,
     empresa_id: int,
@@ -456,12 +672,14 @@ def coletar_eventos(
 
     Sem `categorias` devolve tudo. Com filtro, só consulta as fontes que podem
     gerar aquelas categorias (evita carregar ticket/checklist quando a tela
-    pede só CRM). O filtro por período continua no nível da timeline — o
-    volume de eventos por cliente ainda é modesto; se crescer, paginar no SQL.
+    pede só CRM; `cobranca` consulta fatura/título só quando é pedida). O
+    filtro por período continua no nível da timeline — o volume de eventos por
+    cliente ainda é modesto; se crescer, paginar no SQL.
     """
     cats = set(categorias or [])
     quer_suporte = not cats or CategoriaEvento.suporte.value in cats or CategoriaEvento.implantacao.value in cats
     quer_crm = not cats or CategoriaEvento.crm.value in cats
+    quer_cobranca = not cats or CategoriaEvento.cobranca.value in cats
 
     eventos: list[EventoTimelineRead] = []
     if quer_crm:
@@ -472,6 +690,8 @@ def coletar_eventos(
         eventos.extend(_eventos_contrato(contratos))
     if quer_suporte:
         eventos.extend(_eventos_suporte(db, empresa_id, tenant_id))
+    if quer_cobranca:
+        eventos.extend(_eventos_cobranca(db, empresa_id))
 
     # Deduplicação por id estável (tipo + origem) e ordem cronológica.
     vistos: set[str] = set()
@@ -755,7 +975,19 @@ def saude_da_empresa(
     agora: datetime | None = None,
 ) -> SaudeEmpresaRead:
     agora = _aware(agora) or _agora()
-    eventos = coletar_eventos(db, empresa.id, tenant_id)
+    # Saúde mede movimento operacional/comercial. Evento de cobrança derivado da
+    # fatura automática não é contato com o cliente — fica fora do sinal de
+    # "dias sem movimento" (#1385).
+    eventos = coletar_eventos(
+        db,
+        empresa.id,
+        tenant_id,
+        categorias=[
+            CategoriaEvento.crm.value,
+            CategoriaEvento.implantacao.value,
+            CategoriaEvento.suporte.value,
+        ],
+    )
     sinais, ultimo_evento, dias_sem_movimento = _sinais_saude(
         db, empresa, tenant_id, eventos, agora
     )

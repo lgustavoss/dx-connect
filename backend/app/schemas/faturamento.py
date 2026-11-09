@@ -49,6 +49,7 @@ class TituloReceberRead(BaseModel):
     baixado_por_id: int | None = None
     baixado_por_nome: str | None = None
     baixado_em: datetime | None = None
+    tem_boleto: bool = False
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -57,6 +58,8 @@ class TituloBaixaIn(BaseModel):
     pago_em: date | None = None
     valor_pago: Decimal | None = None
     observacao: str | None = Field(None, max_length=2000)
+    # Exceção para baixa sem boleto anexado (#1387): 10–500 chars (mínimo no service).
+    sem_documento_motivo: str | None = Field(None, max_length=500)
 
 
 class FaturaAnexoRead(BaseModel):
@@ -173,3 +176,7 @@ class ResumoAReceberRead(BaseModel):
     quantidade_titulos: int
     faixas: list[ResumoFaixaRead]
     previsao_mes: ResumoPrevisaoRead
+    # #1385: a ficha 360 usa o mesmo resumo, sem baixar a lista inteira de títulos.
+    proximo_vencimento: date | None = None
+    pago_ano: Decimal = Decimal("0.00")
+    pago_ano_quantidade: int = 0
