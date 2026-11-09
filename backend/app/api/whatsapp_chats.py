@@ -551,6 +551,30 @@ def _redes_funcionario_opcoes(
     return out
 
 
+def _redes_cache_da_pagina(
+    db: Session,
+    atendente: Atendente,
+    funcionarios: list[FuncionarioRede],
+) -> dict[int, str]:
+    """Nomes só das redes dos contatos da página (follow-up #1407).
+
+    Antes carregávamos todas as redes do tenant para montar o cache; em clientes
+    grandes isso vira uma consulta/lista desnecessária. O filtro de tenant
+    continua no banco.
+    """
+    rede_ids: set[int] = set()
+    for func in funcionarios:
+        rede_ids.update(redes_ids_efetivas(db, func))
+    if not rede_ids:
+        return {}
+    rows = (
+        db.query(Rede.id, Rede.nome)
+        .filter(Rede.id.in_(rede_ids), Rede.tenant_id == atendente.tenant_id)
+        .all()
+    )
+    return {int(rede_id): nome for rede_id, nome in rows}
+
+
 def _resolver_empresa_contexto_opcional(
     db: Session,
     atendente: Atendente,
@@ -1075,10 +1099,7 @@ def buscar_funcionarios(
         .limit(limit)
     )
     rows = q.all()
-    redes_cache: dict[int, str] = {
-        int(r.id): r.nome
-        for r in db.query(Rede).filter(Rede.tenant_id == atendente.tenant_id).all()
-    }
+    redes_cache = _redes_cache_da_pagina(db, atendente, rows)
     out: list[WhatsappFuncionarioOpcaoRead] = []
     for func in rows:
         # Os filtros do tenant acima já cobrem rede/empresa/junction (#1407).
@@ -1124,35 +1145,29 @@ def catalogo_funcionarios(
 
 
 def _filtros_funcionario_tenant(db: Session, atendente: Atendente) -> list:
-    """Filtros OR para funcionários ativos no tenant do atendente."""
-    rede_ids = [int(r[0]) for r in db.query(Rede.id).filter(Rede.tenant_id == atendente.tenant_id).all()]
-    empresa_ids = [int(r[0]) for r in db.query(Empresa.id).filter(Empresa.tenant_id == atendente.tenant_id).all()]
-    func_ids_junction = [
-        int(r[0])
-        for r in db.query(FuncionarioRedeEmpresa.funcionario_id)
-        .join(Empresa, Empresa.id == FuncionarioRedeEmpresa.empresa_id)
-        .filter(Empresa.tenant_id == atendente.tenant_id)
-        .distinct()
-        .all()
+    """Filtros OR para contatos visíveis no tenant (tudo em subquery, sem ids em Python).
+
+    O follow-up #1407 trocou as listas materializadas de redes/empresas do tenant
+    por subqueries para não carregar IDs de cliente grande em memória.
+    """
+    return [
+        FuncionarioRede.rede_id.in_(
+            db.query(Rede.id).filter(Rede.tenant_id == atendente.tenant_id)
+        ),
+        FuncionarioRede.empresa_id.in_(
+            db.query(Empresa.id).filter(Empresa.tenant_id == atendente.tenant_id)
+        ),
+        FuncionarioRede.id.in_(
+            db.query(FuncionarioRedeEmpresa.funcionario_id)
+            .join(Empresa, Empresa.id == FuncionarioRedeEmpresa.empresa_id)
+            .filter(Empresa.tenant_id == atendente.tenant_id)
+        ),
+        FuncionarioRede.id.in_(
+            db.query(FuncionarioRedeVinculo.funcionario_id)
+            .join(Rede, Rede.id == FuncionarioRedeVinculo.rede_id)
+            .filter(Rede.tenant_id == atendente.tenant_id)
+        ),
     ]
-    func_ids_redes = [
-        int(r[0])
-        for r in db.query(FuncionarioRedeVinculo.funcionario_id)
-        .join(Rede, Rede.id == FuncionarioRedeVinculo.rede_id)
-        .filter(Rede.tenant_id == atendente.tenant_id)
-        .distinct()
-        .all()
-    ]
-    filtros = []
-    if rede_ids:
-        filtros.append(FuncionarioRede.rede_id.in_(rede_ids))
-    if empresa_ids:
-        filtros.append(FuncionarioRede.empresa_id.in_(empresa_ids))
-    if func_ids_junction:
-        filtros.append(FuncionarioRede.id.in_(func_ids_junction))
-    if func_ids_redes:
-        filtros.append(FuncionarioRede.id.in_(func_ids_redes))
-    return filtros
 
 
 @router.get("/funcionarios/similares", response_model=list[WhatsappFuncionarioOpcaoRead])
@@ -1201,10 +1216,7 @@ def buscar_funcionarios_similares(
         return []
 
     by_id = {int(f.id): f for f in candidatos_rows}
-    redes_cache: dict[int, str] = {
-        int(r.id): r.nome
-        for r in db.query(Rede).filter(Rede.tenant_id == atendente.tenant_id).all()
-    }
+    redes_cache = _redes_cache_da_pagina(db, atendente, candidatos_rows)
     out: list[WhatsappFuncionarioOpcaoRead] = []
     for fid, _nome, score in ranked:
         func = by_id.get(fid)
@@ -1279,33 +1291,7 @@ def listar_contatos(
     db: Session = Depends(get_db),
     atendente: Atendente = Depends(obter_atendente_atual),
 ):
-    rede_ids = [int(r[0]) for r in db.query(Rede.id).filter(Rede.tenant_id == atendente.tenant_id).all()]
-    empresa_ids = [int(r[0]) for r in db.query(Empresa.id).filter(Empresa.tenant_id == atendente.tenant_id).all()]
-    func_ids_junction = [
-        int(r[0])
-        for r in db.query(FuncionarioRedeEmpresa.funcionario_id)
-        .join(Empresa, Empresa.id == FuncionarioRedeEmpresa.empresa_id)
-        .filter(Empresa.tenant_id == atendente.tenant_id)
-        .distinct()
-        .all()
-    ]
-    func_ids_redes = [
-        int(r[0])
-        for r in db.query(FuncionarioRedeVinculo.funcionario_id)
-        .join(Rede, Rede.id == FuncionarioRedeVinculo.rede_id)
-        .filter(Rede.tenant_id == atendente.tenant_id)
-        .distinct()
-        .all()
-    ]
-    filtros = []
-    if rede_ids:
-        filtros.append(FuncionarioRede.rede_id.in_(rede_ids))
-    if empresa_ids:
-        filtros.append(FuncionarioRede.empresa_id.in_(empresa_ids))
-    if func_ids_junction:
-        filtros.append(FuncionarioRede.id.in_(func_ids_junction))
-    if func_ids_redes:
-        filtros.append(FuncionarioRede.id.in_(func_ids_redes))
+    filtros = _filtros_funcionario_tenant(db, atendente)
     if not filtros:
         return ListaPaginada(items=[], total=0)
 
@@ -1324,34 +1310,25 @@ def listar_contatos(
         ]
         if digits:
             conds.append(FuncionarioRede.telefone.ilike(f"%{digits}%"))
-        # empresas por nome: filtramos após ou via subquery
-        emp_ids_match = [
-            int(r[0])
-            for r in db.query(Empresa.id)
-            .filter(
-                Empresa.tenant_id == atendente.tenant_id,
-                or_(
-                    Empresa.nome.ilike(term),
-                    Empresa.nome_fantasia.ilike(term),
-                    Empresa.razao_social.ilike(term),
-                ),
-            )
-            .all()
-        ]
-        if emp_ids_match:
-            sub_j = db.query(FuncionarioRedeEmpresa.funcionario_id).filter(
-                FuncionarioRedeEmpresa.empresa_id.in_(emp_ids_match)
-            )
-            conds.append(FuncionarioRede.empresa_id.in_(emp_ids_match))
-            conds.append(FuncionarioRede.id.in_(sub_j))
+        # Empresas por nome: subquery (sem materializar IDs no Python).
+        sub_empresas_match = db.query(Empresa.id).filter(
+            Empresa.tenant_id == atendente.tenant_id,
+            or_(
+                Empresa.nome.ilike(term),
+                Empresa.nome_fantasia.ilike(term),
+                Empresa.razao_social.ilike(term),
+            ),
+        )
+        sub_junction_empresa = db.query(FuncionarioRedeEmpresa.funcionario_id).filter(
+            FuncionarioRedeEmpresa.empresa_id.in_(sub_empresas_match)
+        )
+        conds.append(FuncionarioRede.empresa_id.in_(sub_empresas_match))
+        conds.append(FuncionarioRede.id.in_(sub_junction_empresa))
         q = q.filter(or_(*conds))
 
     total = q.count()
     rows = q.order_by(FuncionarioRede.nome.asc(), FuncionarioRede.id.asc()).offset(offset).limit(limit).all()
-    redes_cache: dict[int, str] = {
-        int(r.id): r.nome
-        for r in db.query(Rede).filter(Rede.tenant_id == atendente.tenant_id).all()
-    }
+    redes_cache = _redes_cache_da_pagina(db, atendente, rows)
     items: list[WhatsappContatoRead] = []
     for func in rows:
         # Os filtros do tenant acima já cobrem rede/empresa/junction (#1407).
