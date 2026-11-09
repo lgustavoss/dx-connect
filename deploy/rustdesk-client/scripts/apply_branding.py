@@ -3857,6 +3857,55 @@ def patch_file_transfer_defaults(common_rs: Path) -> None:
     print("  common.rs: defaults enable-file-transfer / copy-paste", flush=True)
 
 
+_RS_USERNAME_OLD = r'''#[inline]
+pub fn username() -> String {
+    // fix bug of whoami
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    return whoami::username().trim_end_matches('\0').to_owned();
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    return DEVICE_NAME.lock().unwrap().clone();
+}'''
+
+_RS_USERNAME_NEW = r'''fn deskremote_nome_atendente() -> Option<String> {
+    // DeskRudder: nome do atendente logado publicado pelo DeskRemote (#1406).
+    let caminho = r"C:\ProgramData\DeskRudder\identidade.txt";
+    std::fs::read_to_string(caminho)
+        .ok()
+        .map(|texto| texto.trim().to_string())
+        .filter(|texto| !texto.is_empty() && texto.len() <= 80)
+}
+
+#[inline]
+pub fn username() -> String {
+    // DeskRudder: a sessao remota mostra o atendente logado, nao o usuario do Windows.
+    if let Some(nome) = deskremote_nome_atendente() {
+        return nome;
+    }
+    // fix bug of whoami
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    return whoami::username().trim_end_matches('\0').to_owned();
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    return DEVICE_NAME.lock().unwrap().clone();
+}'''
+
+
+def patch_remote_identity(common_rs: Path) -> None:
+    r"""#1406: nome do atendente logado vira o `username` do peer (peer_info).
+
+    O DeskRemote grava o nome em C:\ProgramData\DeskRudder\identidade.txt ao
+    autenticar; o RustDesk passa a anuncia-lo no lugar do usuario do Windows.
+    Sem arquivo (ou sem permissao), mantem o comportamento original.
+    """
+    text = common_rs.read_text(encoding="utf-8")
+    if "deskremote_nome_atendente" in text:
+        print("  common.rs: peer_info com nome do atendente ja presente", flush=True)
+        return
+    if _RS_USERNAME_OLD not in text:
+        raise SystemExit("common.rs: username() nao encontrado para o patch #1406")
+    common_rs.write_text(text.replace(_RS_USERNAME_OLD, _RS_USERNAME_NEW, 1), encoding="utf-8")
+    print("  common.rs: peer_info username -> nome do atendente (#1406)", flush=True)
+
+
 def patch_transfer_file_spawn(remote_rs: Path) -> None:
     """Garante spawn de --file-transfer com a senha da sessao (owned String).
 
@@ -4730,6 +4779,7 @@ def main() -> int:
     patch_update_me_handler(ui_interface_rs)
     patch_silent_update(windows_rs)
     patch_file_transfer_defaults(common_rs)
+    patch_remote_identity(common_rs)
     patch_transfer_file_spawn(src / "src" / "ui" / "remote.rs")
     patch_website_urls(index_tis, install_tis)
     patch_install_path(windows_rs, install_tis)
@@ -5252,6 +5302,10 @@ def main() -> int:
         if "DeskRemote: no frio, entrega o uni-link" not in core_body:
             print("Verificacao falhou: core_main nao entrega uni-link no frio.", file=sys.stderr)
             return 1
+
+    if "a sessao remota mostra o atendente logado" not in common_rs.read_text(encoding="utf-8"):
+        print("Verificacao falhou: common.rs sem nome do atendente (#1406).", file=sys.stderr)
+        return 1
 
     print(">> OK")
     return 0

@@ -84,6 +84,7 @@ class _DeskRemoteAuthGateState extends State<DeskRemoteAuthGate> {
         return;
       }
       await aplicarServidorDaContaDeskRemote();
+      publicarIdentidadeDeskRemote(me);
       if (mounted) {
         setState(() {
           _verificando = false;
@@ -117,6 +118,7 @@ class _DeskRemoteAuthGateState extends State<DeskRemoteAuthGate> {
             if (temPermissaoAcessoRemoto(me)) {
               gravarSessaoDeskRemote(renovada);
               await aplicarServidorDaContaDeskRemote();
+              publicarIdentidadeDeskRemote(me);
               if (mounted) {
                 setState(() {
                   _verificando = false;
@@ -209,6 +211,7 @@ class _DeskRemoteAuthGateState extends State<DeskRemoteAuthGate> {
       }
       gravarSessaoDeskRemote(sessao);
       await aplicarServidorDaContaDeskRemote();
+      publicarIdentidadeDeskRemote(me);
       if (mounted) {
         setState(() {
           _verificando = false;
