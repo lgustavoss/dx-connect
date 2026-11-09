@@ -1247,6 +1247,8 @@ export namespace WhatsappChats {
     telefone?: string | null
     tipo: string
     empresas: EmpresaOpcao[]
+    /** Todas as redes do contato (#1407); rede_id/rede_nome ficam como legado. */
+    redes?: Array<{ id: number; nome: string }>
     rede_id?: number | null
     rede_nome?: string | null
     similaridade?: number | null
@@ -1259,6 +1261,8 @@ export namespace WhatsappChats {
     telefone?: string | null
     tipo: string
     empresas: EmpresaOpcao[]
+    /** Todas as redes do contato (#1407); rede_id/rede_nome ficam como legado. */
+    redes?: Array<{ id: number; nome: string }>
     rede_id?: number | null
     rede_nome?: string | null
   }
@@ -2829,6 +2833,11 @@ export namespace FuncionariosRede {
     id: number;
     nome: string;
   }
+  /** Rede vinculada ao contato (#1407) — N:N; rede_id/rede_nome seguem como legado. */
+  export interface RedeVinculo {
+    id: number;
+    nome: string;
+  }
   export interface Funcionario {
     id: number;
     nome: string;
@@ -2837,6 +2846,7 @@ export namespace FuncionariosRede {
     tipo: string;
     escopo_empresas: EscopoEmpresas;
     ativo: boolean;
+    redes?: RedeVinculo[];
     rede_id?: number;
     rede_nome?: string | null;
     empresa_id?: number;
@@ -2855,6 +2865,8 @@ export namespace FuncionariosRede {
     tipo: string;
     escopo_empresas?: EscopoEmpresas;
     ativo?: boolean;
+    redes?: RedeVinculo[];
+    rede_ids?: number[];
     rede_id?: number;
     empresa_id?: number;
     empresa_ids?: number[];
@@ -2868,6 +2880,8 @@ export namespace FuncionariosRede {
     tipo?: string;
     escopo_empresas?: EscopoEmpresas;
     ativo?: boolean;
+    redes?: RedeVinculo[];
+    rede_ids?: number[];
     rede_id?: number;
     empresa_id?: number;
     empresa_ids?: number[];
