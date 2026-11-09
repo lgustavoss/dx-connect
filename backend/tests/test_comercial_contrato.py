@@ -632,6 +632,12 @@ def test_rescisao_cria_titulo_multa_em_a_receber(client, auth_headers, seed_base
     comp = competencia_atual()
     assert titulo_multa["vencimento"] == vencimento_da_competencia(comp, dia=10).isoformat()
 
+    # A listagem resolve a multa em lote (sem N+1) e mantém o campo no payload.
+    lista_contratos = client.get("/v1/comercial/contratos", headers=h)
+    assert lista_contratos.status_code == 200, lista_contratos.text
+    contrato_listado = next(c for c in lista_contratos.json() if c["id"] == cid)
+    assert contrato_listado["titulo_multa"]["id"] == titulo_multa["id"]
+
     multas = _titulos(client, h_fin, tipo="multa")
     assert len(multas) == 1
     multa = multas[0]

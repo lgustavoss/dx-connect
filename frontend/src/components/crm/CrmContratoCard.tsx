@@ -115,7 +115,7 @@ function mensagemRescisao(row: ComercialContrato.Contrato): string {
   const multa = row.multa_rescisao
   if (!multa) return 'Contrato rescindido. Sem título de multa nesta rescisão.'
   if (multa.aplicavel && multa.valor_estimado != null && Number(multa.valor_estimado) > 0) {
-    return `Contrato rescindido. Título de multa de ${money(multa.valor_estimado)} criado em A receber.`
+    return `Contrato rescindido. Multa estimada de ${money(multa.valor_estimado)} — confira o título em A receber.`
   }
   if (multa.dentro_fidelidade) {
     return 'Contrato rescindido. Sem título de multa: o teto de multa deste contrato é 0.'

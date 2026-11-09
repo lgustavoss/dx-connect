@@ -359,6 +359,10 @@ def garantir_titulo_multa(
     rescisão chama esta função **depois** de `cancelar_pendencias_do_contrato`
     para a multa não nascer cancelada. Se já existe multa do contrato, devolve
     `None` — o índice único parcial é a defesa final contra duplicidade.
+
+    Contrato sem `empresa_id` gera título sem empresa (aparece na lista geral
+    do A receber, não nos filtros por empresa) — caso raro de cadastro
+    incompleto; a cobrança continua existindo.
     """
     if not estimativa or not estimativa.get("aplicavel"):
         return None
@@ -385,6 +389,15 @@ def garantir_titulo_multa(
     return row
 
 
+def _titulo_multa_payload(row: TituloReceber) -> dict:
+    return {
+        "id": row.id,
+        "valor": row.valor,
+        "vencimento": row.vencimento,
+        "status": status_titulo_efetivo(row),
+    }
+
+
 def titulo_multa_do_contrato(db: Session, contrato_id: int) -> dict | None:
     """Título da multa de rescisão do contrato, se já criado (#1386)."""
     row = (
@@ -395,14 +408,26 @@ def titulo_multa_do_contrato(db: Session, contrato_id: int) -> dict | None:
         )
         .first()
     )
-    if row is None:
-        return None
-    return {
-        "id": row.id,
-        "valor": row.valor,
-        "vencimento": row.vencimento,
-        "status": status_titulo_efetivo(row),
-    }
+    return _titulo_multa_payload(row) if row is not None else None
+
+
+def titulos_multa_por_contrato(db: Session, contrato_ids: list[int]) -> dict[int, dict]:
+    """Mapa contrato_id -> título da multa numa única consulta (#1386).
+
+    Usado nas listagens para não pagar uma query por contrato.
+    """
+    ids = [cid for cid in contrato_ids if cid is not None]
+    if not ids:
+        return {}
+    rows = (
+        db.query(TituloReceber)
+        .filter(
+            TituloReceber.contrato_id.in_(ids),
+            TituloReceber.tipo == TITULO_TIPO_MULTA,
+        )
+        .all()
+    )
+    return {row.contrato_id: _titulo_multa_payload(row) for row in rows}
 
 
 def documentos_completos(row: Fatura) -> bool:
@@ -1241,6 +1266,7 @@ def _csv_seguro(valor: object) -> object:
 
 
 def titulos_csv(db: Session, *, competencia: str | None, status_filtro: str | None,
+                # #1386: a coluna Tipo pode trazer "multa" (título avulso da rescisão).
                 rede_id: int | None, empresa_id: int | None, tipo: str | None) -> str:
     """CSV do A receber com os mesmos filtros da lista (#375). Separador ';' para Excel pt-BR."""
     import csv

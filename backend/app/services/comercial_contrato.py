@@ -1488,7 +1488,18 @@ def _interno_read(row: Contrato, linha: CrmNegociacaoCnpjLinha | None) -> dict[s
     }
 
 
-def contrato_para_read(row: Contrato, *, incluir_html: bool = False) -> dict[str, Any]:
+def contrato_para_read(
+    row: Contrato,
+    *,
+    incluir_html: bool = False,
+    titulo_multa: dict | None = None,
+    consultar_titulo_multa: bool = True,
+) -> dict[str, Any]:
+    """Payload do contrato.
+
+    Nas listagens, o chamador passa `titulo_multa` já resolvido em lote com
+    `consultar_titulo_multa=False` para não fazer uma query por contrato (#1386).
+    """
     tmpl = row.template
     linha = row.linha
     neg = linha.negociacao if linha else None
@@ -1519,7 +1530,6 @@ def contrato_para_read(row: Contrato, *, incluir_html: bool = False) -> dict[str
     inicio_mensalidade_efetivo = None
     dia_vencimento_efetivo = None
     aguardando_motivo = None
-    titulo_multa = None
     if sess is not None:
         from app.services import faturamento as faturamento_svc
 
@@ -1528,7 +1538,8 @@ def contrato_para_read(row: Contrato, *, incluir_html: bool = False) -> dict[str
             sess, row, politica=pol
         )
         dia_vencimento_efetivo = faturamento_svc.dia_vencimento_do_contrato(sess, row, politica=pol)
-        titulo_multa = faturamento_svc.titulo_multa_do_contrato(sess, row.id)
+        if consultar_titulo_multa:
+            titulo_multa = faturamento_svc.titulo_multa_do_contrato(sess, row.id)
     return {
         "id": row.id,
         "negociacao_linha_cnpj_id": row.negociacao_linha_cnpj_id,
