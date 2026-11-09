@@ -19,6 +19,8 @@ const STATUS_LABEL: Record<string, string> = {
 const TIPO_LABEL: Record<string, string> = {
   mensalidade: 'Mensalidade',
   implantacao: 'Implantação',
+  // Título avulso gerado na rescisão do contrato assinado (#1386).
+  multa: 'Multa',
 }
 
 function formatMoney(v: string | number): string {

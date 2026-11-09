@@ -488,6 +488,7 @@ export function Faturamento() {
                 options={[
                   { value: 'mensalidade', label: 'Mensalidade' },
                   { value: 'implantacao', label: 'Implantação' },
+                  { value: 'multa', label: 'Multa' },
                 ]}
                 includeEmpty
                 emptyLabel="Todos os tipos"

@@ -41,6 +41,21 @@ const STATUS_LABEL: Record<string, string> = {
 
 const ATIVOS = new Set(['rascunho', 'enviado', 'assinado'])
 
+// Status do título avulso de multa (#1386) — mesmo vocabulário de A receber.
+const TITULO_STATUS_LABEL: Record<string, string> = {
+  aberto: 'Em aberto',
+  vencido: 'Vencido',
+  pago: 'Pago',
+  cancelado: 'Cancelado',
+}
+
+function classeStatusTitulo(status: string): string {
+  if (status === 'pago') return 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300'
+  if (status === 'vencido') return 'bg-red-50 text-red-800 dark:bg-red-950/40 dark:text-red-300'
+  if (status === 'aberto') return 'bg-amber-50 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200'
+  return 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200'
+}
+
 function money(v: string | number | null | undefined): string {
   if (v == null || v === '') return '—'
   const n = typeof v === 'number' ? v : Number(v)
@@ -89,6 +104,23 @@ export function textoDiasFidelidade(dias: number | null | undefined): string {
   if (dias === 0) return 'Encerra hoje'
   const abs = Math.abs(dias)
   return abs === 1 ? 'Fidelidade encerrada há 1 dia' : `Fidelidade encerrada há ${abs} dias`
+}
+
+/** Resultado da rescisão: o título de multa foi criado? Usa a mesma regra de multa_rescisao (#1386). */
+function mensagemRescisao(row: ComercialContrato.Contrato): string {
+  const titulo = row.titulo_multa
+  if (titulo) {
+    return `Contrato rescindido. Título de multa de ${money(titulo.valor)} criado em A receber (vence em ${formatDate(titulo.vencimento)}).`
+  }
+  const multa = row.multa_rescisao
+  if (!multa) return 'Contrato rescindido. Sem título de multa nesta rescisão.'
+  if (multa.aplicavel && multa.valor_estimado != null && Number(multa.valor_estimado) > 0) {
+    return `Contrato rescindido. Título de multa de ${money(multa.valor_estimado)} criado em A receber.`
+  }
+  if (multa.dentro_fidelidade) {
+    return 'Contrato rescindido. Sem título de multa: o teto de multa deste contrato é 0.'
+  }
+  return 'Contrato rescindido. Sem título de multa: fora do período de fidelidade.'
 }
 
 type Props = {
@@ -372,7 +404,7 @@ export function CrmContratoCard({ negociacao, lead = null, onChanged, embedded =
     setCancelando(true)
     try {
       const row = await comercialContratos.cancelar(cancelarId)
-      toast.showSuccess(eraRescisao ? 'Contrato rescindido.' : 'Contrato cancelado.')
+      toast.showSuccess(eraRescisao ? mensagemRescisao(row) : 'Contrato cancelado.')
       setCancelarId(null)
       setPreview(row)
       await load()
@@ -731,6 +763,26 @@ export function CrmContratoCard({ negociacao, lead = null, onChanged, embedded =
                 </Link>
               </p>
             ) : null}
+            {preview.titulo_multa ? (
+              <div className="w-full max-w-xl rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+                <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                  Cobrança da multa de rescisão
+                </p>
+                <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
+                  Título #{preview.titulo_multa.id} de {money(preview.titulo_multa.valor)} · vencimento{' '}
+                  {formatDate(preview.titulo_multa.vencimento)} ·{' '}
+                  <span
+                    className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${classeStatusTitulo(preview.titulo_multa.status)}`}
+                  >
+                    {TITULO_STATUS_LABEL[preview.titulo_multa.status] || preview.titulo_multa.status}
+                  </span>
+                </p>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  Título avulso com tipo «Multa» em A receber — aparece no filtro Tipo = Multa em
+                  Faturamento.
+                </p>
+              </div>
+            ) : null}
             {preview.status === 'assinado' || preview.status === 'cancelado' ? (
               <CobrancaContrato
                 contrato={preview}
@@ -933,6 +985,12 @@ export function CrmContratoCard({ negociacao, lead = null, onChanged, embedded =
               <p>Fora do período de fidelidade (ou sem meses restantes) — sem estimativa de multa.</p>
             )}
             <p className="text-xs opacity-90">{multaPreview.aviso}</p>
+            {multaPreview.aplicavel && multaPreview.valor_estimado != null ? (
+              <p className="text-xs opacity-90">
+                Ao confirmar, a multa é lançada como título avulso de tipo «Multa» em A receber, com
+                vencimento pela política de cobrança da instância.
+              </p>
+            ) : null}
           </div>
         ) : null}
       </ConfirmDialog>
