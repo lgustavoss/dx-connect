@@ -106,7 +106,7 @@ Fonte Sciter: `deploy/rustdesk-client/server.config.json`.
 3. Compila o Windows (Sciter v1 congelado, ou Flutter 2.x), renomeia o binário para `DeskRudder.exe` e empacota o portable
 4. Publica o artefato e atualiza o Release do canal (`acesso-remoto-windows-flutter` no cliente 2.x; `acesso-remoto-controle-flutter-windows` no atendente 2.x)
 
-## Comportamento do cliente (postos)
+## Comportamento do cliente (PC acessado)
 
 O instalador é pensado para o PC que **vai ser acessado** (PDV / posto):
 
@@ -159,6 +159,8 @@ O instalador de **controle** (`DeskRudder-AcessoRemoto-Controle.exe`, embutido n
 No **DeskRemote Atendente v2**, a home mostra a logo DeskRemote no topo do painel, o texto de edição personalizada, as abas **Sessões recentes** (10 últimas) e **Vinculados** (frota do sistema) e o **nome do vínculo** no cartão — sem o ID numérico. A partir da **2.3.0**, o servidor de acesso remoto vem da conta (não do instalador).
 
 A partir da **2.1.0**, Recentes e o campo de ID exigem login com a **mesma conta do DeskRudder** (identificador + e-mail + senha). Quem já entrou no app Electron neste PC **com “lembrar-me”** não precisa digitar de novo: a sessão fica em `%APPDATA%\DeskRudder\deskremote-sessao.json` (o mesmo JWT do `localStorage` do painel). Login só nesta sessão do navegador/Electron **não** grava o arquivo. Herdar a sessão exige um Setup do painel que já grave esse arquivo — Setup antigo não herda. Conectar pelo painel (`--connect` / `deskrudder://`) **não** pede login de propósito: a sessão remota abre direto, como hoje. **Sair** no DeskRemote apaga o arquivo: a próxima abertura pede login de novo (mesmo que o DeskRudder ainda esteja aberto). **Sair** no DeskRudder também apaga. A permissão continua `rustdesk.monitorar`. O Sciter **1.0.14 está congelado**. A partir da **2.2.0**, a aba **Vinculados** lista os computadores com PDV ligado (`GET /v1/rustdesk/peers?filtro=vinculado`): rótulo, Online/Offline e clique para conectar (tenta a senha do cadastro se a conta tiver `pdv.acessos.ver` ou `empresas.editar`). A busca é da própria aba (a do RustDesk some nela). Se o mesmo ID estiver em vários PDVs, o item usa o hostname e lista os vínculos — não inventa um rótulo único.
+
+A partir da **2.4.0**, o PC acessado mostra o **nome do atendente logado no DeskRudder** na sessão remota (antes vinha o usuário do Windows, ex. `Suporte`). O app grava o nome em `C:\ProgramData\DeskRudder\identidade.txt` ao autenticar e o build passa a anunciá-lo no `peer_info` do RustDesk; o ID numérico continua visível — formato `Nome (ID RustDesk)`. Sem o arquivo (ou sem permissão de escrita), volta ao usuário do Windows. **Sair** apaga o arquivo. Atendentes em versão anterior só mudam depois do auto-update.
 
 A partir da **2.1.1**, a aba da sessão usa o rótulo do vínculo (ex. `Auto Posto Expresso Medalha · SERVIDOR 001`, **nome da empresa** + equipamento) nesta ordem: `name=` / `--title` do painel; senão, busca na frota (`GET /v1/rustdesk/peers`) com a sessão DeskRudder; senão, usuário@host. O painel em produção antigo ainda não manda `name=` — por isso a busca na API. Sem sessão e sem `name=`, o ID pode aparecer até o hostname chegar.
 

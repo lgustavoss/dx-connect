@@ -1,4 +1,4 @@
-# DeskRemote Cliente v2 (Flutter, profile posto) — download do painel.
+# DeskRemote Cliente v2 (Flutter, profile cliente) — download do painel.
 # Sciter v1 (1.0.14) está congelado em acesso-remoto-windows.
 #
 # Actions → «DeskRemote Cliente v2» → Run workflow
@@ -43,7 +43,7 @@ env:
   VCPKG_COMMIT_ID: "9e593bb18ea69cc5095e012465dcd675a822ed0d"
   VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
   VERSION: ${{ inputs.rustdesk_ref }}
-  PROFILE: posto
+  PROFILE: cliente
 
 jobs:
   bridge:
@@ -142,7 +142,7 @@ jobs:
             --config dx-connect/deploy/rustdesk-client/server.config.json \
             --branding dx-connect/deploy/rustdesk-client/branding \
             --client-version dx-connect/deploy/rustdesk-client/CLIENT_VERSION_FLUTTER_CLIENTE \
-            --profile posto \
+            --profile cliente \
             --ui flutter
           test -f rustdesk/flutter/windows/runner/resources/app_icon.ico
           test -f rustdesk/flutter/assets/icon.png
@@ -197,7 +197,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: rustdesk
-          prefix-key: deskrudder-flutter-x64-posto
+          prefix-key: deskrudder-flutter-x64-cliente
 
       - name: vcpkg
         uses: lukka/run-vcpkg@v11
@@ -252,7 +252,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
-          name: DeskRudder-AcessoRemoto-posto-flutter-windows
+          name: DeskRudder-AcessoRemoto-cliente-flutter-windows
           path: dist/DeskRudder-AcessoRemoto-Flutter-*.exe
           if-no-files-found: error
           retention-days: 30
@@ -278,7 +278,7 @@ jobs:
           Path("${VERSION_JSON}").write_text(json.dumps({
               "version": "${CLIENT_VER}",
               "rustdesk_base": "${RD_VER}",
-              "profile": "posto",
+              "profile": "cliente",
               "ui": "flutter",
               "download_url": "${DOWNLOAD_URL}",
           }, indent=2) + "\n", encoding="utf-8")
