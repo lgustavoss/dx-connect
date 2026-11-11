@@ -5248,6 +5248,59 @@
           "text": "Deploy: antes de qualquer migration o release faz **backup lógico do Postgres** (base do cliente e painel ops) e **para se o backup falhar**; o CI também constrói a imagem de produção para pegar bump de imagem base antes do deploy"
         }
       ]
+    },
+    {
+      "version": "26.11.003",
+      "version_display": "v26.11.003",
+      "date": "2026-11-11",
+      "status": "published",
+      "changes": [
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "WhatsApp: abrir ticket pelo chat lista somente as empresas vinculadas ao contato — antes vinham todas as empresas cadastradas (#S202611-0003)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Acesso remoto: na exclusão de computador offline e sem vínculo, o botão **Cancelar** deixa de ficar vermelho junto com **Excluir** (#S202611-0004)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Faturamento: a data da assinatura e da aprovação da primeira fatura passa a ser lida no fuso de São Paulo — contrato assinado à noite não atrasa mais em um dia a implantação e o gatilho da mensalidade"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "CRM: a API deixa de aceitar atividades dos tipos «ligação» e «reunião» (código morto — a UI só cria nota) (#1388)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Operação: a **ficha 360** do cliente passa a trazer **fatura e título** na timeline (categoria **Cobrança**) e um bloco de **situação financeira** — a vencer, vencido, próximo vencimento e pago no ano — visível para quem tem `faturamento.ver` (#1385)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Faturamento: dar **baixa em título com fatura** passa a exigir o **boleto anexado**; sem boleto só com **exceção auditada** (motivo obrigatório) para quem tem `faturamento.aprovar` (#1387)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Faturamento: a **rescisão** de contrato assinado com multa aplicável passa a gerar um **título a receber do tipo Multa** (avulso, um por contrato, idempotente); a ficha do contrato mostra o título criado e A receber ganha filtro/selo «Multa» (#1386)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Contatos: o mesmo contato (ex.: contabilidade) pode ser vinculado a **mais de uma rede** — cadastro com multi-seleção de redes, listagens/filtros e hub de contatos passam a considerar todas as redes (#1407)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "DeskRemote: a sessão no **PC acessado** passa a mostrar o **nome do atendente logado no DeskRudder** (formato `Nome (ID RustDesk)`) em vez do usuário do Windows — atendente v2 2.4.0, fallback para o usuário do Windows (#1406)"
+        }
+      ]
     }
   ]
 }
