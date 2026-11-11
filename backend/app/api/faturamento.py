@@ -358,6 +358,7 @@ def baixar_titulo(
         pago_em=data.pago_em,
         valor_pago=data.valor_pago,
         observacao=data.observacao,
+        sem_documento_motivo=data.sem_documento_motivo,
     )
     registrar_audit(
         db,

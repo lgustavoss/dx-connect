@@ -5,6 +5,23 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ## [Unreleased]
 
+### DeskRudder
+
+#### Correções
+
+- WhatsApp: abrir ticket pelo chat lista somente as empresas vinculadas ao contato — antes vinham todas as empresas cadastradas (#S202611-0003)
+- Acesso remoto: na exclusão de computador offline e sem vínculo, o botão **Cancelar** deixa de ficar vermelho junto com **Excluir** (#S202611-0004)
+- Faturamento: a data da assinatura e da aprovação da primeira fatura passa a ser lida no fuso de São Paulo — contrato assinado à noite não atrasa mais em um dia a implantação e o gatilho da mensalidade
+
+#### Melhorias
+
+- CRM: a API deixa de aceitar atividades dos tipos «ligação» e «reunião» (código morto — a UI só cria nota) (#1388)
+- Operação: a **ficha 360** do cliente passa a trazer **fatura e título** na timeline (categoria **Cobrança**) e um bloco de **situação financeira** — a vencer, vencido, próximo vencimento e pago no ano — visível para quem tem `faturamento.ver` (#1385)
+- Faturamento: dar **baixa em título com fatura** passa a exigir o **boleto anexado**; sem boleto só com **exceção auditada** (motivo obrigatório) para quem tem `faturamento.aprovar` (#1387)
+- Faturamento: a **rescisão** de contrato assinado com multa aplicável passa a gerar um **título a receber do tipo Multa** (avulso, um por contrato, idempotente); a ficha do contrato mostra o título criado e A receber ganha filtro/selo «Multa» (#1386)
+- Contatos: o mesmo contato (ex.: contabilidade) pode ser vinculado a **mais de uma rede** — cadastro com multi-seleção de redes, listagens/filtros e hub de contatos passam a considerar todas as redes (#1407)
+- DeskRemote: a sessão no **PC acessado** passa a mostrar o **nome do atendente logado no DeskRudder** (formato `Nome (ID RustDesk)`) em vez do usuário do Windows — atendente v2 2.4.0, fallback para o usuário do Windows (#1406)
+
 ## [26.11.002] - 2026-11-08
 
 ### DeskRudder

@@ -161,17 +161,27 @@ def listar_contratos(
     elif filtrar_minhas is None:
         filtrar_minhas = False
     incluir_html = negociacao_id is not None
+    rows = svc.listar_contratos(
+        db,
+        negociacao_id=negociacao_id,
+        status=status,
+        cnpj=cnpj,
+        responsavel_id=responsavel_id,
+        so_minhas=bool(filtrar_minhas),
+        atendente=atendente,
+    )
+    # Multa de rescisão resolvida em lote: a listagem não faz uma query por contrato (#1386).
+    from app.services import faturamento as faturamento_svc
+
+    titulos_multa = faturamento_svc.titulos_multa_por_contrato(db, [r.id for r in rows])
     payloads = [
-        svc.contrato_para_read(r, incluir_html=incluir_html)
-        for r in svc.listar_contratos(
-            db,
-            negociacao_id=negociacao_id,
-            status=status,
-            cnpj=cnpj,
-            responsavel_id=responsavel_id,
-            so_minhas=bool(filtrar_minhas),
-            atendente=atendente,
+        svc.contrato_para_read(
+            r,
+            incluir_html=incluir_html,
+            titulo_multa=titulos_multa.get(r.id),
+            consultar_titulo_multa=False,
         )
+        for r in rows
     ]
     svc.marcar_vigentes(db, payloads)
     return payloads

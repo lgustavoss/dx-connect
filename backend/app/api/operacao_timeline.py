@@ -1,7 +1,12 @@
 """Operação — timeline 360 e saúde do cliente da carteira (#912 / #914).
 
-Endpoints de leitura, derivados das tabelas de CRM, comercial, implantação e
-suporte. RBAC: `crm.ver` (a operação vê a carteira com o mesmo perfil do CRM).
+Endpoints de leitura, derivados das tabelas de CRM, comercial, implantação,
+suporte e cobrança (fatura/título, #1385). RBAC: `crm.ver` (a operação vê a
+carteira com o mesmo perfil do CRM).
+
+Eventos da categoria `cobranca` **não** carregam valores monetários: valores,
+títulos e aging ficam no bloco financeiro de /v1/faturamento/a-receber/resumo,
+sob `faturamento.ver`. Quem só tem `crm.ver` vê o marco na timeline, sem R$.
 
 Decisão de RBAC (revisão pré-release): **não** abrimos para `tickets.ver`.
 A timeline mistura dados comerciais (valores de proposta/contrato), então o
@@ -47,8 +52,8 @@ def timeline_cliente(
     categorias: list[str] | None = Query(
         None,
         description=(
-            "Filtra categorias (crm, implantacao, suporte). Aceita parâmetro repetido "
-            "ou separado por vírgula."
+            "Filtra categorias (crm, implantacao, suporte, cobranca). Aceita parâmetro "
+            "repetido ou separado por vírgula."
         ),
     ),
     de: datetime | None = Query(None, description="Início do período (inclusive)"),

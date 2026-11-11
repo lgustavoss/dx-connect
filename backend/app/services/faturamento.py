@@ -9,8 +9,9 @@ from decimal import ROUND_HALF_UP, Decimal
 from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, selectinload
 
+from app.core.audit import registrar_audit
 from app.models.comercial_contrato import (
     CONTRATO_ASSINADO,
     SETUP_MOMENTO_ASSINATURA,
@@ -44,6 +45,7 @@ from app.models.faturamento import (
     TITULO_STATUS_FILTRO,
     TITULO_TIPO_IMPLANTACAO,
     TITULO_TIPO_MENSALIDADE,
+    TITULO_TIPO_MULTA,
     TITULO_TIPOS,
     TITULO_VENCIDO,
     VENCIMENTO_DIA_PADRAO,
@@ -53,9 +55,15 @@ from app.models.faturamento import (
     TituloReceber,
 )
 from app.services import faturamento_anexo_storage as anexo_storage
+from app.services.permissao_grupos import tem_permissao
 
 TZ_SP = ZoneInfo("America/Sao_Paulo")
 _COMPETENCIA_RE = re.compile(r"^(\d{4})-(\d{2})$")
+
+# Baixa sem boleto (#1387): exceção auditada só para quem aprova fatura.
+SEM_BOLETO_MOTIVO_MIN = 10
+SEM_BOLETO_MOTIVO_MAX = 500
+SEM_BOLETO_PREFIXO = "Baixa sem boleto:"
 
 
 def competencia_atual(hoje: date | None = None) -> str:
@@ -180,10 +188,29 @@ def _hoje() -> date:
     return datetime.now(TZ_SP).date()
 
 
+def _data_local(momento: datetime | None) -> date | None:
+    """Data de calendário no fuso da instância.
+
+    Colunas `DateTime(timezone=True)` chegam em UTC (no SQLite, naive): usar
+    `.date()` direto faz a assinatura feita depois das 21h de São Paulo contar
+    como o dia seguinte e atrasar setup/gatilho da mensalidade em um dia.
+    """
+    if momento is None:
+        return None
+    if momento.tzinfo is None:
+        momento = momento.replace(tzinfo=timezone.utc)
+    return momento.astimezone(TZ_SP).date()
+
+
 def status_titulo_efetivo(row: TituloReceber, hoje: date | None = None) -> str:
     if row.status == TITULO_ABERTO and row.vencimento < (hoje or _hoje()):
         return TITULO_VENCIDO
     return row.status
+
+
+def fatura_tem_boleto(fatura: Fatura | None) -> bool:
+    """A fatura tem o PDF do boleto anexado (independe da NFS-e)."""
+    return fatura is not None and any(a.tipo == ANEXO_BOLETO for a in (fatura.anexos or []))
 
 
 def titulo_para_read(db: Session, row: TituloReceber) -> dict:
@@ -219,6 +246,7 @@ def titulo_para_read(db: Session, row: TituloReceber) -> dict:
         "baixado_por_id": row.baixado_por_id,
         "baixado_por_nome": row.baixado_por.nome if row.baixado_por else None,
         "baixado_em": row.baixado_em,
+        "tem_boleto": fatura_tem_boleto(fatura),
     }
 
 
@@ -252,7 +280,7 @@ def _data_do_momento_setup(db: Session, contrato: Contrato) -> date | None:
         return None
     if momento == SETUP_MOMENTO_ASSINATURA:
         if contrato.assinado_em is not None:
-            return contrato.assinado_em.date()
+            return _data_local(contrato.assinado_em)
         if contrato.status == CONTRATO_ASSINADO:
             return contrato.data_inicio
         return None
@@ -268,7 +296,7 @@ def _data_do_momento_setup(db: Session, contrato: Contrato) -> date | None:
         if primeira is None:
             return None
         if primeira.aprovada_em is not None:
-            return primeira.aprovada_em.date()
+            return _data_local(primeira.aprovada_em)
         return primeira.vencimento
     return None
 
@@ -317,6 +345,89 @@ def garantir_titulos_setup(db: Session, *, hoje: date | None = None) -> int:
             criados += 1
     return criados
 
+
+def garantir_titulo_multa(
+    db: Session,
+    contrato: Contrato,
+    estimativa: dict,
+    *,
+    hoje: date | None = None,
+) -> TituloReceber | None:
+    """Cria (uma única vez) o título da multa de rescisão (#1386).
+
+    Título avulso (`fatura_id` nulo), igual ao de implantação (#1342). A
+    rescisão chama esta função **depois** de `cancelar_pendencias_do_contrato`
+    para a multa não nascer cancelada. Se já existe multa do contrato, devolve
+    `None` — o índice único parcial é a defesa final contra duplicidade.
+
+    Contrato sem `empresa_id` gera título sem empresa (aparece na lista geral
+    do A receber, não nos filtros por empresa) — caso raro de cadastro
+    incompleto; a cobrança continua existindo.
+    """
+    if not estimativa or not estimativa.get("aplicavel"):
+        return None
+    valor = estimativa.get("valor_estimado")
+    if valor is None or Decimal(str(valor)) <= 0:
+        return None
+    existente = titulo_multa_do_contrato(db, contrato.id)
+    if existente is not None:
+        return None
+    competencia = competencia_atual(hoje)
+    dia = dia_vencimento_do_contrato(db, contrato, politica=garantir_politica(db))
+    row = TituloReceber(
+        fatura_id=None,
+        contrato_id=contrato.id,
+        empresa_id=contrato.empresa_id,
+        tipo=TITULO_TIPO_MULTA,
+        competencia=competencia,
+        valor=Decimal(str(valor)),
+        vencimento=vencimento_da_competencia(competencia, dia=dia),
+        status=TITULO_ABERTO,
+    )
+    db.add(row)
+    db.flush()
+    return row
+
+
+def _titulo_multa_payload(row: TituloReceber) -> dict:
+    return {
+        "id": row.id,
+        "valor": row.valor,
+        "vencimento": row.vencimento,
+        "status": status_titulo_efetivo(row),
+    }
+
+
+def titulo_multa_do_contrato(db: Session, contrato_id: int) -> dict | None:
+    """Título da multa de rescisão do contrato, se já criado (#1386)."""
+    row = (
+        db.query(TituloReceber)
+        .filter(
+            TituloReceber.contrato_id == contrato_id,
+            TituloReceber.tipo == TITULO_TIPO_MULTA,
+        )
+        .first()
+    )
+    return _titulo_multa_payload(row) if row is not None else None
+
+
+def titulos_multa_por_contrato(db: Session, contrato_ids: list[int]) -> dict[int, dict]:
+    """Mapa contrato_id -> título da multa numa única consulta (#1386).
+
+    Usado nas listagens para não pagar uma query por contrato.
+    """
+    ids = [cid for cid in contrato_ids if cid is not None]
+    if not ids:
+        return {}
+    rows = (
+        db.query(TituloReceber)
+        .filter(
+            TituloReceber.contrato_id.in_(ids),
+            TituloReceber.tipo == TITULO_TIPO_MULTA,
+        )
+        .all()
+    )
+    return {row.contrato_id: _titulo_multa_payload(row) for row in rows}
 
 
 def documentos_completos(row: Fatura) -> bool:
@@ -434,7 +545,7 @@ def inicio_da_mensalidade(
         if base is None:
             return None, MOTIVO_AGUARDANDO_IMPLANTACAO
     elif gatilho == GATILHO_DIAS_APOS_ASSINATURA:
-        base = contrato.assinado_em.date() if contrato.assinado_em else contrato.data_inicio
+        base = _data_local(contrato.assinado_em) or contrato.data_inicio
     else:
         base = contrato.data_inicio
     if base is None:
@@ -787,7 +898,8 @@ def cancelar_pendencias_do_contrato(db: Session, contrato: Contrato, *, desde_co
     """Rescisão não deixa fatura/título do mês em aberto (#1324).
 
     Cancela faturas não pagas da competência atual em diante e títulos não pagos
-    (mensalidade e implantação) do contrato.
+    (mensalidade e implantação) do contrato. A multa de rescisão fica de fora
+    (#1386): ela nasce depois desta chamada e não é pendência a cancelar.
     """
     comp = validar_competencia(desde_competencia)
     faturas_canceladas = 0
@@ -816,6 +928,8 @@ def cancelar_pendencias_do_contrato(db: Session, contrato: Contrato, *, desde_co
     ):
         if titulo.status in (TITULO_PAGO, TITULO_CANCELADO):
             continue
+        if titulo.tipo == TITULO_TIPO_MULTA:
+            continue  # multa da rescisão não é pendência a cancelar (#1386)
         if titulo.fatura_id is not None:
             continue  # já tratado junto da fatura
         titulo.status = TITULO_CANCELADO
@@ -945,6 +1059,7 @@ def obter_titulo(db: Session, titulo_id: int) -> TituloReceber:
         .options(
             joinedload(TituloReceber.fatura).joinedload(Fatura.contrato).joinedload(Contrato.linha),
             joinedload(TituloReceber.fatura).joinedload(Fatura.empresa),
+            joinedload(TituloReceber.fatura).selectinload(Fatura.anexos),
             joinedload(TituloReceber.empresa),
             joinedload(TituloReceber.baixado_por),
         )
@@ -1003,6 +1118,7 @@ def listar_titulos(
     q = db.query(TituloReceber).options(
         joinedload(TituloReceber.fatura).joinedload(Fatura.contrato).joinedload(Contrato.linha),
         joinedload(TituloReceber.fatura).joinedload(Fatura.empresa),
+        joinedload(TituloReceber.fatura).selectinload(Fatura.anexos),
         joinedload(TituloReceber.empresa),
         joinedload(TituloReceber.baixado_por),
     )
@@ -1067,6 +1183,39 @@ def resumo_a_receber(
         faixas[chave]["quantidade"] += 1
         faixas[chave]["valor"] += valor
 
+    # Próximo vencimento (#1385): menor vencimento ainda em aberto; se só houver
+    # atrasados, devolve o mais antigo (a dívida mais urgente). A ficha usa este
+    # resumo em vez de baixar a lista inteira de títulos.
+    vencimentos = sorted(t.vencimento for t in titulos if t.vencimento is not None)
+    futuros = [v for v in vencimentos if v >= hoje]
+    proximo_vencimento = futuros[0] if futuros else (vencimentos[0] if vencimentos else None)
+
+    # Pago no ano corrente (#1385): respeita os mesmos filtros do resumo.
+    inicio_ano = date(hoje.year, 1, 1)
+    q_pagos = db.query(TituloReceber).filter(
+        TituloReceber.status == TITULO_PAGO,
+        TituloReceber.pago_em.isnot(None),
+        TituloReceber.pago_em >= inicio_ano,
+        TituloReceber.pago_em <= date(hoje.year, 12, 31),
+    )
+    q_pagos = _filtrar_titulos(
+        q_pagos,
+        db,
+        competencia=competencia,
+        status_filtro=None,
+        rede_id=rede_id,
+        empresa_id=empresa_id,
+        tipo=tipo,
+    )
+    pagos = q_pagos.all()
+    pago_ano = sum(
+        (
+            Decimal(str(t.valor_pago if t.valor_pago is not None else (t.valor or 0)))
+            for t in pagos
+        ),
+        Decimal("0.00"),
+    )
+
     competencia_mes = competencia_atual(hoje)
     titulos_mes = sum(
         (Decimal(str(t.valor or 0)) for t in titulos if t.competencia == competencia_mes),
@@ -1092,6 +1241,9 @@ def resumo_a_receber(
         "total_vencido": total_vencido,
         "quantidade_titulos": len(titulos),
         "faixas": list(faixas.values()),
+        "proximo_vencimento": proximo_vencimento,
+        "pago_ano": pago_ano,
+        "pago_ano_quantidade": len(pagos),
         "previsao_mes": {
             "competencia": competencia_mes,
             "titulos": titulos_mes,
@@ -1114,6 +1266,7 @@ def _csv_seguro(valor: object) -> object:
 
 
 def titulos_csv(db: Session, *, competencia: str | None, status_filtro: str | None,
+                # #1386: a coluna Tipo pode trazer "multa" (título avulso da rescisão).
                 rede_id: int | None, empresa_id: int | None, tipo: str | None) -> str:
     """CSV do A receber com os mesmos filtros da lista (#375). Separador ';' para Excel pt-BR."""
     import csv
@@ -1150,9 +1303,12 @@ def titulos_csv(db: Session, *, competencia: str | None, status_filtro: str | No
         dados = titulo_para_read(db, row)
         status = dados["status"]
         atraso = max((hoje - row.vencimento).days, 0) if status == TITULO_VENCIDO else 0
+        tipo_titulo = row.tipo or TITULO_TIPO_MENSALIDADE
+        if tipo_titulo not in TITULO_TIPOS:
+            tipo_titulo = TITULO_TIPO_MENSALIDADE
         writer.writerow(
             [
-                TITULO_TIPO_IMPLANTACAO if (row.tipo or TITULO_TIPO_MENSALIDADE) == TITULO_TIPO_IMPLANTACAO else TITULO_TIPO_MENSALIDADE,
+                tipo_titulo,
                 _csv_seguro(dados.get("razao_social") or dados.get("empresa_nome") or ""),
                 _csv_seguro(dados.get("cnpj") or ""),
                 _csv_seguro(dados.get("rede_nome") or ""),
@@ -1169,6 +1325,55 @@ def titulos_csv(db: Session, *, competencia: str | None, status_filtro: str | No
     return "\ufeff" + buf.getvalue()
 
 
+def _validar_baixa_sem_boleto(
+    db: Session,
+    row: TituloReceber,
+    ator: Atendente,
+    motivo: str | None,
+) -> str | None:
+    """Exige boleto anexado; devolve o motivo quando a exceção auditada é usada (#1387).
+
+    Título sem fatura (implantação/multa) fica fora da regra. A exceção é só para
+    quem tem `faturamento.aprovar` — o vínculo ao setor Financeiro não basta.
+    """
+    if not row.fatura_id:
+        return None
+    fatura = row.fatura or db.query(Fatura).filter(Fatura.id == row.fatura_id).first()
+    if fatura_tem_boleto(fatura):
+        return None
+    if motivo is None:
+        raise HTTPException(status_code=400, detail="Anexe o boleto da fatura antes de dar baixa.")
+    # Permissão antes do formato: quem não pode a exceção recebe 403, não 400 por motivo curto.
+    if not tem_permissao(ator, "faturamento.aprovar"):
+        raise HTTPException(
+            status_code=403,
+            detail="Sem permissão para dar baixa sem boleto. A exceção exige a permissão faturamento.aprovar.",
+        )
+    texto = _normalizar_texto_curto(motivo, max_len=SEM_BOLETO_MOTIVO_MAX)
+    if texto is None or not (SEM_BOLETO_MOTIVO_MIN <= len(texto) <= SEM_BOLETO_MOTIVO_MAX):
+        raise HTTPException(
+            status_code=400,
+            detail="Descreva o motivo da baixa sem boleto (10 a 500 caracteres).",
+        )
+    registrar_audit(
+        db,
+        "faturamento_titulo",
+        row.id,
+        "baixa_sem_boleto",
+        ator.id,
+        payload={"motivo": texto, "fatura_id": row.fatura_id},
+    )
+    return texto
+
+
+def _compor_observacao_baixa(observacao: str | None, motivo_sem_boleto: str | None) -> str | None:
+    texto = _normalizar_texto_curto(observacao, max_len=2000)
+    if not motivo_sem_boleto:
+        return texto
+    prefixada = f"{SEM_BOLETO_PREFIXO} {motivo_sem_boleto}"
+    return f"{prefixada} — {texto}" if texto else prefixada
+
+
 def baixar_titulo(
     db: Session,
     row: TituloReceber,
@@ -1177,6 +1382,7 @@ def baixar_titulo(
     pago_em: date | None,
     valor_pago: Decimal | None,
     observacao: str | None,
+    sem_documento_motivo: str | None = None,
 ) -> TituloReceber:
     efetivo = status_titulo_efetivo(row)
     if efetivo not in {TITULO_ABERTO, TITULO_VENCIDO}:
@@ -1184,10 +1390,11 @@ def baixar_titulo(
     valor = Decimal(str(valor_pago if valor_pago is not None else row.valor))
     if valor <= 0:
         raise HTTPException(status_code=400, detail="Informe um valor pago maior que zero.")
+    motivo_sem_boleto = _validar_baixa_sem_boleto(db, row, ator, sem_documento_motivo)
     row.status = TITULO_PAGO
     row.valor_pago = valor
     row.pago_em = pago_em or _hoje()
-    row.baixa_observacao = _normalizar_texto_curto(observacao, max_len=2000)
+    row.baixa_observacao = _compor_observacao_baixa(observacao, motivo_sem_boleto)
     row.baixado_por_id = ator.id
     row.baixado_em = datetime.now(timezone.utc)
     db.flush()

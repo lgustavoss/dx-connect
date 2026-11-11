@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ApiError,
   faturamento,
@@ -170,6 +170,31 @@ export function Faturamento() {
   }, [])
 
   const faturaDetalhe = detalheId == null ? null : list.find((f) => f.id === detalheId) ?? null
+
+  /** Abre a aba Faturas já na ficha de documentos da fatura do título (badge "sem boleto", #1387). */
+  const aguardaScrollAnexos = useRef(false)
+
+  const verAnexosDaFatura = useCallback(
+    (faturaId: number) => {
+      aguardaScrollAnexos.current = true
+      setDetalheId(faturaId)
+      setAba('faturas')
+      // Se um filtro da aba Faturas esconde a fatura, limpa para ela aparecer com os documentos.
+      if (!list.some((f) => f.id === faturaId)) {
+        setStatus('')
+        setEmiteNfse('')
+      }
+    },
+    [list],
+  )
+
+  useEffect(() => {
+    if (!aguardaScrollAnexos.current || aba !== 'faturas' || detalheId == null) return
+    const el = document.getElementById('fatura-documentos')
+    if (!el) return
+    aguardaScrollAnexos.current = false
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [aba, detalheId, list])
 
   const contratoOptions = useMemo(
     () =>
@@ -463,6 +488,7 @@ export function Faturamento() {
                 options={[
                   { value: 'mensalidade', label: 'Mensalidade' },
                   { value: 'implantacao', label: 'Implantação' },
+                  { value: 'multa', label: 'Multa' },
                 ]}
                 includeEmpty
                 emptyLabel="Todos os tipos"
@@ -501,6 +527,7 @@ export function Faturamento() {
             titulos={titulos}
             loading={loadingTitulos}
             podeBaixar={podeAprovar}
+            onVerAnexos={verAnexosDaFatura}
             onAtualizado={(atual) => {
               setTitulos((prev) => prev.map((x) => (x.id === atual.id ? atual : x)))
               loadTitulos()
@@ -612,15 +639,17 @@ export function Faturamento() {
       ) : null}
 
       {faturaDetalhe ? (
-        <FaturaDocumentos
-          key={faturaDetalhe.id}
-          fatura={faturaDetalhe}
-          podeEditar={podeGerar}
-          onChanged={(atual) => {
-            setList((prev) => prev.map((x) => (x.id === atual.id ? atual : x)))
-          }}
-          onClose={() => setDetalheId(null)}
-        />
+        <div id="fatura-documentos">
+          <FaturaDocumentos
+            key={faturaDetalhe.id}
+            fatura={faturaDetalhe}
+            podeEditar={podeGerar}
+            onChanged={(atual) => {
+              setList((prev) => prev.map((x) => (x.id === atual.id ? atual : x)))
+            }}
+            onClose={() => setDetalheId(null)}
+          />
+        </div>
       ) : null}
 
       <Card>
