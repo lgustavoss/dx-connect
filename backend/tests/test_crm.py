@@ -294,6 +294,32 @@ def test_nota_mostra_autor_e_autor_edita_em_5_minutos(client, auth_headers, db_s
     assert "5 minutos" in tarde.json()["detail"]
 
 
+def test_tipos_ligacao_e_reuniao_removidos_retornam_422(client, auth_headers):
+    """#1388: a UI só cria nota; ligacao/reuniao saíram do contrato aceite pela API."""
+    from app.models.crm import ATIVIDADE_TIPOS
+
+    assert ATIVIDADE_TIPOS == {"nota", "mudanca_estagio", "documento_anexado"}
+
+    h = auth_headers["comercial"]
+    neg_id = _negociacao_comercial(client, auth_headers)
+    for tipo in ("ligacao", "reuniao"):
+        r = client.post(
+            f"/v1/crm/negociacoes/{neg_id}/atividades",
+            headers=h,
+            json={"tipo": tipo, "texto": "Tipo descontinuado"},
+        )
+        assert r.status_code == 422, (tipo, r.text)
+        assert "tipo inválido" in r.text
+
+    ok = client.post(
+        f"/v1/crm/negociacoes/{neg_id}/atividades",
+        headers=h,
+        json={"tipo": "nota", "texto": "Nota continua valendo"},
+    )
+    assert ok.status_code == 201, ok.text
+    assert ok.json()["tipo"] == "nota"
+
+
 def test_mudanca_de_estagio_nao_edita_e_lembrete_no_passado_rejeitado(client, auth_headers):
     h = auth_headers["comercial"]
     neg_id = _negociacao_comercial(client, auth_headers)
@@ -333,7 +359,7 @@ def test_lembrete_repete_ate_o_autor_confirmar(client, auth_headers, db_session,
     nota = client.post(
         f"/v1/crm/negociacoes/{neg_id}/atividades",
         headers=h,
-        json={"tipo": "reuniao", "texto": "Apresentação do sistema", "lembrete_em": futuro},
+        json={"tipo": "nota", "texto": "Apresentação do sistema", "lembrete_em": futuro},
     )
     assert nota.status_code == 201, nota.text
     atividade_id = nota.json()["id"]

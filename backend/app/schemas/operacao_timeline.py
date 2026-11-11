@@ -9,11 +9,17 @@ from pydantic import BaseModel, Field
 
 
 class CategoriaEvento(str, Enum):
-    """Categorias operacionais da jornada do cliente."""
+    """Categorias operacionais da jornada do cliente.
+
+    `cobranca` (#1385) cobre fatura e título a receber derivados — os eventos
+    não carregam valores; o bloco financeiro da ficha usa o resumo de
+    /v1/faturamento/a-receber com o RBAC `faturamento.ver`.
+    """
 
     crm = "crm"
     implantacao = "implantacao"
     suporte = "suporte"
+    cobranca = "cobranca"
 
 
 class EventoTimelineRead(BaseModel):
@@ -29,7 +35,8 @@ class EventoTimelineRead(BaseModel):
     tipo: str
     titulo: str
     detalhe: str | None = None
-    # Navegação no painel: crm_negociacao, comercial_contrato, comercial_proposta, ticket.
+    # Navegação no painel: crm_negociacao, comercial_contrato, comercial_proposta,
+    # ticket, fatura, titulo.
     ref_tipo: str | None = None
     ref_id: int | None = None
 

@@ -16,6 +16,13 @@ type Modo = 'vincular' | 'cadastrar'
 type TipoCadastro = 'colaborador' | 'supervisor'
 type EscopoCadastro = 'all' | 'selected'
 
+/** #1407: todas as redes do contato; rede_nome fica como fallback legado. */
+function redesDoFuncionario(f: WhatsappChats.FuncionarioOpcao): string[] {
+  const nomes = (f.redes ?? []).map((r) => r.nome).filter(Boolean)
+  if (nomes.length > 0) return nomes
+  return f.rede_nome ? [f.rede_nome] : []
+}
+
 type Props = {
   chat: WhatsappChats.Chat
   open: boolean
@@ -424,14 +431,15 @@ export function WhatsappVincFuncionarioModal({ chat, open, onClose, onSuccess }:
                             {funcionario.email || 'Sem e-mail'}
                           </p>
                           <div className="mt-1 flex flex-wrap items-center gap-1">
-                            {funcionario.rede_nome && (
+                            {redesDoFuncionario(funcionario).map((nome) => (
                               <span
+                                key={nome}
                                 className="inline-flex max-w-full truncate rounded-md bg-violet-100 px-1.5 py-0.5 text-[10px] font-medium text-violet-800 dark:bg-violet-950/50 dark:text-violet-200"
-                                title={funcionario.rede_nome}
+                                title={nome}
                               >
-                                {funcionario.rede_nome}
+                                {nome}
                               </span>
-                            )}
+                            ))}
                             {funcionario.empresas.length > 0 ? (
                               funcionario.empresas.map((e) => (
                                 <span
@@ -443,7 +451,7 @@ export function WhatsappVincFuncionarioModal({ chat, open, onClose, onSuccess }:
                                 </span>
                               ))
                             ) : (
-                              !funcionario.rede_nome && (
+                              redesDoFuncionario(funcionario).length === 0 && (
                                 <span className="text-[10px] text-slate-400">Sem empresa</span>
                               )
                             )}
@@ -518,11 +526,14 @@ export function WhatsappVincFuncionarioModal({ chat, open, onClose, onSuccess }:
                                 {funcionario.email || funcionario.telefone || 'Sem e-mail/telefone'}
                               </p>
                               <div className="mt-1 flex flex-wrap gap-1">
-                                {funcionario.rede_nome && (
-                                  <span className="rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-medium text-violet-800 dark:bg-violet-950/50 dark:text-violet-200">
-                                    {funcionario.rede_nome}
+                                {redesDoFuncionario(funcionario).map((nome) => (
+                                  <span
+                                    key={nome}
+                                    className="rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-medium text-violet-800 dark:bg-violet-950/50 dark:text-violet-200"
+                                  >
+                                    {nome}
                                   </span>
-                                )}
+                                ))}
                                 {funcionario.empresas.map((e) => (
                                   <span
                                     key={e.id}

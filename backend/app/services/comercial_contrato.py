@@ -8,6 +8,7 @@ import html
 from datetime import date, datetime, timezone
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException
 from sqlalchemy import func
@@ -43,6 +44,14 @@ from app.services.permissao_grupos import tem_permissao
 from app.services import comercial_proposta as proposta_svc
 from app.services import crm as crm_svc
 from app.services.ticket_anexo_storage import caminho_absoluto_arquivo, gravar_bytes_em_disco, validar_upload
+
+_TZ_SP = ZoneInfo("America/Sao_Paulo")
+
+
+def _hoje() -> date:
+    """Data de hoje no fuso da instância — evita virada UTC nos marcos do contrato."""
+    return datetime.now(_TZ_SP).date()
+
 
 TEMPLATE_PADRAO_HTML = """<!DOCTYPE html>
 <html lang="pt-BR">
@@ -1082,7 +1091,7 @@ def _montar_snapshots(
 
 
 def _aplicar_campos_geracao(row: Contrato, data: ContratoGerarIn, snaps: dict[str, Any], tmpl: ContratoTemplate) -> None:
-    inicio = data.data_inicio or date.today()
+    inicio = data.data_inicio or _hoje()
     meses = int(data.fidelidade_meses or FIDELIDADE_MESES_PADRAO)
     row.template_id = tmpl.id
     row.valor_mensalidade = snaps["valor_mensalidade"]
@@ -1296,7 +1305,7 @@ def atualizar_cobranca(db: Session, row: Contrato, data, ator: Atendente) -> Con
     if "primeira_venda_pdv" in payload:
         valor = payload["primeira_venda_pdv"]
         if valor is not None:
-            if valor > date.today():
+            if valor > _hoje():
                 raise HTTPException(
                     status_code=400,
                     detail="A primeira venda no PDV não pode estar no futuro.",
@@ -1349,23 +1358,43 @@ def cancelar_contrato(db: Session, row: Contrato, ator: Atendente) -> Contrato:
     row.status = CONTRATO_CANCELADO
     linha = row.linha or obter_linha(db, row.negociacao_linha_cnpj_id)
 
+    canceladas: dict[str, int] | None = None
+    titulo_multa = None
+    if era_assinado:
+        # Rescisão não deixa fatura/título do mês em aberto (#1324). A multa nasce
+        # **depois** desta limpeza para não ser cancelada junto (#1386).
+        from app.services import faturamento as faturamento_svc
+
+        canceladas = faturamento_svc.cancelar_pendencias_do_contrato(db, row)
+        row.pendencias_cobranca_canceladas = canceladas  # lido pela API para auditoria
+        if estimativa is not None:
+            titulo_multa = faturamento_svc.garantir_titulo_multa(db, row, estimativa)
+
     if era_assinado and estimativa is not None:
         if estimativa["aplicavel"] and estimativa["valor_estimado"] is not None:
-            texto = (
-                f"Contrato #{row.id} rescindido. Estimativa de multa: "
-                f"{estimativa['mensalidades_estimadas']} mensalidade(s) = "
-                f"{proposta_svc._money_br(estimativa['valor_estimado'])} "
-                f"(ajuda operacional; não é cobrança)."
-            )
+            valor_mult = proposta_svc._money_br(estimativa["valor_estimado"])
+            if titulo_multa is not None:
+                texto = (
+                    f"Contrato #{row.id} rescindido. Multa de rescisão: "
+                    f"{estimativa['mensalidades_estimadas']} mensalidade(s) = {valor_mult} — "
+                    f"título a receber #{titulo_multa.id} criado (tipo multa, "
+                    f"vencimento {titulo_multa.vencimento.strftime('%d/%m/%Y')})."
+                )
+            else:
+                texto = (
+                    f"Contrato #{row.id} rescindido. Multa de rescisão: "
+                    f"{estimativa['mensalidades_estimadas']} mensalidade(s) = {valor_mult} — "
+                    "título de multa já existia no A receber (não duplicado)."
+                )
         elif estimativa["dentro_fidelidade"] and estimativa["multa_max_mensalidades"] <= 0:
             texto = (
                 f"Contrato #{row.id} rescindido dentro da fidelidade; "
-                "teto de multa é 0 — sem estimativa."
+                "teto de multa é 0 — sem título de multa."
             )
         else:
             texto = (
                 f"Contrato #{row.id} rescindido fora do período de fidelidade "
-                "(ou sem meses restantes) — sem estimativa de multa."
+                "(ou sem meses restantes) — sem título de multa."
             )
     else:
         texto = f"Contrato #{row.id} cancelado."
@@ -1379,25 +1408,21 @@ def cancelar_contrato(db: Session, row: Contrato, ator: Atendente) -> Contrato:
         )
     )
     db.flush()
-    if era_assinado:
-        # Rescisão não deixa fatura/título do mês em aberto (#1324).
-        from app.services import faturamento as faturamento_svc
-
-        canceladas = faturamento_svc.cancelar_pendencias_do_contrato(db, row)
-        row.pendencias_cobranca_canceladas = canceladas  # lido pela API para auditoria
-        if canceladas["faturas_canceladas"] or canceladas["titulos_cancelados"]:
-            db.add(
-                CrmNegociacaoAtividade(
-                    negociacao_id=linha.negociacao_id,
-                    autor_id=ator.id,
-                    tipo=ATIVIDADE_DOCUMENTO,
-                    texto=(
-                        f"Contrato #{row.id}: {canceladas['faturas_canceladas']} fatura(s) e "
-                        f"{canceladas['titulos_cancelados']} título(s) em aberto cancelados na cobrança."
-                    ),
-                )
+    if canceladas is not None and (
+        canceladas["faturas_canceladas"] or canceladas["titulos_cancelados"]
+    ):
+        db.add(
+            CrmNegociacaoAtividade(
+                negociacao_id=linha.negociacao_id,
+                autor_id=ator.id,
+                tipo=ATIVIDADE_DOCUMENTO,
+                texto=(
+                    f"Contrato #{row.id}: {canceladas['faturas_canceladas']} fatura(s) e "
+                    f"{canceladas['titulos_cancelados']} título(s) em aberto cancelados na cobrança."
+                ),
             )
-            db.flush()
+        )
+        db.flush()
     return row
 
 
@@ -1420,7 +1445,7 @@ def estimar_multa_rescisao(row: Contrato, *, hoje: date | None = None) -> dict[s
     Ajuda operacional: min(meses_restantes, multa_max) × mensalidade.
     Só aplicável dentro da fidelidade e com teto > 0.
     """
-    ref = hoje or date.today()
+    ref = hoje or _hoje()
     fim = row.data_fim_fidelidade
     max_m = int(row.multa_max_mensalidades or 0)
     valor = Decimal(str(row.valor_mensalidade or 0)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
@@ -1463,7 +1488,18 @@ def _interno_read(row: Contrato, linha: CrmNegociacaoCnpjLinha | None) -> dict[s
     }
 
 
-def contrato_para_read(row: Contrato, *, incluir_html: bool = False) -> dict[str, Any]:
+def contrato_para_read(
+    row: Contrato,
+    *,
+    incluir_html: bool = False,
+    titulo_multa: dict | None = None,
+    consultar_titulo_multa: bool = True,
+) -> dict[str, Any]:
+    """Payload do contrato.
+
+    Nas listagens, o chamador passa `titulo_multa` já resolvido em lote com
+    `consultar_titulo_multa=False` para não fazer uma query por contrato (#1386).
+    """
     tmpl = row.template
     linha = row.linha
     neg = linha.negociacao if linha else None
@@ -1471,7 +1507,7 @@ def contrato_para_read(row: Contrato, *, incluir_html: bool = False) -> dict[str
     atual = pdfs[-1] if pdfs else None
     dias: int | None = None
     if row.data_fim_fidelidade:
-        dias = (row.data_fim_fidelidade - date.today()).days
+        dias = (row.data_fim_fidelidade - _hoje()).days
     snap_com = row.snapshot_comercial if isinstance(row.snapshot_comercial, dict) else {}
     versao_snapshot = snap_com.get("template_versao")
     try:
@@ -1502,6 +1538,8 @@ def contrato_para_read(row: Contrato, *, incluir_html: bool = False) -> dict[str
             sess, row, politica=pol
         )
         dia_vencimento_efetivo = faturamento_svc.dia_vencimento_do_contrato(sess, row, politica=pol)
+        if consultar_titulo_multa:
+            titulo_multa = faturamento_svc.titulo_multa_do_contrato(sess, row.id)
     return {
         "id": row.id,
         "negociacao_linha_cnpj_id": row.negociacao_linha_cnpj_id,
@@ -1562,6 +1600,8 @@ def contrato_para_read(row: Contrato, *, incluir_html: bool = False) -> dict[str
         "conteudo_html_snapshot": atual.conteudo_html_snapshot if incluir_html and atual else None,
         "dias_restantes_fidelidade": dias,
         "multa_rescisao": estimar_multa_rescisao(row),
+        # Título a receber da multa, quando a rescisão já o criou (#1386).
+        "titulo_multa": titulo_multa,
         "interno": _interno_read(row, linha),
         "implantacao_ticket_id": ticket_impl.id if ticket_impl else None,
         "implantacao_ticket_protocolo": ticket_impl.protocolo if ticket_impl else None,

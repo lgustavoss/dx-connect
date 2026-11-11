@@ -57,10 +57,12 @@ TITULO_CANCELADO = "cancelado"
 TITULO_STATUS_PERSISTIDOS = frozenset({TITULO_ABERTO, TITULO_PAGO, TITULO_CANCELADO})
 TITULO_STATUS_FILTRO = frozenset({TITULO_ABERTO, TITULO_PAGO, TITULO_VENCIDO, TITULO_CANCELADO})
 
-# Tipo do título em A receber (#1342): mensalidade nasce da fatura; implantação é título próprio.
+# Tipo do título em A receber (#1342/#1386): mensalidade nasce da fatura;
+# implantação e multa são títulos próprios (sem fatura).
 TITULO_TIPO_MENSALIDADE = "mensalidade"
 TITULO_TIPO_IMPLANTACAO = "implantacao"
-TITULO_TIPOS = frozenset({TITULO_TIPO_MENSALIDADE, TITULO_TIPO_IMPLANTACAO})
+TITULO_TIPO_MULTA = "multa"
+TITULO_TIPOS = frozenset({TITULO_TIPO_MENSALIDADE, TITULO_TIPO_IMPLANTACAO, TITULO_TIPO_MULTA})
 
 
 class FaturamentoPolitica(Base):
@@ -142,6 +144,14 @@ class TituloReceber(Base):
             unique=True,
             sqlite_where=text("tipo = 'implantacao'"),
             postgresql_where=text("tipo = 'implantacao'"),
+        ),
+        # Multa de rescisão é uma por contrato (#1386) — mesma defesa do #1342.
+        Index(
+            "uq_faturamento_titulo_multa_contrato",
+            "contrato_id",
+            unique=True,
+            sqlite_where=text("tipo = 'multa'"),
+            postgresql_where=text("tipo = 'multa'"),
         ),
     )
 

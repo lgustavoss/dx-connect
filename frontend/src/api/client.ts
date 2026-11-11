@@ -1247,6 +1247,8 @@ export namespace WhatsappChats {
     telefone?: string | null
     tipo: string
     empresas: EmpresaOpcao[]
+    /** Todas as redes do contato (#1407); rede_id/rede_nome ficam como legado. */
+    redes?: Array<{ id: number; nome: string }>
     rede_id?: number | null
     rede_nome?: string | null
     similaridade?: number | null
@@ -1259,6 +1261,8 @@ export namespace WhatsappChats {
     telefone?: string | null
     tipo: string
     empresas: EmpresaOpcao[]
+    /** Todas as redes do contato (#1407); rede_id/rede_nome ficam como legado. */
+    redes?: Array<{ id: number; nome: string }>
     rede_id?: number | null
     rede_nome?: string | null
   }
@@ -2829,6 +2833,11 @@ export namespace FuncionariosRede {
     id: number;
     nome: string;
   }
+  /** Rede vinculada ao contato (#1407) — N:N; rede_id/rede_nome seguem como legado. */
+  export interface RedeVinculo {
+    id: number;
+    nome: string;
+  }
   export interface Funcionario {
     id: number;
     nome: string;
@@ -2837,6 +2846,7 @@ export namespace FuncionariosRede {
     tipo: string;
     escopo_empresas: EscopoEmpresas;
     ativo: boolean;
+    redes?: RedeVinculo[];
     rede_id?: number;
     rede_nome?: string | null;
     empresa_id?: number;
@@ -2855,6 +2865,8 @@ export namespace FuncionariosRede {
     tipo: string;
     escopo_empresas?: EscopoEmpresas;
     ativo?: boolean;
+    redes?: RedeVinculo[];
+    rede_ids?: number[];
     rede_id?: number;
     empresa_id?: number;
     empresa_ids?: number[];
@@ -2868,6 +2880,8 @@ export namespace FuncionariosRede {
     tipo?: string;
     escopo_empresas?: EscopoEmpresas;
     ativo?: boolean;
+    redes?: RedeVinculo[];
+    rede_ids?: number[];
     rede_id?: number;
     empresa_id?: number;
     empresa_ids?: number[];
@@ -3741,6 +3755,8 @@ export namespace ComercialContrato {
     conteudo_html_snapshot?: string | null;
     dias_restantes_fidelidade?: number | null;
     multa_rescisao?: MultaRescisao | null;
+    /** Título avulso de multa gerado na rescisão do contrato assinado (#1386). */
+    titulo_multa?: { id: number; valor: string | number; vencimento: string; status: string } | null;
     interno?: Interno | null;
     implantacao_ticket_id?: number | null;
     implantacao_ticket_protocolo?: string | null;
@@ -3842,7 +3858,7 @@ export namespace Faturamento {
     rede_nome?: string | null;
     cnpj: string | null;
     razao_social: string | null;
-    tipo?: 'mensalidade' | 'implantacao' | string;
+    tipo?: 'mensalidade' | 'implantacao' | 'multa' | string;
     competencia: string;
     valor: string | number;
     vencimento: string;
@@ -3851,6 +3867,8 @@ export namespace Faturamento {
     pago_em?: string | null;
     valor_pago?: string | number | null;
     baixa_observacao?: string | null;
+    /** Fatura do título tem anexo de boleto (#1387). Título sem fatura (implantação/multa) vem false — a regra não se aplica. */
+    tem_boleto?: boolean;
     baixado_por_id?: number | null;
     baixado_por_nome?: string | null;
     baixado_em?: string | null;
@@ -3880,6 +3898,11 @@ export namespace Faturamento {
     total_vencido: string | number;
     quantidade_titulos: number;
     faixas: ResumoFaixa[];
+    /** #1385: menor vencimento em aberto (ou o mais antigo, se só houver atrasados). */
+    proximo_vencimento?: string | null;
+    /** #1385: total pago no ano corrente, com os mesmos filtros do resumo. */
+    pago_ano?: string | number;
+    pago_ano_quantidade?: number;
     previsao_mes: {
       competencia: string;
       titulos: string | number;
@@ -4000,7 +4023,13 @@ export const faturamento = {
   },
   baixarTitulo: (
     id: number,
-    data?: { pago_em?: string; valor_pago?: number | string; observacao?: string },
+    data?: {
+      pago_em?: string;
+      valor_pago?: number | string;
+      observacao?: string;
+      /** Exceção auditada: baixa sem boleto anexado (só faturamento.aprovar; #1387). */
+      sem_documento_motivo?: string;
+    },
   ) =>
     api<Faturamento.Titulo>(`/faturamento/titulos/${id}/baixar`, {
       method: 'POST',

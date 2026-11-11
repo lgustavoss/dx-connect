@@ -152,7 +152,10 @@ export function ChatIniciarConversaModal({
         </h2>
         {contato && (
           <p className="mt-1 text-xs text-slate-500">
-            {contato.empresas.map((e) => e.nome).join(' · ') || contato.rede_nome || 'Sem empresa'}
+            {contato.empresas.map((e) => e.nome).join(' · ') ||
+              (contato.redes ?? []).map((r) => r.nome).join(' · ') ||
+              contato.rede_nome ||
+              'Sem empresa'}
           </p>
         )}
 

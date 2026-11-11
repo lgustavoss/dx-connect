@@ -6,7 +6,7 @@ from sqlalchemy import or_, asc
 
 from app.database import get_db
 from app.core.ordenacao_lista import OrdemLista, expr_ordem
-from app.models import Rede, Empresa, FuncionarioRede, FuncionarioRedeEmpresa
+from app.models import Rede, Empresa, FuncionarioRede, FuncionarioRedeEmpresa, FuncionarioRedeVinculo
 from app.models.atendente import Atendente
 from app.schemas.rede import RedeCreate, RedeUpdate, RedeRead
 from app.schemas.funcionario_rede import FuncionarioRedeComVinculo
@@ -96,7 +96,15 @@ def listar_funcionarios_da_rede(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Rede não encontrada")
     ids_empresas_da_rede = [r[0] for r in db.query(Empresa.id).filter(Empresa.rede_id == rede_id).all()]
     # Sócios da rede, colaboradores de alguma empresa da rede, supervisores vinculados a alguma empresa da rede
-    condicoes = [FuncionarioRede.rede_id == rede_id]
+    condicoes = [
+        FuncionarioRede.rede_id == rede_id,
+        # #1407: contato com N redes; a coluna rede_id é só a primeira (legado).
+        FuncionarioRede.id.in_(
+            db.query(FuncionarioRedeVinculo.funcionario_id).filter(
+                FuncionarioRedeVinculo.rede_id == rede_id
+            )
+        ),
+    ]
     if ids_empresas_da_rede:
         condicoes.append(FuncionarioRede.empresa_id.in_(ids_empresas_da_rede))
         condicoes.append(
@@ -126,6 +134,19 @@ def listar_funcionarios_da_rede(
     else:
         order_cols = [expr_ordem(FuncionarioRede.tipo, ordem), expr_ordem(FuncionarioRede.id, ordem)]
     rows = q.order_by(*order_cols).offset(offset).limit(limit).all()
+    redes_por_funcionario: dict[int, list[dict]] = {}
+    if rows:
+        vinculos_redes = (
+            db.query(FuncionarioRedeVinculo.funcionario_id, Rede.id, Rede.nome)
+            .join(Rede, Rede.id == FuncionarioRedeVinculo.rede_id)
+            .filter(FuncionarioRedeVinculo.funcionario_id.in_([f.id for f in rows]))
+            .order_by(FuncionarioRedeVinculo.id.asc())
+            .all()
+        )
+        for funcionario_id, rede, nome in vinculos_redes:
+            redes_por_funcionario.setdefault(int(funcionario_id), []).append(
+                {"id": int(rede), "nome": nome}
+            )
     result = []
     for f in rows:
         if f.tipo == "socio":
@@ -142,6 +163,7 @@ def listar_funcionarios_da_rede(
             vinculado_a = ", ".join(nomes) if nomes else "—"
         else:
             vinculado_a = "—"
+        redes_do_contato = redes_por_funcionario.get(f.id, [])
         result.append(
             FuncionarioRedeComVinculo(
                 id=f.id,
@@ -151,6 +173,8 @@ def listar_funcionarios_da_rede(
                 tipo=f.tipo,
                 ativo=f.ativo,
                 rede_id=f.rede_id,
+                rede_nome=redes_do_contato[0]["nome"] if redes_do_contato else None,
+                redes=redes_do_contato,
                 empresa_id=f.empresa_id,
                 empresa_ids=[e.empresa_id for e in f.empresas_supervisor],
                 created_at=f.created_at,

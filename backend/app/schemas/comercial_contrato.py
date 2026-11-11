@@ -118,6 +118,15 @@ class MultaRescisaoEstimativa(BaseModel):
     aviso: str
 
 
+class TituloMultaRescisaoRead(BaseModel):
+    """Título a receber criado pela multa de rescisão (#1386)."""
+
+    id: int
+    valor: Decimal
+    vencimento: date
+    status: str
+
+
 class ContratoCobrancaUpdate(BaseModel):
     """Cobrança da negociação: marco da primeira venda, overrides e momento do setup (#1340/#1342)."""
 
@@ -181,6 +190,8 @@ class ContratoRead(BaseModel):
     conteudo_html_snapshot: str | None = None
     dias_restantes_fidelidade: int | None = None
     multa_rescisao: MultaRescisaoEstimativa | None = None
+    # Título criado na rescisão (None = não aplicável, ainda não rescindido ou sem sessão).
+    titulo_multa: TituloMultaRescisaoRead | None = None
     interno: ContratoInternoRead | None = None
     implantacao_ticket_id: int | None = None
     implantacao_ticket_protocolo: str | None = None

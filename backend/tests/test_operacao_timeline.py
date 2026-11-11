@@ -8,7 +8,7 @@ derivados dessas tabelas existentes.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from app.models import Ticket
 from tests.test_comercial_contrato import _anexar_pdf_assinado, _negociacao_com_linha
@@ -242,6 +242,250 @@ def _envelhecer_ticket(db_session, ticket_id: int, dias: int) -> None:
 
 def _parse_em(valor: str) -> datetime:
     return datetime.fromisoformat(valor.replace("Z", "+00:00"))
+
+
+# ---------------------------------------------------------------------------
+# #1385 — cobrança na timeline (fatura/título)
+# ---------------------------------------------------------------------------
+
+
+def _competencia_do_contrato(contrato: dict) -> str:
+    inicio = date.fromisoformat(str(contrato["data_inicio"]))
+    return f"{inicio.year:04d}-{inicio.month:02d}"
+
+
+def _assinar_contrato_com_cnpj(client, h, cnpj: str) -> dict:
+    """Contrato assinado com CNPJ explícito (CNPJ distinto = empresa distinta)."""
+    _, linha = _negociacao_com_linha(client, h, cnpj=cnpj)
+    contrato = client.post("/v1/comercial/contratos", headers=h, json={"linha_id": linha["id"]})
+    assert contrato.status_code == 201, contrato.text
+    contrato_id = contrato.json()["id"]
+    _anexar_pdf_assinado(client, h, contrato_id)
+    assinado = client.post(
+        f"/v1/comercial/contratos/{contrato_id}/marcar-assinado",
+        headers=h,
+        json={"abrir_ticket_implantacao": True},
+    )
+    assert assinado.status_code == 200, assinado.text
+    return assinado.json()
+
+
+def _fluxo_cobranca(
+    client,
+    auth_headers,
+    *,
+    cnpj: str = "12.345.678/0001-95",
+    aprovar: bool = False,
+    baixar: bool = False,
+    estornar: bool = False,
+    cancelar_titulo: bool = False,
+) -> dict:
+    """Contrato assinado + fatura (e título, quando aprovada) da empresa."""
+    h_com = auth_headers["comercial"]
+    h_fin = auth_headers["a2"]
+    contrato = _assinar_contrato_com_cnpj(client, h_com, cnpj)
+    competencia = _competencia_do_contrato(contrato)
+    fatura = client.post(
+        "/v1/faturamento/faturas",
+        headers=h_fin,
+        json={"contrato_id": contrato["id"], "competencia": competencia},
+    )
+    assert fatura.status_code in {200, 201}, fatura.text
+    ctx = {
+        "contrato_id": contrato["id"],
+        "empresa_id": contrato["empresa_id"],
+        "competencia": competencia,
+        "fatura_id": fatura.json()["id"],
+        "titulo_id": None,
+    }
+    if not aprovar:
+        return ctx
+
+    aprovada = client.post(f"/v1/faturamento/faturas/{ctx['fatura_id']}/aprovar", headers=h_fin)
+    assert aprovada.status_code == 200, aprovada.text
+    ctx["titulo_id"] = aprovada.json()["titulo"]["id"]
+
+    if baixar:
+        # A baixa de título com fatura exige boleto anexado (#1387) ou motivo
+        # auditado; anexar o boleto mantém o teste de timeline independente.
+        anexo = client.post(
+            f"/v1/faturamento/faturas/{ctx['fatura_id']}/anexos",
+            headers=h_fin,
+            files={"file": ("boleto.pdf", b"%PDF-1.4 boleto", "application/pdf")},
+            data={"tipo": "boleto"},
+        )
+        assert anexo.status_code == 201, anexo.text
+        baixa = client.post(
+            f"/v1/faturamento/titulos/{ctx['titulo_id']}/baixar",
+            headers=h_fin,
+            json={"observacao": "PIX conferido no extrato"},
+        )
+        assert baixa.status_code == 200, baixa.text
+    if estornar:
+        estorno = client.post(
+            f"/v1/faturamento/titulos/{ctx['titulo_id']}/estornar", headers=h_fin, json={}
+        )
+        assert estorno.status_code == 200, estorno.text
+    if cancelar_titulo:
+        cancelado = client.post(
+            f"/v1/faturamento/titulos/{ctx['titulo_id']}/cancelar", headers=h_fin, json={}
+        )
+        assert cancelado.status_code == 200, cancelado.text
+    return ctx
+
+
+def _eventos_cobranca(client, headers, empresa_id: int, **params) -> list[dict]:
+    return [
+        item
+        for item in _eventos(client, headers, empresa_id, **params)["items"]
+        if item["categoria"] == "cobranca"
+    ]
+
+
+def test_timeline_cobranca_fatura_e_titulo(client, auth_headers):
+    ctx = _fluxo_cobranca(client, auth_headers, aprovar=True, baixar=True)
+    h = auth_headers["comercial"]
+
+    itens = _eventos_cobranca(client, h, ctx["empresa_id"])
+    tipos = {item["tipo"] for item in itens}
+    assert {"fatura_gerada", "fatura_aprovada", "titulo_aberto", "titulo_baixado"} <= tipos
+
+    # ids estáveis e sem duplicidade; ref aponta para a origem certa
+    ids = [item["id"] for item in itens]
+    assert len(ids) == len(set(ids))
+    assert {item["ref_id"] for item in itens if item["ref_tipo"] == "fatura"} == {ctx["fatura_id"]}
+    assert {item["ref_id"] for item in itens if item["ref_tipo"] == "titulo"} == {ctx["titulo_id"]}
+    assert all(item["titulo"].strip() for item in itens)
+
+    # todas as categorias continuam na timeline completa; filtro isola cobrança
+    completo = _eventos(client, h, ctx["empresa_id"])
+    assert {item["categoria"] for item in completo["items"]} >= {"crm", "cobranca"}
+    so_cobranca = _eventos(client, h, ctx["empresa_id"], categorias="cobranca")
+    assert so_cobranca["total"] == len(itens)
+    assert {item["categoria"] for item in so_cobranca["items"]} == {"cobranca"}
+    assert {item["id"] for item in so_cobranca["items"]} == set(ids)
+
+    # ordem cronológica (padrão desc) também vale para os eventos de cobrança
+    ems = [_parse_em(item["em"]) for item in itens]
+    assert ems == sorted(ems, reverse=True)
+
+
+def test_timeline_cobranca_sem_valores_monetarios(client, auth_headers):
+    ctx = _fluxo_cobranca(client, auth_headers, aprovar=True, baixar=True)
+    h = auth_headers["comercial"]
+    itens = _eventos_cobranca(client, h, ctx["empresa_id"])
+    assert itens
+
+    texto = " ".join(f"{item['titulo']} {item['detalhe'] or ''}" for item in itens)
+    assert "R$" not in texto
+    assert "valor" not in texto.lower()
+    # valor do contrato/fatura/título do cenário (900,00) não vaza no evento
+    assert "900,00" not in texto and "900.00" not in texto
+    # competência e vencimento aparecem em texto, que é o que a timeline precisa
+    assert ctx["competencia"] in texto
+    assert "vencimento em" in texto
+
+
+def test_timeline_cobranca_nao_vaza_entre_empresas_e_sem_cobranca_nao_gera(
+    client, auth_headers, seed_base
+):
+    h = auth_headers["comercial"]
+    ctx_a = _fluxo_cobranca(client, auth_headers, cnpj="11.111.111/0001-11", aprovar=True)
+    ctx_b = _fluxo_cobranca(client, auth_headers, cnpj="22.222.222/0001-22", aprovar=True)
+    assert ctx_a["empresa_id"] != ctx_b["empresa_id"]
+
+    cobranca_b = _eventos_cobranca(client, h, ctx_b["empresa_id"])
+    assert cobranca_b
+    assert {item["ref_id"] for item in cobranca_b} == {ctx_b["fatura_id"], ctx_b["titulo_id"]}
+    # nada da empresa A aparece na timeline da empresa B
+    refs_a = {ctx_a["fatura_id"], ctx_a["titulo_id"]}
+    assert not (refs_a & {item["ref_id"] for item in cobranca_b})
+
+    # empresa sem fatura/título não gera categoria cobranca
+    empresa_vazia = _criar_empresa_sem_historico(
+        client, auth_headers["admin"], seed_base, "Empresa Sem Cobrança"
+    )
+    assert _eventos_cobranca(client, h, empresa_vazia) == []
+    vazio = _eventos(client, h, empresa_vazia, categorias="cobranca")
+    assert vazio["total"] == 0 and vazio["items"] == []
+
+
+def test_timeline_cobranca_rotulo_multa(client, auth_headers, db_session):
+    """#1386: título de multa aparece como «multa» na timeline, não como mensalidade."""
+    from datetime import date as _date
+    from decimal import Decimal
+
+    from app.models.faturamento import TITULO_ABERTO, TITULO_TIPO_MULTA, TituloReceber
+
+    ctx = _fluxo_cobranca(client, auth_headers, aprovar=True)
+    db_session.add(
+        TituloReceber(
+            fatura_id=None,
+            contrato_id=ctx["contrato_id"],
+            empresa_id=ctx["empresa_id"],
+            tipo=TITULO_TIPO_MULTA,
+            competencia=ctx["competencia"],
+            valor=Decimal("150.00"),
+            vencimento=_date(2030, 1, 10),
+            status=TITULO_ABERTO,
+        )
+    )
+    db_session.commit()
+
+    itens = _eventos_cobranca(client, auth_headers["comercial"], ctx["empresa_id"])
+    aberto = next(
+        item
+        for item in itens
+        if item["tipo"] == "titulo_aberto" and "Tipo: multa" in (item["detalhe"] or "")
+    )
+    assert aberto["ref_tipo"] == "titulo"
+    assert "vencimento em 10/01/2030" in aberto["detalhe"]
+
+
+def test_timeline_cobranca_vencido_sem_evento_por_dia(client, auth_headers, db_session):
+    from app.models.faturamento import TituloReceber
+
+    ctx = _fluxo_cobranca(client, auth_headers, aprovar=True)
+    h = auth_headers["comercial"]
+
+    titulo = db_session.get(TituloReceber, ctx["titulo_id"])
+    assert titulo is not None
+    titulo.vencimento = date(2020, 1, 10)
+    db_session.commit()
+
+    itens = _eventos_cobranca(client, h, ctx["empresa_id"])
+    abertos = [item for item in itens if item["tipo"] == "titulo_aberto"]
+    assert len(abertos) == 1  # sinal de vencido é detalhe, não evento por dia
+    assert "Vencido desde 10/01/2020." in abertos[0]["detalhe"]
+    assert "vencimento em 10/01/2020" in abertos[0]["detalhe"]
+
+
+def test_timeline_cobranca_estorno_e_cancelamento(client, auth_headers):
+    h = auth_headers["comercial"]
+
+    # estorno: baixa desfeita devolve o título para aberto
+    ctx_estorno = _fluxo_cobranca(
+        client, auth_headers, cnpj="33.333.333/0001-33", aprovar=True, baixar=True, estornar=True
+    )
+    itens_estorno = _eventos_cobranca(client, h, ctx_estorno["empresa_id"])
+    tipos_estorno = {item["tipo"] for item in itens_estorno}
+    assert "titulo_estornado" in tipos_estorno
+    assert "titulo_baixado" not in tipos_estorno
+    estorno = next(item for item in itens_estorno if item["tipo"] == "titulo_estornado")
+    assert estorno["ref_tipo"] == "titulo" and estorno["ref_id"] == ctx_estorno["titulo_id"]
+    assert "voltou a ficar em aberto" in estorno["detalhe"].lower()
+
+    # cancelamento: título cancelado e a fatura de origem também
+    ctx_canc = _fluxo_cobranca(
+        client, auth_headers, cnpj="44.444.444/0001-44", aprovar=True, cancelar_titulo=True
+    )
+    itens_canc = _eventos_cobranca(client, h, ctx_canc["empresa_id"])
+    tipos_canc = {item["tipo"] for item in itens_canc}
+    assert {"titulo_cancelado", "fatura_cancelada"} <= tipos_canc
+    cancelado = next(item for item in itens_canc if item["tipo"] == "titulo_cancelado")
+    assert "última atualização do título" in cancelado["detalhe"]
+    fatura_canc = next(item for item in itens_canc if item["tipo"] == "fatura_cancelada")
+    assert "última atualização da fatura" in fatura_canc["detalhe"]
 
 
 # ---------------------------------------------------------------------------
