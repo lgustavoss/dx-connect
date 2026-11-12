@@ -11,6 +11,7 @@ nome do atalho Windows, canal de update (version.json).
 Profiles (--profile):
   cliente   — incoming-only + UI host (PC acessado)
   atendente — outgoing-only (controla outros, sem ID na frota)
+  posto / controle — aliases legados de cliente / atendente
 
 UI (--ui):
   sciter    — producao 1.x.x (CLIENT_VERSION)
@@ -26,6 +27,12 @@ import re
 import shutil
 import sys
 from pathlib import Path
+
+# Aliases aceitos pelo argparse / workflows antigos.
+PROFILE_LEGADO = {
+    "posto": "cliente",
+    "controle": "atendente",
+}
 
 # Nome do produto na UI / atalho (APP_NAME do exe continua DeskRudder para nao quebrar instalacao).
 PRODUCT_DISPLAY_NAME = "DeskRemote"
