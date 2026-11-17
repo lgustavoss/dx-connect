@@ -5301,6 +5301,29 @@
           "text": "DeskRemote: a sessão no **PC acessado** passa a mostrar o **nome do atendente logado no DeskRudder** (formato `Nome (ID RustDesk)`) em vez do usuário do Windows — atendente v2 2.4.0, fallback para o usuário do Windows (#1406)"
         }
       ]
+    },
+    {
+      "version": "26.11.004",
+      "version_display": "v26.11.004",
+      "date": "2026-11-17",
+      "status": "published",
+      "changes": [
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Contratos: **assinatura eletrônica** no DeskRudder (DocuSeal) com **várias partes** (contratante, contratada e testemunhas), cada uma com **CPF**, papel e **link próprio**; dá para **copiar o link** (WhatsApp) ou **enviar por e-mail**. O contrato só fica assinado quando todos concluem. Continua dá para **assinar por fora** anexando o PDF (#1380, #1429)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Acesso remoto: o DeskRemote (Atendente e Cliente) passa a checar o `version.json` com **retry**, usar o **`download_url`** do Release e avisar se a verificação falhar — o cartão **Atualizar agora** volta a aparecer quando há versão nova; dá para **mostrar de novo** se dispensar. Os instaladores Flutter passam a se chamar **`deskremote-atendente.exe`** e **`deskremote-cliente.exe`** (#1427, #1428)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Acesso remoto → frota: a lista mostra a **versão do DeskRemote** instalada em cada computador (ou **Desconhecida** se ainda não reportou), o selo **Desatualizado** quando estiver atrás do Release e o filtro **Desatualizados** (#1434)"
+        }
+      ]
     }
   ]
 }
