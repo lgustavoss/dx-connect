@@ -1,4 +1,4 @@
-# Frontend estático (pasta dist/ do npm run build).
+﻿# Frontend estático (pasta dist/ do npm run build).
 # Ajuste server_name e root para o caminho real no VPS (ex.: /var/www/dx-connect/dist).
 #
 # O VITE_API_URL no build deve ser a URL pública da API (ex.: http://api.seudominio.com até ativar HTTPS).
@@ -13,7 +13,7 @@ server {
 
     # Download do instalador Windows sem login no painel.
     location = /acesso-remoto/download {
-        return 302 https://github.com/lgustavoss/dx-connect/releases/download/acesso-remoto-windows-flutter/DeskRudder-AcessoRemoto-Flutter.exe;
+        return 302 https://github.com/lgustavoss/dx-connect/releases/download/acesso-remoto-windows-flutter/deskremote-cliente.exe;
     }
 
     # Setup DeskRudder (atendente) — link amigável /app/download.

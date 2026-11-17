@@ -261,6 +261,36 @@ Future<String> idLocalDeskRemote() async {
   return id.toString().trim();
 }
 
+/// Versão do instalador DeskRemote (DESKRUDDER_CLIENT_VERSION via get_version).
+Future<String?> versaoAppDeskRemote() async {
+  try {
+    final raw = (await bind.mainGetVersion()).toString().trim();
+    final m = RegExp(r'^(\d+\.\d+\.\d+)').firstMatch(raw);
+    return m?.group(1);
+  } catch (_) {
+    return null;
+  }
+}
+
+Map<String, dynamic> _payloadAppInfo([Map<String, dynamic>? base]) {
+  final out = <String, dynamic>{...?base, 'app_ui': 'flutter'};
+  return out;
+}
+
+Future<Map<String, dynamic>> _comAppInfo(Map<String, dynamic> body) async {
+  final ver = await versaoAppDeskRemote();
+  final out = _payloadAppInfo(body);
+  if (ver != null && ver.isNotEmpty) out['app_version'] = ver;
+  return out;
+}
+
+Uri _urlComAppInfo(Uri uri, {String? appVersion}) {
+  final q = Map<String, String>.from(uri.queryParameters);
+  q['app_ui'] = 'flutter';
+  if (appVersion != null && appVersion.isNotEmpty) q['app_version'] = appVersion;
+  return uri.replace(queryParameters: q);
+}
+
 Future<DispositivoDeskRemote> resgatarInstalacaoDeskRemote(String bruto) async {
   final link = parseLinkInstalacaoDeskRemote(bruto);
   if (link == null) {
@@ -269,7 +299,7 @@ Future<DispositivoDeskRemote> resgatarInstalacaoDeskRemote(String bruto) async {
   final json = await _httpJson(
     uri: _urlApi(link.apiBase, '/deskremote/enroll'),
     method: 'POST',
-    body: {'token': link.token},
+    body: await _comAppInfo({'token': link.token}),
   );
   final deviceToken = (json['dispositivo_token'] ?? '').toString().trim();
   if (deviceToken.isEmpty) {
@@ -294,7 +324,7 @@ Future<DispositivoDeskRemote> resgatarInstalacaoDeskRemote(String bruto) async {
     final conf = await _httpJson(
       uri: _urlApi(link.apiBase, '/deskremote/dispositivo/id'),
       method: 'POST',
-      body: {'rustdesk_id': rustdeskId},
+      body: await _comAppInfo({'rustdesk_id': rustdeskId}),
       bearer: deviceToken,
     );
     rustdeskId = (conf['rustdesk_id'] ?? rustdeskId).toString();
@@ -313,8 +343,9 @@ Future<DispositivoDeskRemote> resgatarInstalacaoDeskRemote(String bruto) async {
 Future<void> sincronizarSenhaDeskRemote() async {
   final atual = lerDispositivoDeskRemote();
   if (atual == null) return;
+  final appVer = await versaoAppDeskRemote();
   final json = await _httpJson(
-    uri: _urlApi(atual.apiBase, '/deskremote/dispositivo/config'),
+    uri: _urlComAppInfo(_urlApi(atual.apiBase, '/deskremote/dispositivo/config'), appVersion: appVer),
     method: 'GET',
     bearer: atual.token,
   );
@@ -338,7 +369,7 @@ Future<void> sincronizarSenhaDeskRemote() async {
       final conf = await _httpJson(
         uri: _urlApi(atual.apiBase, '/deskremote/dispositivo/id'),
         method: 'POST',
-        body: {'rustdesk_id': localId},
+        body: await _comAppInfo({'rustdesk_id': localId}),
         bearer: atual.token,
       );
       rustdeskId = (conf['rustdesk_id'] ?? localId).toString();

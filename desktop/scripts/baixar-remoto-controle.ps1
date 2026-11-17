@@ -7,7 +7,7 @@
 param(
   [string]$Repo = "lgustavoss/dx-connect",
   [string]$Tag = "acesso-remoto-controle-flutter-windows",
-  [string]$Asset = "DeskRudder-AcessoRemoto-Controle-Flutter.exe"
+  [string]$Asset = "deskremote-atendente.exe"
 )
 
 $ErrorActionPreference = "Stop"

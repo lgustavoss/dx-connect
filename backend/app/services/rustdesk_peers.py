@@ -44,6 +44,91 @@ _estado: dict = {
     "sincronizado_em": None,
 }
 
+# Cache do version.json do canal Cliente Flutter (#1434).
+_RELEASE_CLIENTE_VERSION_URL = (
+    "https://github.com/lgustavoss/dx-connect/releases/download/"
+    "acesso-remoto-windows-flutter/version.json"
+)
+_versao_release_lock = threading.Lock()
+# version: última lida; mono: quando a version foi gravada; attempt_mono: último GET (sucesso ou falha).
+_versao_release_cache: dict = {"version": None, "mono": 0.0, "attempt_mono": 0.0}
+_RELEASE_CACHE_TTL_S = 900.0
+_RELEASE_RETRY_APOS_FALHA_S = 60.0
+_RELEASE_HTTP_TIMEOUT_S = 2.5
+
+
+def _tupla_versao(raw: str | None) -> tuple[int, ...] | None:
+    if not raw:
+        return None
+    partes = str(raw).strip().split(".")
+    if len(partes) != 3 or not all(p.isdigit() for p in partes):
+        return None
+    return tuple(int(p) for p in partes)
+
+
+def versao_menor(instalada: str | None, release: str | None) -> bool | None:
+    """True se instalada < release; None se não dá para comparar."""
+    a = _tupla_versao(instalada)
+    b = _tupla_versao(release)
+    if a is None or b is None:
+        return None
+    return a < b
+
+
+def versao_release_cliente_flutter() -> str | None:
+    """Lê version.json do Release do Cliente (cache ~15 min; timeout curto na frota)."""
+    agora = time.monotonic()
+    with _versao_release_lock:
+        cached = _versao_release_cache.get("version")
+        mono = float(_versao_release_cache.get("mono") or 0)
+        attempt = float(_versao_release_cache.get("attempt_mono") or 0)
+        if cached and agora - mono < _RELEASE_CACHE_TTL_S:
+            return str(cached)
+        # Sem cache fresco: não martelar o GitHub a cada poll da frota (30s).
+        if agora - attempt < _RELEASE_RETRY_APOS_FALHA_S:
+            return str(cached) if cached else None
+        _versao_release_cache["attempt_mono"] = agora
+    try:
+        req = urllib.request.Request(
+            _RELEASE_CLIENTE_VERSION_URL,
+            headers={"User-Agent": "DeskRudder-Frota/1.0", "Accept": "application/json"},
+        )
+        with urllib.request.urlopen(req, timeout=_RELEASE_HTTP_TIMEOUT_S) as resp:
+            raw = resp.read()
+        data = json.loads(raw.decode("utf-8"))
+        ver = str((data or {}).get("version") or "").strip()
+        if not _tupla_versao(ver):
+            return None
+        with _versao_release_lock:
+            _versao_release_cache["version"] = ver
+            _versao_release_cache["mono"] = agora
+            _versao_release_cache["attempt_mono"] = agora
+        return ver
+    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, json.JSONDecodeError, OSError):
+        with _versao_release_lock:
+            cached = _versao_release_cache.get("version")
+            return str(cached) if cached else None
+
+
+def _app_info_por_rustdesk_id(db: Session) -> dict[str, tuple[str | None, str | None]]:
+    """Mapa rustdesk_id → (app_version, app_ui) dos dispositivos ativos."""
+    rows = (
+        db.query(DeskremoteDispositivo)
+        .filter(
+            DeskremoteDispositivo.revoked_at.is_(None),
+            DeskremoteDispositivo.rustdesk_id.isnot(None),
+        )
+        .order_by(DeskremoteDispositivo.id.desc())
+        .all()
+    )
+    out: dict[str, tuple[str | None, str | None]] = {}
+    for row in rows:
+        chave = normalizar_id_remoto(row.rustdesk_id)
+        if not chave or chave in out:
+            continue
+        out[chave] = (row.app_version, row.app_ui)
+    return out
+
 
 def normalizar_id_remoto(valor: str | None) -> str | None:
     """Tira espaços. ID numérico fica só com dígitos; ID com letras fica em minúsculas."""
@@ -369,11 +454,16 @@ def _pdvs_nao_vistos(db: Session, ids_servidor: set[str]) -> list[dict]:
 def listar(db: Session, filtro: str) -> dict:
     sincronizar(db)
     indice = _vinculos_por_id(db)
+    app_por_id = _app_info_por_rustdesk_id(db)
+    release_ver = versao_release_cliente_flutter()
     peers = db.query(RustdeskPeer).order_by(RustdeskPeer.rustdesk_id.asc()).all()
     items: list[dict] = []
     for row in peers:
         vinculos = indice.get(row.rustdesk_id, [])
         online = calcular_online(row.last_seen)
+        chave_app = normalizar_id_remoto(row.rustdesk_id) or row.rustdesk_id
+        app_ver, app_ui = app_por_id.get(chave_app, (None, None))
+        desatualizado = versao_menor(app_ver, release_ver)
         item = {
             "rustdesk_id": row.rustdesk_id,
             "hostname": row.hostname,
@@ -385,6 +475,9 @@ def listar(db: Session, filtro: str) -> dict:
             "vinculos": vinculos,
             "sem_vinculo": len(vinculos) == 0,
             "id_repetido": len(vinculos) > 1,
+            "deskremote_app_version": app_ver,
+            "deskremote_app_ui": app_ui,
+            "deskremote_desatualizado": desatualizado,
         }
         if filtro == "online" and online is not True:
             continue
@@ -393,6 +486,8 @@ def listar(db: Session, filtro: str) -> dict:
         if filtro == "sem_vinculo" and vinculos:
             continue
         if filtro == "vinculado" and not vinculos:
+            continue
+        if filtro == "desatualizado" and desatualizado is not True:
             continue
         items.append(item)
     items.sort(key=lambda item: (item["online"] is not True, (item["hostname"] or "").casefold(), item["rustdesk_id"]))
@@ -404,6 +499,7 @@ def listar(db: Session, filtro: str) -> dict:
         "agent_configurado": bool(_estado["agent_configurado"]),
         "agent_indisponivel": bool(_estado["agent_indisponivel"]),
         "sincronizado_em": _estado["sincronizado_em"],
+        "deskremote_versao_release": release_ver,
     }
 
 

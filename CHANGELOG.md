@@ -10,6 +10,8 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 #### Melhorias
 
 - Contratos: **assinatura eletrônica** no DeskRudder (DocuSeal) com **várias partes** (contratante, contratada e testemunhas), cada uma com **CPF**, papel e **link próprio**; dá para **copiar o link** (WhatsApp) ou **enviar por e-mail**. O contrato só fica assinado quando todos concluem. Continua dá para **assinar por fora** anexando o PDF (#1380, #1429)
+- Acesso remoto: o DeskRemote (Atendente e Cliente) passa a checar o `version.json` com **retry**, usar o **`download_url`** do Release e avisar se a verificação falhar — o cartão **Atualizar agora** volta a aparecer quando há versão nova; dá para **mostrar de novo** se dispensar. Os instaladores Flutter passam a se chamar **`deskremote-atendente.exe`** e **`deskremote-cliente.exe`** (#1427, #1428)
+- Acesso remoto → frota: a lista mostra a **versão do DeskRemote** instalada em cada computador (ou **Desconhecida** se ainda não reportou), o selo **Desatualizado** quando estiver atrás do Release e o filtro **Desatualizados** (#1434)
 
 ## [26.11.003] - 2026-11-11
 

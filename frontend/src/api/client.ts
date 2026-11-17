@@ -4683,7 +4683,7 @@ export namespace RustdeskFrota {
     servidor_relay: string
     chave: string
   }
-  export type Filtro = 'todos' | 'online' | 'offline' | 'sem_vinculo' | 'vinculado'
+  export type Filtro = 'todos' | 'online' | 'offline' | 'sem_vinculo' | 'vinculado' | 'desatualizado'
   export interface Vinculo {
     empresa_id: number
     empresa_nome: string
@@ -4707,6 +4707,9 @@ export namespace RustdeskFrota {
     vinculos: Vinculo[]
     sem_vinculo: boolean
     id_repetido: boolean
+    deskremote_app_version?: string | null
+    deskremote_app_ui?: string | null
+    deskremote_desatualizado?: boolean | null
   }
   export interface PdvAusente extends Vinculo {
     acesso_remoto_id?: string | null
@@ -4719,6 +4722,7 @@ export namespace RustdeskFrota {
     agent_configurado: boolean
     agent_indisponivel: boolean
     sincronizado_em?: string | null
+    deskremote_versao_release?: string | null
   }
   export interface Vincular {
     pdv_id: number

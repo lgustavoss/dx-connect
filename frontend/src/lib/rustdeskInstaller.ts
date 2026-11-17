@@ -2,7 +2,7 @@
 export const RUSTDESK_WINDOWS_INSTALLER_URL = (
   (import.meta.env.VITE_RUSTDESK_INSTALLER_URL as string | undefined)?.trim() ||
   (import.meta.env.VITE_DESKREMOTE_FLUTTER_CLIENTE_URL as string | undefined)?.trim() ||
-  'https://github.com/lgustavoss/dx-connect/releases/download/acesso-remoto-windows-flutter/DeskRudder-AcessoRemoto-Flutter.exe'
+  'https://github.com/lgustavoss/dx-connect/releases/download/acesso-remoto-windows-flutter/deskremote-cliente.exe'
 ).replace(/\s+/g, '')
 
 /** Mesmo instalador 2.0 da frota (página do QR). */

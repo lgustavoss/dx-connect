@@ -7,8 +7,8 @@
 | **DeskRemote Cliente v1** | `cliente` Sciter **congelado 1.0.14** | `acesso-remoto-windows` |
 | **DeskRemote Atendente v1** | `atendente` Sciter **congelado 1.0.14** | `acesso-remoto-controle-windows` |
 | **DeskRudder Painel v1** | Electron (+ baixa o Atendente v2) | `desktop-windows` |
-| **DeskRemote Atendente v2** | Flutter x64 do atendente | `acesso-remoto-controle-flutter-windows` |
-| **DeskRemote Cliente v2** | Flutter x64 do cliente (download do painel) | `acesso-remoto-windows-flutter` |
+| **DeskRemote Atendente v2** | Flutter x64 — artefato `deskremote-atendente.exe` | `acesso-remoto-controle-flutter-windows` |
+| **DeskRemote Cliente v2** | Flutter x64 — artefato `deskremote-cliente.exe` | `acesso-remoto-windows-flutter` |
 
 Atalho **DeskRemote**; pasta `DeskRudder\Acesso Remoto` (compatibilidade).  
 Docs: [`docs/RUSTDESK_CLIENT_WINDOWS.md`](../../docs/RUSTDESK_CLIENT_WINDOWS.md), Setup: [`docs/DESKTOP_ELECTRON.md`](../../docs/DESKTOP_ELECTRON.md).
