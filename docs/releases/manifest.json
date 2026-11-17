@@ -5324,6 +5324,29 @@
           "text": "Acesso remoto → frota: a lista mostra a **versão do DeskRemote** instalada em cada computador (ou **Desconhecida** se ainda não reportou), o selo **Desatualizado** quando estiver atrás do Release e o filtro **Desatualizados** (#1434)"
         }
       ]
+    },
+    {
+      "version": "26.11.005",
+      "version_display": "v26.11.005",
+      "date": "2026-11-17",
+      "status": "published",
+      "changes": [
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Acesso remoto → frota: em computadores **Desatualizados** que sincronizaram recentemente, dá para pedir **Atualizar** pelo painel — o DeskRemote Cliente baixa e aplica no próximo sync (#1436)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Acesso remoto: o link de download do DeskRemote Cliente deixa de apontar para o instalador antigo (que ficava em 2.1.1) e passa a servir a versão atual do Release"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Acesso remoto → frota: computador com DeskRemote sincronizando com o painel passa a aparecer **Online** mesmo quando o servidor não viu o sinal UDP — mesmo critério do selo no PDV"
+        }
+      ]
     }
   ]
 }
