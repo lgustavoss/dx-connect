@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from app.config import settings
 from app.models.audit_log import AuditLog
 from app.models.deskremote_enroll import DeskremoteDispositivo
@@ -302,6 +304,64 @@ def test_enroll_e_sync_gravam_app_version(client, auth_headers, seed_base, db_se
     db_session.refresh(row)
     assert row.app_version == "2.1.2"
     assert row.app_ui == "flutter"
+
+
+def test_sync_entrega_pedido_de_update_e_ack(client, auth_headers, seed_base, db_session, monkeypatch):
+    _servidor(monkeypatch)
+    monkeypatch.setattr(
+        rustdesk_svc,
+        "meta_release_cliente_flutter",
+        lambda: {"version": "2.1.3", "download_url": "https://example.com/deskremote-cliente.exe"},
+    )
+    monkeypatch.setattr(rustdesk_svc, "versao_release_cliente_flutter", lambda: "2.1.3")
+    pdv, emp_id, _ = _pdv_deskremote(client, auth_headers, seed_base, db_session)
+    gerado = client.post(
+        f"/v1/empresas/{emp_id}/pdvs/{pdv['id']}/deskremote/token",
+        headers=auth_headers["admin"],
+        json={},
+    )
+    token = gerado.json()["url"].rsplit("/", 1)[-1]
+    enroll = client.post(
+        "/v1/deskremote/enroll",
+        json={"token": token, "rustdesk_id": "1777666555", "app_version": "2.1.0", "app_ui": "flutter"},
+    )
+    assert enroll.status_code == 200, enroll.text
+    device = enroll.json()["dispositivo_token"]
+    row = db_session.query(DeskremoteDispositivo).filter_by(rustdesk_id="1777666555").one()
+    row.update_status = "pendente"
+    row.update_solicitado_em = datetime.now(timezone.utc)
+    db_session.commit()
+
+    sync = client.get(
+        "/v1/deskremote/dispositivo/config",
+        headers={"Authorization": f"Bearer {device}"},
+        params={"app_version": "2.1.0", "app_ui": "flutter"},
+    )
+    assert sync.status_code == 200, sync.text
+    body = sync.json()
+    assert body["atualizar"] is True
+    assert body["download_url"] == "https://example.com/deskremote-cliente.exe"
+    db_session.refresh(row)
+    assert row.update_status == "enviado"
+
+    ack = client.get(
+        "/v1/deskremote/dispositivo/config",
+        headers={"Authorization": f"Bearer {device}"},
+        params={"app_version": "2.1.0", "app_ui": "flutter", "update_ack": "em_andamento"},
+    )
+    assert ack.status_code == 200
+    assert ack.json()["atualizar"] is False
+    db_session.refresh(row)
+    assert row.update_status == "em_andamento"
+
+    done = client.get(
+        "/v1/deskremote/dispositivo/config",
+        headers={"Authorization": f"Bearer {device}"},
+        params={"app_version": "2.1.3", "app_ui": "flutter"},
+    )
+    assert done.status_code == 200
+    db_session.refresh(row)
+    assert row.update_status == "concluido"
 
 
 def test_gerar_de_novo_invalida_token_anterior(client, auth_headers, seed_base, db_session, monkeypatch):

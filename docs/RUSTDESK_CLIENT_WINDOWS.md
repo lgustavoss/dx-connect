@@ -51,7 +51,9 @@ Ao clicar em **Atualizar agora** (Flutter 2.x e Sciter 1.0.9+):
 
 A sessão remota **pode cair** durante a troca de arquivos — o banner avisa.
 
-No **DeskRemote Cliente v2 (2.1.2+)**, a mesma lógica vale para o Release `acesso-remoto-windows-flutter` (`deskremote-cliente.exe`). No **Atendente v2 (2.4.1+)**, o canal é `acesso-remoto-controle-flutter-windows` (`deskremote-atendente.exe`).
+**Update pelo painel (Cliente 2.1.3+):** em Acesso remoto → frota, quem tem `empresas.editar` pode pedir **Atualizar** num PC **Desatualizado** que sincronizou nos últimos ~15 minutos. No próximo sync do Cliente (`GET /deskremote/dispositivo/config`, a cada ~30 s), o app recebe `atualizar` + `download_url`, baixa o `.exe` e grava `pending_update.txt` (mesmo fluxo SYSTEM). Status na frota: pedida → aguardando o app → atualizando / falhou / atualizado.
+
+No **DeskRemote Cliente v2 (2.1.3+)**, a mesma lógica de update in-app vale para o Release `acesso-remoto-windows-flutter` (`deskremote-cliente.exe`). No **Atendente v2 (2.4.1+)**, o canal é `acesso-remoto-controle-flutter-windows` (`deskremote-atendente.exe`).
 
 ### Desinstalação
 

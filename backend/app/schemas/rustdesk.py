@@ -30,6 +30,8 @@ class RustdeskPeerRead(BaseModel):
     deskremote_app_version: str | None = None
     deskremote_app_ui: str | None = None
     deskremote_desatualizado: bool | None = None
+    deskremote_update_status: str | None = None
+    deskremote_pode_atualizar: bool = False
 
 
 class RustdeskPdvAusenteRead(RustdeskVinculoRead):
@@ -68,6 +70,12 @@ class RustdeskDesvincularOut(BaseModel):
 class RustdeskExcluirOut(BaseModel):
     rustdesk_id: str
     removido: bool = True
+
+
+class RustdeskAtualizarOut(BaseModel):
+    rustdesk_id: str
+    update_status: str
+    mensagem: str
 
 
 class RustdeskConfiguracaoRead(BaseModel):

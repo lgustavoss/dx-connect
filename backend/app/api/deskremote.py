@@ -112,6 +112,8 @@ def sync_config(
     creds: HTTPAuthorizationCredentials | None = Depends(_bearer),
     app_version: str | None = None,
     app_ui: str | None = None,
+    update_ack: str | None = None,
+    update_erro: str | None = None,
 ):
     check_deskremote_sync_rate_limit(request)
     return svc.sync_config(
@@ -119,4 +121,6 @@ def sync_config(
         _token_dispositivo(creds),
         app_version=app_version,
         app_ui=app_ui,
+        update_ack=update_ack,
+        update_erro=update_erro,
     )

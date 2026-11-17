@@ -127,7 +127,8 @@ class _DeskRemoteEnrollGateState extends State<DeskRemoteEnrollGate> {
 
   void _agendarSync() {
     _sync?.cancel();
-    _sync = Timer.periodic(const Duration(minutes: 2), (_) {
+    // 30s: pedido de update pelo painel (#1436) chega mais rápido; rate limit do sync aguenta.
+    _sync = Timer.periodic(const Duration(seconds: 30), (_) {
       sincronizarSenhaDeskRemote().catchError((_) {});
     });
   }
