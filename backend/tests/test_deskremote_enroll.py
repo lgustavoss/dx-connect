@@ -1,5 +1,6 @@
 from app.config import settings
 from app.models.audit_log import AuditLog
+from app.models.deskremote_enroll import DeskremoteDispositivo
 from app.models.empresa_pdv import PdvRotulo, PdvTipoAcessoRemoto
 from app.models.rustdesk_peer import RustdeskPeer
 from app.services import rustdesk_peers as rustdesk_svc
@@ -257,6 +258,50 @@ def test_confirmar_id_depois_e_sync_senha(client, auth_headers, seed_base, db_se
     assert sync3.json()["senha"] is None
     logs = db_session.query(AuditLog).filter(AuditLog.action == "deskremote_sync_senha").all()
     assert len(logs) == 1
+
+
+def test_enroll_e_sync_gravam_app_version(client, auth_headers, seed_base, db_session, monkeypatch):
+    _servidor(monkeypatch)
+    pdv, emp_id, _ = _pdv_deskremote(client, auth_headers, seed_base, db_session)
+    gerado = client.post(
+        f"/v1/empresas/{emp_id}/pdvs/{pdv['id']}/deskremote/token",
+        headers=auth_headers["admin"],
+        json={},
+    )
+    token = gerado.json()["url"].rsplit("/", 1)[-1]
+    enroll = client.post(
+        "/v1/deskremote/enroll",
+        json={
+            "token": token,
+            "rustdesk_id": "1888777666",
+            "app_version": "2.1.0",
+            "app_ui": "flutter",
+        },
+    )
+    assert enroll.status_code == 200, enroll.text
+    device = enroll.json()["dispositivo_token"]
+    row = db_session.query(DeskremoteDispositivo).filter_by(rustdesk_id="1888777666").one()
+    assert row.app_version == "2.1.0"
+    assert row.app_ui == "flutter"
+
+    sync = client.get(
+        "/v1/deskremote/dispositivo/config",
+        headers={"Authorization": f"Bearer {device}"},
+        params={"app_version": "2.1.2", "app_ui": "flutter"},
+    )
+    assert sync.status_code == 200, sync.text
+    db_session.refresh(row)
+    assert row.app_version == "2.1.2"
+
+    invalid = client.get(
+        "/v1/deskremote/dispositivo/config",
+        headers={"Authorization": f"Bearer {device}"},
+        params={"app_version": "nao-semver", "app_ui": "outro"},
+    )
+    assert invalid.status_code == 200
+    db_session.refresh(row)
+    assert row.app_version == "2.1.2"
+    assert row.app_ui == "flutter"
 
 
 def test_gerar_de_novo_invalida_token_anterior(client, auth_headers, seed_base, db_session, monkeypatch):

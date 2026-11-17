@@ -27,6 +27,8 @@ class DeskremoteTokenStatus(BaseModel):
 class DeskremoteEnrollIn(BaseModel):
     token: str = Field(min_length=8, max_length=200)
     rustdesk_id: str | None = Field(default=None, max_length=64)
+    app_version: str | None = Field(default=None, max_length=32)
+    app_ui: str | None = Field(default=None, max_length=16)
 
 
 class DeskremoteServidor(BaseModel):
@@ -48,6 +50,8 @@ class DeskremoteEnrollOut(BaseModel):
 
 class DeskremoteConfirmarIdIn(BaseModel):
     rustdesk_id: str = Field(min_length=1, max_length=64)
+    app_version: str | None = Field(default=None, max_length=32)
+    app_ui: str | None = Field(default=None, max_length=16)
 
 
 class DeskremoteConfirmarIdOut(BaseModel):

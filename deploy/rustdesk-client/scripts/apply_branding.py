@@ -49,8 +49,9 @@ RELEASE_TAG_ATENDENTE_FLUTTER = "acesso-remoto-controle-flutter-windows"
 RELEASE_TAG_CLIENTE_FLUTTER = "acesso-remoto-windows-flutter"
 INSTALLER_NAME_CLIENTE = "DeskRudder-AcessoRemoto.exe"
 INSTALLER_NAME_ATENDENTE = "DeskRudder-AcessoRemoto-Controle.exe"
-INSTALLER_NAME_ATENDENTE_FLUTTER = "DeskRudder-AcessoRemoto-Controle-Flutter.exe"
-INSTALLER_NAME_CLIENTE_FLUTTER = "DeskRudder-AcessoRemoto-Flutter.exe"
+# Flutter v2: nomes curtos no download (Release tag GitHub continua acesso-remoto-*-flutter-windows).
+INSTALLER_NAME_ATENDENTE_FLUTTER = "deskremote-atendente.exe"
+INSTALLER_NAME_CLIENTE_FLUTTER = "deskremote-cliente.exe"
 # Flutter (cliente e atendente): sem hbbs da Duplex no binário. O app puxa
 # o servidor da instância (token no cliente; login no atendente).
 HOST_FLUTTER_CLIENTE_PENDENTE = "deskremote.invalid"
@@ -91,7 +92,14 @@ COPY_BANNER_ERRO_CORPO = (
 )
 COPY_BANNER_BAIXANDO = "Baixando..."
 COPY_BANNER_BAIXANDO_PCT = "Baixando %"
+COPY_BANNER_CHECK_FAIL = "Não foi possível verificar atualizações"
+COPY_BANNER_CHECK_FAIL_HINT = "Feche e abra o app para tentar de novo (detalhe no log DeskRemote)."
+COPY_BANNER_SHOW_AGAIN = "Mostrar atualização"
 COPY_HOST_VERSAO = "Versão"
+# Sinal interno: checagem HTTP falhou (não é URL de download).
+UPDATE_CHECK_FAILED_URL = "deskrudder://update-check-failed"
+UPDATE_CHECK_V2_MARKER = "DeskRemote: canal proprio (version.json no Release GitHub) v2"
+FLUTTER_UPDATE_CARD_V2_MARKER = "DeskRemote: canal proprio (version.json) v2"
 
 
 def sciter_html(texto: str) -> str:
@@ -620,6 +628,7 @@ def _selftest_flutter_home_footer() -> None:
     if out2 != out:
         raise SystemExit("selftest flutter: patch do rodape nao e idempotente")
     _selftest_flutter_update_card()
+    _selftest_update_check_rs()
     _selftest_uninstall_completo()
     # Indentação diferente da 1.5.0: cai no regex, não no replace literal.
     variante = "\n".join(("  " + ln) if ln else ln for ln in _FLUTTER_INCOMING_STATUS_OLD.splitlines())
@@ -651,18 +660,63 @@ def _selftest_flutter_update_card() -> None:
         "class DesktopHomePage extends StatefulWidget {\n"
     )
     out = apply_flutter_update_card_text(sample)
-    if "DeskRemote: canal proprio (version.json)" not in out:
-        raise SystemExit("selftest flutter: banner de update nao aparece no custom client")
+    if FLUTTER_UPDATE_CARD_V2_MARKER not in out:
+        raise SystemExit("selftest flutter: banner de update v2 ausente")
+    if UPDATE_CHECK_FAILED_URL not in out:
+        raise SystemExit("selftest flutter: sinal de falha da checagem ausente")
+    if COPY_BANNER_SHOW_AGAIN not in out:
+        raise SystemExit("selftest flutter: botao Mostrar atualizacao ausente")
     if "handleUpdate(updateUrl)" in out:
         raise SystemExit("selftest flutter: banner ainda usa handleUpdate do rustdesk.com")
-    if "_deskRemoteBaixarAtualizacao" not in out:
-        raise SystemExit("selftest flutter: helper de download do Release ausente")
+    if "_deskRemoteBaixarAtualizacao(updateUrl)" not in out:
+        raise SystemExit("selftest flutter: helper deve receber updateUrl (download_url)")
+    if "_deskRemoteExeUrl" not in out:
+        raise SystemExit("selftest flutter: parser download_url/#versao ausente")
     if INSTALLER_NAME_CLIENTE_FLUTTER not in out:
         raise SystemExit("selftest flutter: URL do .exe Flutter cliente ausente no banner")
     if COPY_BANNER_CTA not in out:
         raise SystemExit("selftest flutter: CTA Atualizar agora ausente")
     if apply_flutter_update_card_text(out) != out:
         raise SystemExit("selftest flutter: banner de update nao e idempotente")
+    # Upgrade v1 → v2
+    configurar_canal_update("atendente", "flutter")
+    v1 = (
+        "    // DeskRemote: canal proprio (version.json), mesmo sendo custom client.\n"
+        "    if (updateUrl.isNotEmpty && !isCardClosed) {\n"
+        "        onPressed = () {\n"
+        "          _deskRemoteBaixarAtualizacao();\n"
+        "        };\n"
+        "      }\n"
+        f"{_FLUTTER_UPDATE_HELPER_MARKER}\n"
+        "void _deskRemoteBaixarAtualizacao() {\n"
+        f"  const exeUrl = '{DOWNLOAD_INSTALLER_URL}';\n"
+        "}\n\n"
+        "class DesktopHomePage extends StatefulWidget {\n"
+    )
+    out_v2 = apply_flutter_update_card_text(v1)
+    if FLUTTER_UPDATE_CARD_V2_MARKER not in out_v2:
+        raise SystemExit("selftest flutter: upgrade v1->v2 nao aplicou marcador")
+    if "_deskRemoteBaixarAtualizacao(updateUrl)" not in out_v2:
+        raise SystemExit("selftest flutter: upgrade v1->v2 nao passa updateUrl")
+    if _FLUTTER_UPDATE_HELPER_V2_MARKER not in out_v2:
+        raise SystemExit("selftest flutter: upgrade v1->v2 nao trocou helper")
+
+
+def _selftest_update_check_rs() -> None:
+    configurar_canal_update("atendente", "flutter")
+    block = _deskremote_update_check_rs()
+    if UPDATE_CHECK_V2_MARKER not in block:
+        raise SystemExit("selftest rust: marcador v2 ausente no check")
+    if "download_url" not in block:
+        raise SystemExit("selftest rust: check deve ler download_url do JSON")
+    if UPDATE_CHECK_FAILED_URL not in block:
+        raise SystemExit("selftest rust: sinal de falha ausente")
+    if "MAX_TRIES" not in block:
+        raise SystemExit("selftest rust: retry ausente")
+    if DOWNLOAD_INSTALLER_URL not in block:
+        raise SystemExit("selftest rust: fallback do .exe ausente")
+    if INSTALLER_NAME_ATENDENTE_FLUTTER not in block:
+        raise SystemExit("selftest rust: fallback atendente Flutter errado")
 
 
 def _selftest_uninstall_completo() -> None:
@@ -1955,26 +2009,108 @@ _FLUTTER_UPDATE_CARD_OLD = """    if (!bind.isCustomClient() &&
         bind.mainUriPrefixSync().contains('rustdesk')) {"""
 
 _FLUTTER_UPDATE_HELPER_MARKER = "// DeskRemote: baixa o .exe do Release e aplica --update."
+_FLUTTER_UPDATE_HELPER_V2_MARKER = "// DeskRemote: baixa o .exe (download_url do version.json) e aplica --update."
+
+
+def _flutter_update_card_condition_v2() -> str:
+    """Condição do cartão: update disponível, falha de check, ou «mostrar de novo».
+
+    Vive em buildHelpCards (return antecipado é o padrão do upstream).
+    """
+    return (
+        f"    // {FLUTTER_UPDATE_CARD_V2_MARKER}, mesmo sendo custom client.\n"
+        "    final updateCheckFailed =\n"
+        f"        updateUrl.startsWith('{UPDATE_CHECK_FAILED_URL}');\n"
+        "    if (updateUrl.isNotEmpty && updateCheckFailed && !isCardClosed) {\n"
+        "      return buildInstallCard(\n"
+        f"          '{COPY_BANNER_CHECK_FAIL}',\n"
+        f"          '{COPY_BANNER_CHECK_FAIL_HINT}',\n"
+        "          '',\n"
+        "          () {{}},\n"
+        "          closeButton: true);\n"
+        "    }\n"
+        "    if (updateUrl.isNotEmpty && !updateCheckFailed && isCardClosed) {\n"
+        "      return buildInstallCard(\n"
+        f"          '{COPY_BANNER_TITULO}',\n"
+        "          '',\n"
+        f"          '{COPY_BANNER_SHOW_AGAIN}',\n"
+        "          () {{ setState(() => isCardClosed = false); }});\n"
+        "    }\n"
+        "    if (updateUrl.isNotEmpty && !updateCheckFailed && !isCardClosed) {"
+    )
+
+
+def _flutter_update_helper_v2() -> str:
+    return (
+        f"{_FLUTTER_UPDATE_HELPER_V2_MARKER}\n"
+        "String _deskRemoteExeUrl(String? fromUpdateUrl) {\n"
+        "  var raw = (fromUpdateUrl ?? '').trim();\n"
+        "  final hash = raw.indexOf('#');\n"
+        "  if (hash >= 0) raw = raw.substring(0, hash);\n"
+        f"  const fallback = '{DOWNLOAD_INSTALLER_URL}';\n"
+        "  if (raw.contains('.exe')) return raw;\n"
+        "  return fallback;\n"
+        "}\n\n"
+        "void _deskRemoteBaixarAtualizacao([String? fromUpdateUrl]) {\n"
+        "  final exeUrl = _deskRemoteExeUrl(fromUpdateUrl);\n"
+        "  final downloadId = SimpleWrapper('');\n"
+        "  final onCanceled = SimpleWrapper(() {});\n"
+        "  gFFI.dialogManager.dismissAll();\n"
+        "  gFFI.dialogManager.show((setState, close, context) {\n"
+        "    return CustomAlertDialog(\n"
+        f"      title: Text('{COPY_BANNER_BAIXANDO}'),\n"
+        "      content: UpdateProgress(exeUrl, exeUrl, downloadId, onCanceled)\n"
+        "          .marginSymmetric(horizontal: 8)\n"
+        "          .paddingOnly(top: 12),\n"
+        "      actions: [\n"
+        "        dialogButton(translate('Cancel'), onPressed: () async {\n"
+        "          onCanceled.value();\n"
+        "          await bind.mainSetCommon(\n"
+        "              key: 'cancel-downloader', value: downloadId.value);\n"
+        "          close();\n"
+        "        }, isOutline: true),\n"
+        "      ],\n"
+        "    );\n"
+        "  });\n"
+        "}\n\n"
+    )
 
 
 def apply_flutter_update_card_text(text: str) -> str:
     """Mostra o banner de atualizacao no Flutter (o upstream esconde em custom client)."""
-    if "DeskRemote: canal proprio (version.json)" in text:
+    if FLUTTER_UPDATE_CARD_V2_MARKER in text and _FLUTTER_UPDATE_HELPER_V2_MARKER in text:
         return text
+
+    # Upgrade v1 → v2: troca helper e condição se o patch antigo existir.
+    if "DeskRemote: canal proprio (version.json)" in text and FLUTTER_UPDATE_CARD_V2_MARKER not in text:
+        text = text.replace(
+            "    // DeskRemote: canal proprio (version.json), mesmo sendo custom client.\n"
+            "    if (updateUrl.isNotEmpty && !isCardClosed) {",
+            _flutter_update_card_condition_v2(),
+            1,
+        )
+        text = text.replace(
+            "          _deskRemoteBaixarAtualizacao();",
+            "          _deskRemoteBaixarAtualizacao(updateUrl);",
+            1,
+        )
+        if _FLUTTER_UPDATE_HELPER_MARKER in text and _FLUTTER_UPDATE_HELPER_V2_MARKER not in text:
+            # Remove helper v1 até a class DesktopHomePage.
+            start = text.index(_FLUTTER_UPDATE_HELPER_MARKER)
+            anchor = "class DesktopHomePage extends StatefulWidget {"
+            end = text.index(anchor, start)
+            text = text[:start] + _flutter_update_helper_v2() + text[end:]
+        return text
+
     if _FLUTTER_UPDATE_CARD_OLD not in text:
         raise SystemExit("flutter home: condicao do banner de update nao encontrada")
-    text = text.replace(
-        _FLUTTER_UPDATE_CARD_OLD,
-        "    // DeskRemote: canal proprio (version.json), mesmo sendo custom client.\n"
-        "    if (updateUrl.isNotEmpty && !isCardClosed) {",
-        1,
-    )
+    text = text.replace(_FLUTTER_UPDATE_CARD_OLD, _flutter_update_card_condition_v2(), 1)
     old_press = """        onPressed = () {
           handleUpdate(updateUrl);
         };"""
     new_press = """        onPressed = () {
-          // DeskRemote: URL do .exe no Release (nao rustdesk.com / tag).
-          _deskRemoteBaixarAtualizacao();
+          // DeskRemote: URL do .exe (download_url do version.json).
+          _deskRemoteBaixarAtualizacao(updateUrl);
         };"""
     if old_press not in text:
         raise SystemExit("flutter home: handleUpdate do banner nao encontrado")
@@ -1990,32 +2126,8 @@ def apply_flutter_update_card_text(text: str) -> str:
     if old_to_update not in text:
         raise SystemExit("flutter home: isToUpdate do banner nao encontrado")
     text = text.replace(old_to_update, new_to_update, 1)
-    if _FLUTTER_UPDATE_HELPER_MARKER not in text:
-        helper = (
-            f"{_FLUTTER_UPDATE_HELPER_MARKER}\n"
-            "void _deskRemoteBaixarAtualizacao() {\n"
-            f"  const exeUrl = '{DOWNLOAD_INSTALLER_URL}';\n"
-            "  final downloadId = SimpleWrapper('');\n"
-            "  final onCanceled = SimpleWrapper(() {});\n"
-            "  gFFI.dialogManager.dismissAll();\n"
-            "  gFFI.dialogManager.show((setState, close, context) {\n"
-            "    return CustomAlertDialog(\n"
-            f"      title: Text('{COPY_BANNER_BAIXANDO}'),\n"
-            "      content: UpdateProgress(exeUrl, exeUrl, downloadId, onCanceled)\n"
-            "          .marginSymmetric(horizontal: 8)\n"
-            "          .paddingOnly(top: 12),\n"
-            "      actions: [\n"
-            "        dialogButton(translate('Cancel'), onPressed: () async {\n"
-            "          onCanceled.value();\n"
-            "          await bind.mainSetCommon(\n"
-            "              key: 'cancel-downloader', value: downloadId.value);\n"
-            "          close();\n"
-            "        }, isOutline: true),\n"
-            "      ],\n"
-            "    );\n"
-            "  });\n"
-            "}\n\n"
-        )
+    if _FLUTTER_UPDATE_HELPER_V2_MARKER not in text:
+        helper = _flutter_update_helper_v2()
         anchor = "class DesktopHomePage extends StatefulWidget {"
         if anchor not in text:
             raise SystemExit("flutter home: class DesktopHomePage nao encontrada para o helper de update")
@@ -3455,10 +3567,98 @@ def patch_client_version(
         raise SystemExit("get_version() nao encontrado em ui_interface.rs")
 
 
+def _deskremote_update_check_rs() -> str:
+    """Bloco Rust: GET version.json com retry, download_url e sinal de falha."""
+    return f"""pub fn check_software_update() {{
+    // {UPDATE_CHECK_V2_MARKER}.
+    std::thread::spawn(move || allow_err!(do_check_deskrudder_update()));
+}}
+
+#[tokio::main(flavor = "current_thread")]
+async fn do_check_deskrudder_update() -> hbb_common::ResultType<()> {{
+    const URL: &str = "{UPDATE_VERSION_JSON_URL}";
+    const DOWNLOAD_FALLBACK: &str = "{DOWNLOAD_INSTALLER_URL}";
+    const FAILED: &str = "{UPDATE_CHECK_FAILED_URL}";
+    const MAX_TRIES: u32 = 3;
+
+    for attempt in 1..=MAX_TRIES {{
+        match try_check_deskrudder_update(URL, DOWNLOAD_FALLBACK).await {{
+            Ok(()) => return Ok(()),
+            Err(err) => {{
+                log::warn!(
+                    "DeskRudder update check tentativa {{}}/{{}}: {{}}",
+                    attempt,
+                    MAX_TRIES,
+                    err
+                );
+                if attempt < MAX_TRIES {{
+                    std::thread::sleep(std::time::Duration::from_millis(700 * attempt as u64));
+                }}
+            }}
+        }}
+    }}
+    // Falha persistente: UI Flutter/Sciter pode mostrar aviso discreto (nao silêncio total).
+    *SOFTWARE_UPDATE_URL.lock().unwrap() = FAILED.to_string();
+    Ok(())
+}}
+
+async fn try_check_deskrudder_update(
+    url: &str,
+    download_fallback: &str,
+) -> hbb_common::ResultType<()> {{
+    let proxy_conf = Config::get_socks();
+    let tls_url = get_url_for_tls(url, &proxy_conf);
+    let tls_type = get_cached_tls_type(tls_url).unwrap_or(TlsType::Rustls);
+    let client = create_http_client_async(tls_type, false);
+    let resp = match client
+        .get(url)
+        .header("User-Agent", "DeskRemote-UpdateCheck/2")
+        .send()
+        .await
+    {{
+        Ok(r) => r,
+        Err(err) => {{
+            hbb_common::bail!("request: {{}}", err);
+        }}
+    }};
+    if !resp.status().is_success() {{
+        hbb_common::bail!("HTTP {{}}", resp.status());
+    }}
+    let bytes = resp.bytes().await?;
+    let v: serde_json::Value = serde_json::from_slice(&bytes)?;
+    let latest = v.get("version").and_then(|x| x.as_str()).unwrap_or("").trim();
+    if latest.is_empty() {{
+        hbb_common::bail!("version.json sem campo version");
+    }}
+    if get_version_number(latest) <= get_version_number(crate::DESKRUDDER_CLIENT_VERSION) {{
+        *SOFTWARE_UPDATE_URL.lock().unwrap() = "".to_string();
+        return Ok(());
+    }}
+    // Preferir download_url do JSON; fragmento #versão para get_new_version().
+    let mut download = v
+        .get("download_url")
+        .and_then(|x| x.as_str())
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    if download.is_empty() {{
+        download = download_fallback.to_string();
+    }}
+    *SOFTWARE_UPDATE_URL.lock().unwrap() = format!("{{}}#{{}}", download, latest);
+    Ok(())
+}}
+"""
+
+
 def patch_update_check(common_rs: Path) -> None:
     """Substitui check do RustDesk (desligado em custom client) pelo version.json nosso."""
     text = common_rs.read_text(encoding="utf-8")
-    old = """pub fn check_software_update() {
+    if UPDATE_CHECK_V2_MARKER in text:
+        print(f"  common.rs: check update v2 ja aplicado ({UPDATE_RELEASE_TAG})", flush=True)
+        return
+
+    new = _deskremote_update_check_rs()
+    old_upstream = """pub fn check_software_update() {
     if is_custom_client() {
         return;
     }
@@ -3467,51 +3667,97 @@ def patch_update_check(common_rs: Path) -> None:
         std::thread::spawn(move || allow_err!(do_check_software_update()));
     }
 }"""
-    new = f"""pub fn check_software_update() {{
-    // DeskRemote: canal proprio (version.json no Release GitHub).
-    std::thread::spawn(move || allow_err!(do_check_deskrudder_update()));
-}}
+    # Upgrade do patch v1 (sem retry / sem download_url).
+    v1_start = (
+        "pub fn check_software_update() {\n"
+        "    // DeskRemote: canal proprio (version.json no Release GitHub).\n"
+    )
+    if v1_start in text and "async fn do_check_deskrudder_update()" in text:
+        start = text.index(v1_start)
+        # Corta até o fim da função do_check_deskrudder_update (primeiro "}\n" após
+        # "Ok(())\n}" do bloco v1 — localiza pelo marcador único do v1).
+        v1_end_marker = (
+            '        *SOFTWARE_UPDATE_URL.lock().unwrap() = "".to_string();\n'
+            "    }\n"
+            "    Ok(())\n"
+            "}\n"
+        )
+        end_rel = text.find(v1_end_marker, start)
+        if end_rel < 0:
+            raise SystemExit("patch update v1 encontrado mas fim do bloco nao localizado")
+        end = end_rel + len(v1_end_marker)
+        text = text[:start] + new + text[end:]
+        common_rs.write_text(text, encoding="utf-8")
+        print(f"  common.rs: check update v1 -> v2 ({UPDATE_RELEASE_TAG})", flush=True)
+        return
 
-#[tokio::main(flavor = "current_thread")]
-async fn do_check_deskrudder_update() -> hbb_common::ResultType<()> {{
-    const URL: &str = "{UPDATE_VERSION_JSON_URL}";
-    let proxy_conf = Config::get_socks();
-    let tls_url = get_url_for_tls(URL, &proxy_conf);
-    let tls_type = get_cached_tls_type(tls_url).unwrap_or(TlsType::Rustls);
-    let client = create_http_client_async(tls_type, false);
-    let resp = match client.get(URL).send().await {{
-        Ok(r) => r,
-        Err(err) => {{
-            log::warn!("DeskRudder update check failed: {{}}", err);
-            return Ok(());
-        }}
-    }};
-    if !resp.status().is_success() {{
-        log::warn!("DeskRudder update check HTTP {{}}", resp.status());
-        return Ok(());
-    }}
-    let bytes = resp.bytes().await?;
-    let v: serde_json::Value = serde_json::from_slice(&bytes)?;
-    let latest = v.get("version").and_then(|x| x.as_str()).unwrap_or("").trim();
-    if latest.is_empty() {{
-        return Ok(());
-    }}
-    // Comparar com versao DeskRudder (nao crate::VERSION / tag RustDesk).
-    if get_version_number(latest) > get_version_number(crate::DESKRUDDER_CLIENT_VERSION) {{
-        // Ultimo segmento = versao (usado por get_new_version()).
-        *SOFTWARE_UPDATE_URL.lock().unwrap() = format!(
-            "https://github.com/lgustavoss/dx-connect/releases/download/{UPDATE_RELEASE_TAG}/{{}}",
-            latest
-        );
-    }} else {{
-        *SOFTWARE_UPDATE_URL.lock().unwrap() = "".to_string();
-    }}
-    Ok(())
-}}"""
-    if old not in text:
+    if old_upstream not in text:
         raise SystemExit("check_software_update() nao encontrado em common.rs")
-    common_rs.write_text(text.replace(old, new, 1), encoding="utf-8")
-    print(f"  common.rs: check update -> version.json ({UPDATE_RELEASE_TAG})", flush=True)
+    common_rs.write_text(text.replace(old_upstream, new, 1), encoding="utf-8")
+    print(f"  common.rs: check update -> version.json v2 ({UPDATE_RELEASE_TAG})", flush=True)
+
+
+def patch_get_new_version(common_rs: Path) -> None:
+    """get_new_version: lê o fragmento #versão do SOFTWARE_UPDATE_URL (DeskRemote v2)."""
+    text = common_rs.read_text(encoding="utf-8")
+    marker = "DeskRemote: get_new_version via #versao no SOFTWARE_UPDATE_URL"
+    if marker in text:
+        return
+    # Upstream típico: último segmento do path.
+    patterns = [
+        (
+            "pub fn get_new_version() -> String {\n"
+            "    hbb_common::get_version_number(&*SOFTWARE_UPDATE_URL.lock().unwrap()).to_string()\n"
+            "}",
+            f"""pub fn get_new_version() -> String {{
+    // {marker}.
+    let url = SOFTWARE_UPDATE_URL.lock().unwrap().clone();
+    if let Some(frag) = url.rsplit('#').nth(1) {{
+        let frag = frag.trim();
+        if !frag.is_empty() && !frag.contains('/') {{
+            return frag.to_string();
+        }}
+    }}
+    hbb_common::get_version_number(&url).to_string()
+}}""",
+        ),
+        (
+            "pub fn get_new_version() -> String {\n"
+            "    SOFTWARE_UPDATE_URL\n"
+            "        .lock()\n"
+            "        .unwrap()\n"
+            "        .rsplit('/')\n"
+            "        .next()\n"
+            "        .unwrap_or(\"\")\n"
+            "        .to_owned()\n"
+            "}",
+            f"""pub fn get_new_version() -> String {{
+    // {marker}.
+    let url = SOFTWARE_UPDATE_URL.lock().unwrap().clone();
+    if let Some(frag) = url.rsplit('#').nth(1) {{
+        let frag = frag.trim();
+        if !frag.is_empty() && !frag.contains('/') {{
+            return frag.to_string();
+        }}
+    }}
+    url.rsplit('/').next().unwrap_or("").to_owned()
+}}""",
+        ),
+    ]
+    for old, new in patterns:
+        if old in text:
+            common_rs.write_text(text.replace(old, new, 1), encoding="utf-8")
+            print("  common.rs: get_new_version -> fragmento #versao", flush=True)
+            return
+    # Fallback flexível: se a função existir com corpo curto, não falhar o build Sciter/Flutter
+    # se o upstream mudou — a UI Flutter usa sobretudo o cartão + download_url.
+    if "pub fn get_new_version()" in text:
+        print(
+            "  common.rs: get_new_version presente (upstream divergente; mantido)",
+            flush=True,
+        )
+        return
+    print("  common.rs: get_new_version ausente (ok se so Flutter)", flush=True)
 
 
 def patch_update_banner(index_tis: Path) -> None:
@@ -4784,6 +5030,7 @@ def main() -> int:
     patch_uninstall_completo(windows_rs)
     # UpdateMe antes do patch de URLs (ele ainda contem rustdesk.com no upstream).
     patch_update_check(common_rs)
+    patch_get_new_version(common_rs)
     patch_update_banner(index_tis)
     patch_update_me_handler(ui_interface_rs)
     patch_silent_update(windows_rs)
@@ -4983,6 +5230,15 @@ def main() -> int:
     if "do_check_deskrudder_update" not in common_body:
         print("Verificacao falhou: check de update DeskRudder ausente.", file=sys.stderr)
         return 1
+    if UPDATE_CHECK_V2_MARKER not in common_body:
+        print("Verificacao falhou: check de update DeskRudder v2 ausente.", file=sys.stderr)
+        return 1
+    if "download_url" not in common_body:
+        print("Verificacao falhou: check nao le download_url do version.json.", file=sys.stderr)
+        return 1
+    if UPDATE_CHECK_FAILED_URL not in common_body:
+        print("Verificacao falhou: sinal de falha da checagem ausente.", file=sys.stderr)
+        return 1
     if f'pub const DESKRUDDER_CLIENT_VERSION: &str = "{client_version}";' not in common_body:
         print("Verificacao falhou: DESKRUDDER_CLIENT_VERSION ausente.", file=sys.stderr)
         return 1
@@ -5068,14 +5324,20 @@ def main() -> int:
                 file=sys.stderr,
             )
             return 1
-        if "DeskRemote: canal proprio (version.json)" not in home_body:
+        if FLUTTER_UPDATE_CARD_V2_MARKER not in home_body:
             print(
-                "Verificacao falhou: banner de atualizacao Flutter ainda escondido no custom client.",
+                "Verificacao falhou: banner de atualizacao Flutter v2 ausente.",
                 file=sys.stderr,
             )
             return 1
         if "_deskRemoteBaixarAtualizacao" not in home_body:
             print("Verificacao falhou: download do Release Flutter ausente.", file=sys.stderr)
+            return 1
+        if "_deskRemoteExeUrl" not in home_body:
+            print("Verificacao falhou: parser download_url Flutter ausente.", file=sys.stderr)
+            return 1
+        if UPDATE_CHECK_FAILED_URL not in home_body:
+            print("Verificacao falhou: feedback de falha da checagem ausente.", file=sys.stderr)
             return 1
     if flutter_common.is_file():
         common_dart = flutter_common.read_text(encoding="utf-8")

@@ -6,9 +6,11 @@ from pathlib import Path
 import pytest
 
 from app.config import settings
-from app.models.empresa_pdv import EmpresaPdv, PdvTipoAcessoRemoto
+from app.models.deskremote_enroll import DeskremoteDispositivo
+from app.models.empresa_pdv import EmpresaPdv, EmpresaPdvAcessoRemoto, PdvTipoAcessoRemoto
 from app.models.rustdesk_peer import RustdeskPeer
 from app.services import rustdesk_peers as svc
+from app.services.deskremote_enroll import hash_token
 
 
 def _agente():
@@ -155,6 +157,51 @@ def test_lista_cruza_pdv_e_marca_online(client, auth_headers, base):
 
     so_soltos = client.get("/v1/rustdesk/peers?filtro=sem_vinculo", headers=auth_headers["admin"])
     assert {item["rustdesk_id"] for item in so_soltos.json()["items"]} == {"999000111", "555000555"}
+
+
+def test_lista_mostra_versao_deskremote_e_filtro_desatualizado(client, auth_headers, base, db_session, monkeypatch):
+    monkeypatch.setattr(svc, "versao_release_cliente_flutter", lambda: "2.1.2")
+    pdv = db_session.query(EmpresaPdv).filter_by(codigo="001").one()
+    tipo = db_session.query(PdvTipoAcessoRemoto).filter_by(nome="DeskRemote").one()
+    acesso = EmpresaPdvAcessoRemoto(
+        pdv_id=pdv.id,
+        tipo_acesso_remoto_id=tipo.id,
+        acesso_remoto_id="123456789",
+        ordem_exibicao=0,
+    )
+    db_session.add(acesso)
+    db_session.flush()
+    db_session.add(
+        DeskremoteDispositivo(
+            token_hash=hash_token("tok-versao-frota"),
+            pdv_id=pdv.id,
+            acesso_id=acesso.id,
+            rustdesk_id="123456789",
+            app_version="2.1.0",
+            app_ui="flutter",
+        )
+    )
+    db_session.commit()
+
+    r = client.get("/v1/rustdesk/peers", headers=auth_headers["admin"])
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["deskremote_versao_release"] == "2.1.2"
+    peer = next(item for item in body["items"] if item["rustdesk_id"] == "123456789")
+    assert peer["deskremote_app_version"] == "2.1.0"
+    assert peer["deskremote_app_ui"] == "flutter"
+    assert peer["deskremote_desatualizado"] is True
+
+    filtro = client.get("/v1/rustdesk/peers?filtro=desatualizado", headers=auth_headers["admin"])
+    assert {item["rustdesk_id"] for item in filtro.json()["items"]} == {"123456789"}
+
+
+def test_versao_menor_compara_semver():
+    assert svc.versao_menor("2.1.0", "2.1.2") is True
+    assert svc.versao_menor("2.1.2", "2.1.2") is False
+    assert svc.versao_menor("2.2.0", "2.1.2") is False
+    assert svc.versao_menor("abc", "2.1.2") is None
+    assert svc.versao_menor(None, "2.1.2") is None
 
 
 def test_selo_no_pdv(client, auth_headers, base):

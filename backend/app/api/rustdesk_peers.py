@@ -17,7 +17,7 @@ from app.services import rustdesk_peers as svc
 
 router = APIRouter(prefix="/rustdesk", tags=["rustdesk"])
 
-_FILTROS = {"todos", "online", "offline", "sem_vinculo", "vinculado"}
+_FILTROS = {"todos", "online", "offline", "sem_vinculo", "vinculado", "desatualizado"}
 
 
 @router.get("/configuracao", response_model=RustdeskConfiguracaoRead)
