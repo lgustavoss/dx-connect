@@ -195,5 +195,8 @@ class ContratoRead(BaseModel):
     interno: ContratoInternoRead | None = None
     implantacao_ticket_id: int | None = None
     implantacao_ticket_protocolo: str | None = None
+    # Assinatura eletrônica (#1380) — envelope ativo ou último concluído.
+    assinatura: dict | None = None
+    assinatura_modo: str | None = None  # docuseal | externo | None
 
     model_config = ConfigDict(from_attributes=True)

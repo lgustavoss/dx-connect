@@ -169,6 +169,41 @@ export function CrmContratoCard({ negociacao, lead = null, onChanged, embedded =
   const [cancelando, setCancelando] = useState(false)
   const [fiscais, setFiscais] = useState<Crm.DadosFiscais>(emptyFiscal)
   const [editarGeracao, setEditarGeracao] = useState(false)
+  type SignatarioForm = {
+    key: string
+    papel: ComercialContrato.PapelSignatario
+    nome: string
+    email: string
+    cpf: string
+    telefone: string
+  }
+  const novoSignatario = (
+    papel: ComercialContrato.PapelSignatario,
+    opts?: Partial<SignatarioForm>,
+  ): SignatarioForm => ({
+    key: `${papel}-${Math.random().toString(36).slice(2, 9)}`,
+    papel,
+    nome: opts?.nome ?? '',
+    email: opts?.email ?? '',
+    cpf: opts?.cpf ?? '',
+    telefone: opts?.telefone ?? '',
+  })
+  const [signatarios, setSignatarios] = useState<SignatarioForm[]>(() => [
+    novoSignatario('contratante'),
+    novoSignatario('contratada'),
+    novoSignatario('testemunha'),
+    novoSignatario('testemunha'),
+  ])
+  const [enviandoAssinatura, setEnviandoAssinatura] = useState(false)
+  const [cancelandoAssinatura, setCancelandoAssinatura] = useState(false)
+  const [enviandoEmailParteId, setEnviandoEmailParteId] = useState<number | null>(null)
+
+  const rotuloPapel = (papel: string) => {
+    if (papel === 'contratante') return 'Contratante'
+    if (papel === 'contratada') return 'Contratada'
+    if (papel === 'testemunha') return 'Testemunha'
+    return papel
+  }
 
   const load = useCallback(async () => {
     const [tmpls, rows, pol] = await Promise.all([
@@ -268,6 +303,22 @@ export function CrmContratoCard({ negociacao, lead = null, onChanged, embedded =
     }
   }, [preview?.id, preview?.conteudo_html_snapshot])
 
+  useEffect(() => {
+    const nome = (fiscais.resp_legal_nome || '').trim()
+    const cpf = (fiscais.resp_legal_cpf || '').trim()
+    if (!nome && !cpf) return
+    setSignatarios((prev) =>
+      prev.map((s) => {
+        if (s.papel !== 'contratante') return s
+        return {
+          ...s,
+          nome: s.nome.trim() ? s.nome : nome,
+          cpf: s.cpf.trim() ? s.cpf : cpf,
+        }
+      }),
+    )
+  }, [fiscais.resp_legal_nome, fiscais.resp_legal_cpf])
+
   async function handleGerar() {
     if (linhaId === '') {
       toast.showWarning('Selecione o CNPJ do contrato.')
@@ -364,13 +415,106 @@ export function CrmContratoCard({ negociacao, lead = null, onChanged, embedded =
       setPreview(row)
       setPdfFile(null)
       if (pdfInputRef.current) pdfInputRef.current.value = ''
-      toast.showSuccess('PDF assinado anexado. Já pode marcar o contrato como assinado.')
+      toast.showSuccess('PDF assinado anexado (assinatura externa). Já pode marcar o contrato como assinado.')
       await load()
       onChanged()
     } catch (err) {
       toast.showError(mensagemFalhaParaToast(err, 'Não foi possível anexar o PDF assinado.'))
     } finally {
       setAnexandoPdf(false)
+    }
+  }
+
+  async function handleCopiarLinkAssinatura(link: string) {
+    try {
+      await navigator.clipboard.writeText(link)
+      toast.showSuccess('Link copiado. Cole no WhatsApp ou no e-mail da pessoa.')
+    } catch {
+      toast.showWarning('Não foi possível copiar. Selecione o link e copie na mão.')
+    }
+  }
+
+  async function handleEnviarEmailParte(contratoId: number, parteId: number) {
+    setEnviandoEmailParteId(parteId)
+    try {
+      await comercialContratos.enviarEmailConviteAssinatura(contratoId, parteId)
+      toast.showSuccess('Convite enviado por e-mail.')
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível enviar o e-mail.'))
+    } finally {
+      setEnviandoEmailParteId(null)
+    }
+  }
+
+  async function handleEnviarAssinatura(id: number, forcar = false) {
+    const preenchidos = signatarios.filter(
+      (s) => s.nome.trim() && s.email.trim() && s.cpf.trim(),
+    )
+    const temContratante = preenchidos.some((s) => s.papel === 'contratante')
+    const temContratada = preenchidos.some((s) => s.papel === 'contratada')
+    if (!temContratante || !temContratada) {
+      toast.showWarning('Informe contratante e contratada com nome, CPF e e-mail.')
+      return
+    }
+    // Testemunhas omitidas se vazias; se algum campo preenchido, exige nome+CPF+e-mail.
+    const testemunhaIncompleta = signatarios.some((s) => {
+      if (s.papel !== 'testemunha') return false
+      const algum = s.nome.trim() || s.email.trim() || s.cpf.trim()
+      if (!algum) return false
+      return !(s.nome.trim() && s.email.trim() && s.cpf.trim())
+    })
+    if (testemunhaIncompleta) {
+      toast.showWarning(
+        'Em cada testemunha, preencha nome, CPF e e-mail — ou deixe tudo em branco.',
+      )
+      return
+    }
+    setEnviandoAssinatura(true)
+    try {
+      await comercialContratos.enviarAssinatura(id, {
+        signatarios: preenchidos.map((s) => ({
+          papel: s.papel,
+          nome: s.nome.trim(),
+          email: s.email.trim(),
+          cpf: s.cpf.trim(),
+          telefone: s.telefone.trim() || null,
+        })),
+        forcar_reenvio: forcar,
+      })
+      const row = await comercialContratos.get(id)
+      setPreview(row)
+      toast.showSuccess(forcar ? 'Novo envelope de assinatura gerado.' : 'Contrato enviado para assinatura eletrônica.')
+      await load()
+      onChanged()
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível enviar para assinatura.'))
+    } finally {
+      setEnviandoAssinatura(false)
+    }
+  }
+
+  async function handleCancelarAssinatura(id: number) {
+    setCancelandoAssinatura(true)
+    try {
+      await comercialContratos.cancelarAssinatura(id)
+      const row = await comercialContratos.get(id)
+      setPreview(row)
+      toast.showSuccess('Envelope de assinatura cancelado.')
+      await load()
+      onChanged()
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível cancelar a assinatura.'))
+    } finally {
+      setCancelandoAssinatura(false)
+    }
+  }
+
+  async function handleEvidencia(id: number, tipo: 'pdf' | 'audit' | 'selfie', nome: string) {
+    try {
+      const blob = await comercialContratos.downloadEvidenciaAssinatura(id, tipo)
+      downloadBlob(blob, nome)
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível baixar a evidência.'))
     }
   }
 
@@ -809,62 +953,326 @@ export function CrmContratoCard({ negociacao, lead = null, onChanged, embedded =
 
       {preview && (preview.status === 'rascunho' || preview.status === 'enviado' || preview.tem_pdf_assinado) ? (
         <div className="mt-3 space-y-3 rounded-xl border border-slate-200 p-3 dark:border-slate-700">
-          <p className="text-sm font-medium text-slate-700 dark:text-slate-300">PDF assinado</p>
-          <p className="text-xs text-slate-500">
-            Exporte o PDF gerado, assine no ClickSign ou outro e anexe aqui. Referência/protocolo é opcional.
-            Marcar assinado só fica disponível depois do anexo. O contrato fica ligado à empresa já cadastrada, sem criar outra com o mesmo CNPJ.
-          </p>
-          {preview.tem_pdf_assinado ? (
-            <p className="text-sm text-slate-700 dark:text-slate-300">
-              Anexado: {preview.pdf_assinado_nome_original || 'PDF'}
-              {preview.referencia_externa ? ` · ref. ${preview.referencia_externa}` : ''}
+          <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Assinatura do contrato</p>
+
+          {preview.assinatura_modo === 'docuseal' && preview.assinatura?.status === 'assinado' ? (
+            <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200">
+              Assinado eletronicamente no DeskRudder
+              {preview.assinatura.assinado_em ? ` em ${formatDateTime(preview.assinatura.assinado_em)}` : ''}.
+              {preview.assinatura.pdf_sha256 ? ` Hash: ${preview.assinatura.pdf_sha256.slice(0, 12)}…` : ''}
             </p>
           ) : null}
-          {preview.tem_pdf_assinado ? (
-            <Button
-              variant="secondary"
-              onClick={() => void handlePdfAssinado(preview.id, preview.pdf_assinado_nome_original)}
-              disabled={baixandoAssinadoId === preview.id}
-            >
-              {baixandoAssinadoId === preview.id ? 'Baixando…' : 'Baixar PDF assinado'}
-            </Button>
+          {preview.assinatura_modo === 'externo' && preview.assinatura?.status === 'assinado' ? (
+            <p className="rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-800 dark:bg-slate-800 dark:text-slate-200">
+              Assinado externamente (PDF anexado)
+              {preview.referencia_externa ? ` · ref. ${preview.referencia_externa}` : ''}.
+            </p>
           ) : null}
-          {preview.status === 'rascunho' || preview.status === 'enviado' ? (
-            <div className="space-y-3">
-              <input
-                ref={pdfInputRef}
-                id="contrato-pdf-assinado"
-                type="file"
-                accept="application/pdf,.pdf"
-                className="sr-only"
-                aria-label="Ficheiro PDF assinado"
-                onChange={(e) => setPdfFile(e.target.files?.[0] || null)}
-              />
-              <div className="flex flex-wrap items-center gap-2">
+          {preview.assinatura?.status === 'erro' && preview.assinatura.ultimo_erro ? (
+            <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800 dark:bg-red-950/40 dark:text-red-200">
+              Erro na assinatura eletrônica: {preview.assinatura.ultimo_erro}
+            </p>
+          ) : null}
+
+          {preview.assinatura &&
+          ['pendente', 'enviado', 'visualizado', 'parcial'].includes(preview.assinatura.status) ? (
+            <div className="space-y-2 rounded-lg border border-cyan-200 bg-cyan-50/60 p-3 dark:border-cyan-900 dark:bg-cyan-950/30">
+              <p className="text-sm font-medium text-cyan-900 dark:text-cyan-200">
+                Envelope {preview.assinatura.status}
+                {preview.assinatura.expira_em
+                  ? ` · expira em ${formatDateTime(preview.assinatura.expira_em)}`
+                  : ''}
+              </p>
+              <p className="text-xs text-slate-600 dark:text-slate-400">
+                Copie o link e envie no WhatsApp, ou use Enviar por e-mail.
+              </p>
+              {(preview.assinatura.partes || []).length > 0 ? (
+                <ul className="space-y-2 text-xs text-slate-700 dark:text-slate-300">
+                  {preview.assinatura.partes!.map((p) => (
+                    <li
+                      key={p.id}
+                      className="space-y-2 rounded-md border border-cyan-100 bg-white/70 p-2 dark:border-cyan-900 dark:bg-slate-900/40"
+                    >
+                      <p className="font-medium">
+                        {rotuloPapel(p.papel)} · {p.nome} · {p.status}
+                      </p>
+                      <p className="text-slate-500">
+                        {p.email}
+                        {p.cpf_mascarado ? ` · CPF ${p.cpf_mascarado}` : ''}
+                      </p>
+                      {p.link_assinatura ? (
+                        <a
+                          href={p.link_assinatura}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="break-all underline"
+                        >
+                          {p.link_assinatura}
+                        </a>
+                      ) : null}
+                      {p.link_assinatura && podeEmitir ? (
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            onClick={() => void handleCopiarLinkAssinatura(p.link_assinatura!)}
+                          >
+                            Copiar link
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            onClick={() => void handleEnviarEmailParte(preview.id, p.id)}
+                            disabled={enviandoEmailParteId === p.id || !p.email}
+                          >
+                            {enviandoEmailParteId === p.id ? 'Enviando…' : 'Enviar por e-mail'}
+                          </Button>
+                        </div>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              ) : preview.assinatura.link_assinatura ? (
+                <p className="break-all text-xs text-slate-700 dark:text-slate-300">
+                  Link:{' '}
+                  <a
+                    href={preview.assinatura.link_assinatura}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline"
+                  >
+                    {preview.assinatura.link_assinatura}
+                  </a>
+                </p>
+              ) : null}
+              {podeEmitir ? (
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="secondary"
+                    onClick={() => void handleEnviarAssinatura(preview.id, true)}
+                    disabled={enviandoAssinatura}
+                  >
+                    {enviandoAssinatura ? 'Reenviando…' : 'Reenviar envelope'}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    onClick={() => void handleCancelarAssinatura(preview.id)}
+                    disabled={cancelandoAssinatura}
+                  >
+                    {cancelandoAssinatura ? 'Cancelando…' : 'Cancelar envelope'}
+                  </Button>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          {preview.assinatura?.status === 'assinado' && preview.assinatura_modo === 'docuseal' ? (
+            <div className="flex flex-wrap gap-2">
+              {preview.assinatura.tem_pdf_assinado ? (
+                <Button
+                  variant="secondary"
+                  onClick={() =>
+                    void handleEvidencia(preview.id, 'pdf', `contrato-${preview.id}-assinado.pdf`)
+                  }
+                >
+                  PDF assinado
+                </Button>
+              ) : null}
+              {preview.assinatura.tem_audit_log ? (
+                <Button
+                  variant="secondary"
+                  onClick={() =>
+                    void handleEvidencia(preview.id, 'audit', `contrato-${preview.id}-auditoria.pdf`)
+                  }
+                >
+                  Trilha de auditoria
+                </Button>
+              ) : null}
+              {preview.assinatura.tem_selfie ? (
+                <Button
+                  variant="secondary"
+                  onClick={() =>
+                    void handleEvidencia(preview.id, 'selfie', `contrato-${preview.id}-selfie.jpg`)
+                  }
+                >
+                  Selfie
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
+
+          {podeEmitir && (preview.status === 'rascunho' || preview.status === 'enviado') ? (
+            <div className="space-y-3 border-t border-slate-200 pt-3 dark:border-slate-700">
+              <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                Enviar para assinatura eletrônica
+              </p>
+              <p className="text-xs text-slate-500">
+                Informe as partes com nome, <strong>CPF</strong> e e-mail. Obrigatório:{' '}
+                <strong>contratante</strong> (cliente) e <strong>contratada</strong> (sua empresa).
+                Testemunhas são opcionais. Cada um recebe um link único; o contrato só fica assinado
+                quando todos concluírem. Depois use Copiar link (WhatsApp) ou Enviar por e-mail.
+              </p>
+              <div className="space-y-4">
+                {signatarios.map((s, idx) => (
+                  <div
+                    key={s.key}
+                    className="space-y-2 rounded-lg border border-slate-200 p-3 dark:border-slate-700"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                        {rotuloPapel(s.papel)}
+                        {s.papel === 'testemunha'
+                          ? ` ${signatarios.filter((x) => x.papel === 'testemunha').indexOf(s) + 1}`
+                          : ''}
+                      </p>
+                      {s.papel === 'testemunha' &&
+                      signatarios.filter((x) => x.papel === 'testemunha').length > 0 ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          onClick={() =>
+                            setSignatarios((prev) => prev.filter((x) => x.key !== s.key))
+                          }
+                        >
+                          Remover
+                        </Button>
+                      ) : null}
+                    </div>
+                    <Input
+                      label="Nome"
+                      value={s.nome}
+                      onChange={(e) => {
+                        const v = e.target.value
+                        setSignatarios((prev) =>
+                          prev.map((x, i) => (i === idx ? { ...x, nome: v } : x)),
+                        )
+                      }}
+                      placeholder={
+                        s.papel === 'contratante'
+                          ? fiscais.resp_legal_nome || 'Responsável legal do cliente'
+                          : s.papel === 'contratada'
+                            ? 'Responsável legal da contratada'
+                            : 'Nome completo'
+                      }
+                    />
+                    <Input
+                      label="CPF"
+                      value={s.cpf}
+                      onChange={(e) => {
+                        const v = e.target.value
+                        setSignatarios((prev) =>
+                          prev.map((x, i) => (i === idx ? { ...x, cpf: v } : x)),
+                        )
+                      }}
+                      placeholder={
+                        s.papel === 'contratante' && fiscais.resp_legal_cpf
+                          ? fiscais.resp_legal_cpf
+                          : '000.000.000-00'
+                      }
+                    />
+                    <Input
+                      label="E-mail"
+                      value={s.email}
+                      onChange={(e) => {
+                        const v = e.target.value
+                        setSignatarios((prev) =>
+                          prev.map((x, i) => (i === idx ? { ...x, email: v } : x)),
+                        )
+                      }}
+                      placeholder="email@empresa.com"
+                    />
+                    <Input
+                      label="Telefone (opcional)"
+                      value={s.telefone}
+                      onChange={(e) => {
+                        const v = e.target.value
+                        setSignatarios((prev) =>
+                          prev.map((x, i) => (i === idx ? { ...x, telefone: v } : x)),
+                        )
+                      }}
+                      placeholder="(11) 99999-0000"
+                    />
+                  </div>
+                ))}
+              </div>
+              {signatarios.filter((s) => s.papel === 'testemunha').length < 4 ? (
                 <Button
                   type="button"
                   variant="secondary"
-                  onClick={() => pdfInputRef.current?.click()}
+                  onClick={() => setSignatarios((prev) => [...prev, novoSignatario('testemunha')])}
                 >
-                  {preview.tem_pdf_assinado ? 'Escolher outro PDF' : 'Anexar PDF assinado'}
+                  Adicionar testemunha
                 </Button>
-                {pdfFile ? (
-                  <span className="text-sm text-slate-600 dark:text-slate-300">{pdfFile.name}</span>
-                ) : (
-                  <span className="text-xs text-slate-500">Só ficheiros PDF</span>
-                )}
-              </div>
-              <Input
-                label="Referência / protocolo (opcional)"
-                value={referenciaAnexo}
-                onChange={(e) => setReferenciaAnexo(e.target.value)}
-                placeholder="Ex.: envelope ClickSign"
-              />
-              <Button onClick={() => void handleAnexarPdf(preview.id)} disabled={anexandoPdf || !pdfFile}>
-                {anexandoPdf ? 'Anexando…' : preview.tem_pdf_assinado ? 'Substituir PDF assinado' : 'Enviar anexo'}
+              ) : null}
+              <Button
+                onClick={() => void handleEnviarAssinatura(preview.id, false)}
+                disabled={enviandoAssinatura}
+              >
+                {enviandoAssinatura ? 'Enviando…' : 'Enviar para assinatura'}
               </Button>
             </div>
           ) : null}
+
+          <div className="space-y-3 border-t border-slate-200 pt-3 dark:border-slate-700">
+            <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
+              Ou assinar por fora (PDF anexado)
+            </p>
+            <p className="text-xs text-slate-500">
+              Baixe o PDF gerado, assine no provedor do cliente e anexe aqui. Fica identificado como
+              «assinado externamente». Marcar assinado só fica disponível depois do anexo.
+            </p>
+            {preview.tem_pdf_assinado ? (
+              <p className="text-sm text-slate-700 dark:text-slate-300">
+                Anexado: {preview.pdf_assinado_nome_original || 'PDF'}
+                {preview.referencia_externa ? ` · ref. ${preview.referencia_externa}` : ''}
+              </p>
+            ) : null}
+            {preview.tem_pdf_assinado ? (
+              <Button
+                variant="secondary"
+                onClick={() => void handlePdfAssinado(preview.id, preview.pdf_assinado_nome_original)}
+                disabled={baixandoAssinadoId === preview.id}
+              >
+                {baixandoAssinadoId === preview.id ? 'Baixando…' : 'Baixar PDF assinado'}
+              </Button>
+            ) : null}
+            {preview.status === 'rascunho' || preview.status === 'enviado' ? (
+              <div className="space-y-3">
+                <input
+                  ref={pdfInputRef}
+                  id="contrato-pdf-assinado"
+                  type="file"
+                  accept="application/pdf,.pdf"
+                  className="sr-only"
+                  aria-label="Arquivo PDF assinado"
+                  onChange={(e) => setPdfFile(e.target.files?.[0] || null)}
+                />
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => pdfInputRef.current?.click()}
+                  >
+                    {preview.tem_pdf_assinado ? 'Escolher outro PDF' : 'Anexar PDF assinado'}
+                  </Button>
+                  {pdfFile ? (
+                    <span className="text-sm text-slate-600 dark:text-slate-300">{pdfFile.name}</span>
+                  ) : (
+                    <span className="text-xs text-slate-500">Só arquivos PDF</span>
+                  )}
+                </div>
+                <Input
+                  label="Referência / protocolo (opcional)"
+                  value={referenciaAnexo}
+                  onChange={(e) => setReferenciaAnexo(e.target.value)}
+                  placeholder="Ex.: envelope do provedor externo"
+                />
+                <Button onClick={() => void handleAnexarPdf(preview.id)} disabled={anexandoPdf || !pdfFile}>
+                  {anexandoPdf ? 'Anexando…' : preview.tem_pdf_assinado ? 'Substituir PDF assinado' : 'Enviar anexo'}
+                </Button>
+              </div>
+            ) : null}
+          </div>
         </div>
       ) : null}
 

@@ -29,6 +29,7 @@ from app.schemas.comercial_contrato import (
     ContratoTemplateRead,
     ContratoTemplateUpdate,
 )
+from app.schemas.contrato_assinatura import ContratoAssinaturaEnviarIn, ContratoAssinaturaRead
 from app.services import comercial_contrato as svc
 
 router = APIRouter(prefix="/comercial", tags=["comercial-contratos"])
@@ -459,3 +460,111 @@ def cancelar_contrato(
     db.commit()
     db.refresh(row)
     return svc.contrato_para_read(svc.obter_contrato(db, row.id, atendente=atendente), incluir_html=True)
+
+
+@router.post("/contratos/{contrato_id}/assinatura/enviar", response_model=ContratoAssinaturaRead)
+def enviar_assinatura(
+    contrato_id: int,
+    data: ContratoAssinaturaEnviarIn,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(exigir_permissao("contratos.emitir")),
+):
+    """Fluxo A (#1380 / #1429): envelope DocuSeal multiparte."""
+    from app.models.contrato_assinatura import STATUS_ERRO
+    from app.services import contrato_assinatura as assinatura_svc
+
+    row = svc.obter_contrato(db, contrato_id, atendente=atendente)
+    env = assinatura_svc.enviar_para_assinatura(db, row, data, atendente)
+    env_id = env.id
+    db.commit()
+    env = assinatura_svc.obter_assinatura(db, env_id)
+    if env.status == STATUS_ERRO:
+        raise HTTPException(
+            status_code=502,
+            detail=env.ultimo_erro or "Falha ao criar envelope no DocuSeal.",
+        )
+    return assinatura_svc.to_read(env)
+
+
+@router.post("/contratos/{contrato_id}/assinatura/cancelar", response_model=ContratoAssinaturaRead)
+def cancelar_assinatura(
+    contrato_id: int,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(exigir_permissao("contratos.emitir")),
+):
+    from app.services import contrato_assinatura as assinatura_svc
+
+    row = svc.obter_contrato(db, contrato_id, atendente=atendente)
+    env = assinatura_svc.cancelar_envelope(db, row, atendente)
+    db.commit()
+    db.refresh(env)
+    return assinatura_svc.to_read(env)
+
+
+@router.get("/contratos/{contrato_id}/assinatura", response_model=ContratoAssinaturaRead)
+def obter_assinatura_contrato(
+    contrato_id: int,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(exigir_permissao("contratos.ver")),
+):
+    from app.services import contrato_assinatura as assinatura_svc
+
+    svc.obter_contrato(db, contrato_id, atendente=atendente)
+    assinatura_svc.sincronizar_expiracao(db, contrato_id)
+    env = assinatura_svc.envelope_ativo(db, contrato_id) or assinatura_svc.ultima_assinatura(db, contrato_id)
+    if env is None:
+        raise HTTPException(status_code=404, detail="Nenhuma assinatura registrada neste contrato.")
+    return assinatura_svc.to_read(env)
+
+
+@router.post("/contratos/{contrato_id}/assinatura/partes/{parte_id}/enviar-email")
+def enviar_email_convite_assinatura(
+    contrato_id: int,
+    parte_id: int,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(exigir_permissao("contratos.emitir")),
+):
+    """Envia o link de assinatura da parte por e-mail (modelo A / mercado)."""
+    from app.services import contrato_assinatura as assinatura_svc
+
+    row = svc.obter_contrato(db, contrato_id, atendente=atendente)
+    parte = assinatura_svc.obter_parte(db, contrato_id, parte_id)
+    assinatura_svc.enviar_convite_email_parte(db, row, parte, atendente)
+    db.commit()
+    return {"ok": True, "parte_id": parte_id, "email": parte.email}
+
+
+@router.get("/contratos/{contrato_id}/assinatura/evidencias/{tipo}")
+def baixar_evidencia_assinatura(
+    contrato_id: int,
+    tipo: str,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(exigir_permissao("contratos.ver")),
+):
+    """Download auditado de PDF assinado / trilha / selfie (#1380)."""
+    from app.services import contrato_assinatura as assinatura_svc
+
+    svc.obter_contrato(db, contrato_id, atendente=atendente)
+    env = assinatura_svc.ultima_assinatura(db, contrato_id)
+    if env is None:
+        raise HTTPException(status_code=404, detail="Nenhuma assinatura registrada neste contrato.")
+    if env.provedor == "externo" and tipo in {"audit", "selfie"}:
+        raise HTTPException(
+            status_code=404,
+            detail="Assinatura externa não tem trilha de auditoria nem selfie no DeskRudder.",
+        )
+    conteudo, nome, media = assinatura_svc.bytes_evidencia(env, tipo)
+    registrar_audit(
+        db,
+        "contrato_assinatura",
+        env.id,
+        "download",
+        atendente.id,
+        payload={"tipo": tipo, "contrato_id": contrato_id},
+    )
+    db.commit()
+    return Response(
+        content=conteudo,
+        media_type=media,
+        headers={"Content-Disposition": f'attachment; filename="{nome}"'},
+    )
