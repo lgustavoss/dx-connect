@@ -66,3 +66,7 @@ class DeskremoteSyncOut(BaseModel):
     rotulo: str
     rustdesk_id: str | None = None
     servidor: DeskremoteServidor
+    # Pedido de update pelo painel (#1436).
+    atualizar: bool = False
+    download_url: str | None = None
+    update_status: str | None = None

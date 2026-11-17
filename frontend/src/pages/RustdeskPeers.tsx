@@ -37,13 +37,34 @@ const FILTROS: { id: RustdeskFrota.Filtro; rotulo: string }[] = [
   { id: 'desatualizado', rotulo: 'Desatualizados' },
 ]
 
+function rotuloUpdateStatus(status: string | null | undefined) {
+  switch (status) {
+    case 'pendente':
+      return 'Atualização pedida (próximo sync, ~30 s)'
+    case 'enviado':
+      return 'Aguardando o app (~30 s)'
+    case 'em_andamento':
+      return 'Atualizando…'
+    case 'falhou':
+      return 'Falha na atualização'
+    case 'concluido':
+      return 'Atualizado'
+    default:
+      return null
+  }
+}
+
 function SeloVersao({ peer }: { peer: RustdeskFrota.Peer }) {
   const ver = peer.deskremote_app_version?.trim()
+  const updateRotulo = rotuloUpdateStatus(peer.deskremote_update_status)
   if (!ver) {
     return (
-      <span className="text-xs text-slate-400" title="Este computador ainda não reportou a versão do DeskRemote">
-        Desconhecida
-      </span>
+      <div className="space-y-1">
+        <span className="text-xs text-slate-400" title="Este computador ainda não reportou a versão do DeskRemote">
+          Desconhecida
+        </span>
+        {updateRotulo ? <p className="text-xs text-slate-500 dark:text-slate-400">{updateRotulo}</p> : null}
+      </div>
     )
   }
   return (
@@ -54,7 +75,31 @@ function SeloVersao({ peer }: { peer: RustdeskFrota.Peer }) {
           Desatualizado
         </span>
       ) : null}
+      {updateRotulo ? (
+        <p
+          className={
+            peer.deskremote_update_status === 'falhou'
+              ? 'text-xs text-rose-600 dark:text-rose-300'
+              : 'text-xs text-slate-500 dark:text-slate-400'
+          }
+        >
+          {updateRotulo}
+        </p>
+      ) : null}
     </div>
+  )
+}
+
+function IconeAtualizar() {
+  return (
+    <svg className="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+      />
+    </svg>
   )
 }
 
@@ -406,6 +451,19 @@ export function RustdeskPeers() {
     })
   }
 
+  async function pedirAtualizar(peer: RustdeskFrota.Peer) {
+    setSalvando(true)
+    try {
+      const out = await rustdeskPeers.atualizar(peer.rustdesk_id)
+      toast.showSuccess(out.mensagem || 'Pedido de atualização enviado.')
+      carregar()
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível pedir a atualização.'))
+    } finally {
+      setSalvando(false)
+    }
+  }
+
   async function confirmarAcao() {
     if (!acaoPendente) return
     setSalvando(true)
@@ -575,6 +633,15 @@ export function RustdeskPeers() {
                         />
                         {podeVincular ? (
                           <>
+                          {peer.deskremote_pode_atualizar ? (
+                            <BotaoIcone
+                              title="Atualizar DeskRemote"
+                              disabled={salvando}
+                              onClick={() => void pedirAtualizar(peer)}
+                            >
+                              <IconeAtualizar />
+                            </BotaoIcone>
+                          ) : null}
                           {peer.vinculos.length === 0 ? (
                             <BotaoIcone title="Vincular" onClick={() => abrirVinculo(peer)}>
                               <IconeVinculo ligado={false} />
