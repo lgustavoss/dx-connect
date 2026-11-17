@@ -430,7 +430,11 @@ def sync_config(
     *,
     app_version: str | None = None,
     app_ui: str | None = None,
+    update_ack: str | None = None,
+    update_erro: str | None = None,
 ) -> dict:
+    from app.services import rustdesk_peers as rustdesk_svc
+
     dispositivo = _dispositivo_ativo(db, raw_device)
     pdv = (
         db.query(EmpresaPdv)
@@ -460,6 +464,32 @@ def sync_config(
         )
     dispositivo.last_seen_at = _agora()
     aplicar_app_info(dispositivo, app_version=app_version, app_ui=app_ui)
+
+    ack = (update_ack or "").strip().lower()
+    if ack == "em_andamento" and dispositivo.update_status in {"pendente", "enviado", "em_andamento"}:
+        dispositivo.update_status = "em_andamento"
+        dispositivo.update_erro = None
+    elif ack == "falhou" and dispositivo.update_status in {"pendente", "enviado", "em_andamento", "falhou"}:
+        dispositivo.update_status = "falhou"
+        dispositivo.update_erro = (update_erro or "Falha ao baixar ou enfileirar a atualização.")[:255]
+
+    meta = rustdesk_svc.meta_release_cliente_flutter()
+    release_ver = meta.get("version")
+    download_url = meta.get("download_url")
+    if (
+        dispositivo.update_status in {"pendente", "enviado", "em_andamento", "falhou", "concluido"}
+        and rustdesk_svc.versao_menor(dispositivo.app_version, release_ver) is False
+    ):
+        dispositivo.update_status = "concluido"
+        dispositivo.update_erro = None
+
+    atualizar = False
+    if dispositivo.update_status in {"pendente", "enviado"} and download_url:
+        if rustdesk_svc.versao_menor(dispositivo.app_version, release_ver) is True:
+            atualizar = True
+            if dispositivo.update_status == "pendente":
+                dispositivo.update_status = "enviado"
+
     if dispositivo.rustdesk_id:
         marcar_visto_enroll(db, dispositivo.rustdesk_id, dispositivo.last_seen_at)
     db.commit()
@@ -469,4 +499,7 @@ def sync_config(
         "rotulo": _rotulo_pdv(pdv),
         "rustdesk_id": dispositivo.rustdesk_id,
         "servidor": servidor,
+        "atualizar": atualizar,
+        "download_url": download_url if atualizar else None,
+        "update_status": dispositivo.update_status,
     }

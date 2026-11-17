@@ -4674,6 +4674,10 @@ export const rustdeskPeers = {
     api<RustdeskFrota.ExcluirResultado>(`/rustdesk/peers/${encodeURIComponent(rustdeskId)}/excluir`, {
       method: 'POST',
     }),
+  atualizar: (rustdeskId: string) =>
+    api<RustdeskFrota.AtualizarResultado>(`/rustdesk/peers/${encodeURIComponent(rustdeskId)}/atualizar`, {
+      method: 'POST',
+    }),
 };
 
 export namespace RustdeskFrota {
@@ -4710,6 +4714,8 @@ export namespace RustdeskFrota {
     deskremote_app_version?: string | null
     deskremote_app_ui?: string | null
     deskremote_desatualizado?: boolean | null
+    deskremote_update_status?: string | null
+    deskremote_pode_atualizar?: boolean
   }
   export interface PdvAusente extends Vinculo {
     acesso_remoto_id?: string | null
@@ -4738,6 +4744,11 @@ export namespace RustdeskFrota {
   export interface ExcluirResultado {
     rustdesk_id: string
     removido: boolean
+  }
+  export interface AtualizarResultado {
+    rustdesk_id: string
+    update_status: string
+    mensagem: string
   }
 }
 

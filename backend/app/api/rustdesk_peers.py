@@ -5,6 +5,7 @@ from app.core.auth import exigir_permissao
 from app.database import get_db
 from app.models.atendente import Atendente
 from app.schemas.rustdesk import (
+    RustdeskAtualizarOut,
     RustdeskConfiguracaoRead,
     RustdeskDesvincularIn,
     RustdeskDesvincularOut,
@@ -65,3 +66,12 @@ def excluir_peer(
     atendente: Atendente = Depends(exigir_permissao("empresas.editar")),
 ):
     return svc.excluir(db, rustdesk_id, atendente)
+
+
+@router.post("/peers/{rustdesk_id}/atualizar", response_model=RustdeskAtualizarOut)
+def atualizar_peer(
+    rustdesk_id: str,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(exigir_permissao("empresas.editar")),
+):
+    return svc.solicitar_atualizacao(db, rustdesk_id, atendente)

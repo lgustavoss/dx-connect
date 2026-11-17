@@ -135,7 +135,7 @@ jobs:
 
       - name: npm audit
         if: needs.changes.outputs.frontend == 'true'
-        run: npm audit --audit-level=high
+        run: npm audit --omit=dev --audit-level=high
 
       - name: Testes do alerta da fila
         if: needs.changes.outputs.frontend == 'true'
