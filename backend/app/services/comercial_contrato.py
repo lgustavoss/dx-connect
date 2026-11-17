@@ -1114,8 +1114,13 @@ def _aplicar_campos_geracao(row: Contrato, data: ContratoGerarIn, snaps: dict[st
     row.reajuste_rotulo = snaps["reajuste_rotulo"]
 
 
-def _descartar_pdf_assinado(row: Contrato) -> None:
-    """A correção invalida o anexo assinado da versão anterior."""
+def _descartar_pdf_assinado(
+    db: Session,
+    row: Contrato,
+    *,
+    ator_id: int | None = None,
+) -> None:
+    """Invalida o anexo assinado e apaga evidências da assinatura eletrônica (#1380)."""
     key = (row.pdf_assinado_storage_key or "").strip()
     if key:
         path = caminho_absoluto_arquivo(key)
@@ -1124,6 +1129,12 @@ def _descartar_pdf_assinado(row: Contrato) -> None:
     row.pdf_assinado_storage_key = None
     row.pdf_assinado_nome_original = None
     row.referencia_externa = None
+    from app.services import contrato_assinatura as assinatura_svc
+
+    ativo = assinatura_svc.envelope_ativo(db, row.id)
+    if ativo is not None:
+        assinatura_svc._cancelar_ativo(db, ativo, motivo="descarte do PDF assinado")  # noqa: SLF001
+    assinatura_svc.limpar_evidencias_contrato(db, row.id, ator_id=ator_id)
 
 
 def _gravar_pdf_versao(db: Session, contrato: Contrato, html_doc: str, ator: Atendente) -> ContratoPdf:
@@ -1165,10 +1176,10 @@ def gerar_contrato(db: Session, data: ContratoGerarIn, ator: Atendente) -> Contr
         if voltou_de_envio:
             row.status = CONTRATO_RASCUNHO
             row.enviado_em = None
-            _descartar_pdf_assinado(row)
+            _descartar_pdf_assinado(db, row, ator_id=ator.id)
             texto_ativ = f"Contrato #{row.id} corrigido e voltou para rascunho."
         else:
-            _descartar_pdf_assinado(row)
+            _descartar_pdf_assinado(db, row, ator_id=ator.id)
             texto_ativ = f"Contrato #{row.id} regenerado (rascunho)."
     else:
         row = Contrato(
@@ -1540,6 +1551,16 @@ def contrato_para_read(
         dia_vencimento_efetivo = faturamento_svc.dia_vencimento_do_contrato(sess, row, politica=pol)
         if consultar_titulo_multa:
             titulo_multa = faturamento_svc.titulo_multa_do_contrato(sess, row.id)
+    assinatura_payload = None
+    assinatura_modo = None
+    if sess is not None:
+        from app.services import contrato_assinatura as assinatura_svc
+
+        assinatura_svc.sincronizar_expiracao(sess, row.id)
+        env = assinatura_svc.envelope_ativo(sess, row.id) or assinatura_svc.ultima_assinatura(sess, row.id)
+        if env is not None:
+            assinatura_payload = assinatura_svc.to_read(env)
+            assinatura_modo = env.provedor
     return {
         "id": row.id,
         "negociacao_linha_cnpj_id": row.negociacao_linha_cnpj_id,
@@ -1605,6 +1626,8 @@ def contrato_para_read(
         "interno": _interno_read(row, linha),
         "implantacao_ticket_id": ticket_impl.id if ticket_impl else None,
         "implantacao_ticket_protocolo": ticket_impl.protocolo if ticket_impl else None,
+        "assinatura": assinatura_payload,
+        "assinatura_modo": assinatura_modo,
     }
 
 
@@ -1645,8 +1668,19 @@ def anexar_pdf_assinado(
             negociacao_id=linha.negociacao_id,
             autor_id=ator.id,
             tipo=ATIVIDADE_DOCUMENTO,
-            texto=f"PDF assinado anexado ao contrato #{row.id}.",
+            texto=f"PDF assinado anexado ao contrato #{row.id} (assinatura externa).",
         )
+    )
+    # Fluxo B (#1380): registra envelope «externo» com hash do PDF.
+    from app.services import contrato_assinatura as assinatura_svc
+    from app.services.contrato_assinatura_storage import sha256_bytes
+
+    assinatura_svc.registrar_anexo_externo(
+        db,
+        row,
+        pdf_path=key,
+        pdf_sha256=sha256_bytes(conteudo),
+        ator=ator,
     )
     db.flush()
     return obter_contrato(db, row.id)
