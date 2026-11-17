@@ -128,6 +128,12 @@ class Contrato(Base):
         cascade="all, delete-orphan",
         order_by="ContratoPdf.id",
     )
+    assinaturas = relationship(
+        "ContratoAssinatura",
+        back_populates="contrato",
+        cascade="all, delete-orphan",
+        order_by="ContratoAssinatura.id",
+    )
 
 
 class ContratoPdf(Base):

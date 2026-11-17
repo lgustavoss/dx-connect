@@ -66,6 +66,17 @@ class Settings(BaseSettings):
     FATURAMENTO_ANEXOS_DIR: str = "data/faturamento_anexos"
     FATURAMENTO_ANEXOS_MAX_BYTES: int = 25 * 1024 * 1024
 
+    # Evidências de assinatura eletrônica (#1380): PDF assinado, trilha e selfie.
+    CONTRATO_ASSINATURAS_DIR: str = "data/contratos"
+    CONTRATO_ASSINATURAS_MAX_BYTES: int = 25 * 1024 * 1024
+    # DocuSeal self-hosted (vazio = integração desligada; endpoints respondem 503).
+    DOCUSEAL_URL: str | None = None
+    DOCUSEAL_API_TOKEN: str | None = None
+    DOCUSEAL_WEBHOOK_SECRET: str | None = None
+    DOCUSEAL_TEMPLATE_ID: str | None = None
+    # Dias até o envelope expirar (reenvio/cancelamento liberam novo envio).
+    DOCUSEAL_EXPIRACAO_DIAS: int = 7
+
     # Mídia de sugestões/problemas (#856+): prints no texto + PDF/vídeo em anexo.
     SOLICITACAO_MEDIA_DIR: str = "data/solicitacao_media"
     SOLICITACAO_MEDIA_MAX_BYTES: int = 25 * 1024 * 1024

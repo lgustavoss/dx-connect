@@ -3760,6 +3760,60 @@ export namespace ComercialContrato {
     interno?: Interno | null;
     implantacao_ticket_id?: number | null;
     implantacao_ticket_protocolo?: string | null;
+    /** Envelope DocuSeal ou anexo externo (#1380). */
+    assinatura?: Assinatura | null;
+    assinatura_modo?: 'docuseal' | 'externo' | string | null;
+  }
+  export type PapelSignatario = 'contratante' | 'contratada' | 'testemunha'
+  export interface AssinaturaParte {
+    id: number
+    papel: PapelSignatario | string
+    ordem: number
+    nome: string
+    email: string
+    cpf_mascarado?: string | null
+    telefone?: string | null
+    role_docuseal: string
+    submitter_slug?: string | null
+    link_assinatura?: string | null
+    status: string
+    visualizado_em?: string | null
+    assinado_em?: string | null
+    ultimo_erro?: string | null
+  }
+  export interface Assinatura {
+    id: number;
+    contrato_id: number;
+    provedor: 'docuseal' | 'externo' | string;
+    status: string;
+    submission_id?: string | null;
+    submitter_slug?: string | null;
+    link_assinatura?: string | null;
+    enviado_em?: string | null;
+    visualizado_em?: string | null;
+    assinado_em?: string | null;
+    expira_em?: string | null;
+    tem_pdf_assinado?: boolean;
+    tem_audit_log?: boolean;
+    tem_selfie?: boolean;
+    pdf_sha256?: string | null;
+    audit_sha256?: string | null;
+    ultimo_erro?: string | null;
+    criado_por_id?: number | null;
+    created_at: string;
+    /** Partes do envelope (#1429). */
+    partes?: AssinaturaParte[];
+  }
+  export interface SignatarioEnviar {
+    papel: PapelSignatario
+    nome: string
+    email: string
+    cpf: string
+    telefone?: string | null
+  }
+  export interface EnviarAssinaturaRequest {
+    signatarios: SignatarioEnviar[]
+    forcar_reenvio?: boolean
   }
   export interface GerarRequest {
     linha_id: number;
@@ -4142,6 +4196,41 @@ export const comercialContratos = {
       method: 'POST',
       body: fd,
     })
+  },
+  enviarAssinatura: (id: number, data: ComercialContrato.EnviarAssinaturaRequest) =>
+    api<ComercialContrato.Assinatura>(`/comercial/contratos/${id}/assinatura/enviar`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  cancelarAssinatura: (id: number) =>
+    api<ComercialContrato.Assinatura>(`/comercial/contratos/${id}/assinatura/cancelar`, {
+      method: 'POST',
+    }),
+  enviarEmailConviteAssinatura: (contratoId: number, parteId: number) =>
+    api<{ ok: boolean; parte_id: number; email: string }>(
+      `/comercial/contratos/${contratoId}/assinatura/partes/${parteId}/enviar-email`,
+      { method: 'POST' },
+    ),
+  obterAssinatura: (id: number) =>
+    api<ComercialContrato.Assinatura>(`/comercial/contratos/${id}/assinatura`),
+  downloadEvidenciaAssinatura: async (id: number, tipo: 'pdf' | 'audit' | 'selfie') => {
+    const token = getAuthToken();
+    const headers: Record<string, string> = {};
+    if (isMultiTenantMode()) {
+      headers['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname());
+    }
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const url = `${apiOrigin()}${API_VERSION_PREFIX}/comercial/contratos/${id}/assinatura/evidencias/${tipo}`;
+    const res = await fetch(url, { headers });
+    if (res.status === 401) {
+      invalidateSessionAndRedirectToLogin();
+      throw new ApiError('Sessão expirada ou inválida.', 401, {});
+    }
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}));
+      throw new ApiError(mensagemErroApi(errBody, res.status), res.status, errBody);
+    }
+    return res.blob();
   },
   downloadPdf: async (id: number, pdfId?: number) => {
     const token = getAuthToken();
@@ -4594,7 +4683,7 @@ export namespace RustdeskFrota {
     servidor_relay: string
     chave: string
   }
-  export type Filtro = 'todos' | 'online' | 'offline' | 'sem_vinculo' | 'vinculado'
+  export type Filtro = 'todos' | 'online' | 'offline' | 'sem_vinculo' | 'vinculado' | 'desatualizado'
   export interface Vinculo {
     empresa_id: number
     empresa_nome: string
@@ -4618,6 +4707,9 @@ export namespace RustdeskFrota {
     vinculos: Vinculo[]
     sem_vinculo: boolean
     id_repetido: boolean
+    deskremote_app_version?: string | null
+    deskremote_app_ui?: string | null
+    deskremote_desatualizado?: boolean | null
   }
   export interface PdvAusente extends Vinculo {
     acesso_remoto_id?: string | null
@@ -4630,6 +4722,7 @@ export namespace RustdeskFrota {
     agent_configurado: boolean
     agent_indisponivel: boolean
     sincronizado_em?: string | null
+    deskremote_versao_release?: string | null
   }
   export interface Vincular {
     pdv_id: number

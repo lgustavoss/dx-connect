@@ -78,6 +78,7 @@ from app.models.crm import (
 )
 from app.models.comercial_proposta import Proposta, PropostaTemplate
 from app.models.comercial_contrato import Contrato, ContratoPdf, ContratoPolitica, ContratoTemplate
+from app.models.contrato_assinatura import ContratoAssinatura, ContratoAssinaturaParte
 from app.models.faturamento import Fatura, FaturaAnexo, FaturamentoPolitica, TituloReceber
 from app.models.implantacao_checklist import (
     ImplantacaoChecklistTemplate,
@@ -206,6 +207,7 @@ __all__ = [
     "Proposta",
     "ContratoTemplate",
     "Contrato",
+    "ContratoAssinatura",
     "Fatura",
     "FaturaAnexo",
     "FaturamentoPolitica",

@@ -1,4 +1,4 @@
-# Nginx — um cliente (app + API em subdomínios distintos).
+﻿# Nginx — um cliente (app + API em subdomínios distintos).
 # Padrão DeskRudder: {slug}.deskrudder.com.br + api-{slug}.deskrudder.com.br
 # Copiar para /etc/nginx/sites-available/dx-connect-CLIENT_SLUG e ativar.
 #
@@ -42,7 +42,7 @@ server {
 
     # Download do instalador Windows sem login no painel (Release estável no GitHub).
     location = /acesso-remoto/download {
-        return 302 https://github.com/lgustavoss/dx-connect/releases/download/acesso-remoto-windows-flutter/DeskRudder-AcessoRemoto-Flutter.exe;
+        return 302 https://github.com/lgustavoss/dx-connect/releases/download/acesso-remoto-windows-flutter/deskremote-cliente.exe;
     }
 
     # Setup DeskRudder (atendente) — link amigável /app/download.

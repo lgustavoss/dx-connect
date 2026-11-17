@@ -38,6 +38,7 @@ from app.api import (
     whatsapp_webhook,
     email_inbound_webhook,
     resend_inbound_webhook,
+    docuseal_webhook,
     respostas_prontas,
     pdv_catalogos,
     ticket_catalogos,
@@ -719,6 +720,7 @@ app.include_router(whatsapp_figurinhas.router, prefix=API_V1_PREFIX)
 app.include_router(whatsapp_webhook.router, prefix=API_V1_PREFIX)
 app.include_router(email_inbound_webhook.router, prefix=API_V1_PREFIX)
 app.include_router(resend_inbound_webhook.router, prefix=API_V1_PREFIX)
+app.include_router(docuseal_webhook.router, prefix=API_V1_PREFIX)
 app.include_router(respostas_prontas.router, prefix=API_V1_PREFIX)
 app.include_router(pdv_catalogos.router, prefix=API_V1_PREFIX)
 app.include_router(ticket_catalogos.router, prefix=API_V1_PREFIX)

@@ -4,7 +4,7 @@
 set -u
 
 OLD='acesso-remoto-windows/DeskRudder-AcessoRemoto.exe'
-NEW='acesso-remoto-windows-flutter/DeskRudder-AcessoRemoto-Flutter.exe'
+NEW='acesso-remoto-windows-flutter/deskremote-cliente.exe'
 
 atualizar() {
   local f="$1"

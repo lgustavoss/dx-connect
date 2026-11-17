@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import re
 import secrets
 from datetime import datetime, timedelta, timezone
 
@@ -31,9 +32,42 @@ MSG_SEM_ACESSO = "Cadastre um acesso DeskRemote neste PDV antes de gerar o link.
 MSG_SERVIDOR = "O servidor de acesso remoto desta instância ainda não está configurado."
 MSG_DISPOSITIVO = "Este computador não está vinculado. Instale de novo com um link novo."
 
+_APP_VERSION_RE = re.compile(r"^\d+\.\d+\.\d+$")
+_APP_UI_OK = frozenset({"flutter", "sciter"})
+
 
 def hash_token(raw: str) -> str:
     return hashlib.sha256(raw.strip().encode("utf-8")).hexdigest()
+
+
+def normalizar_app_version(raw: str | None) -> str | None:
+    if raw is None:
+        return None
+    s = str(raw).strip()[:32]
+    if not s or not _APP_VERSION_RE.fullmatch(s):
+        return None
+    return s
+
+
+def normalizar_app_ui(raw: str | None) -> str | None:
+    if raw is None:
+        return None
+    s = str(raw).strip().lower()[:16]
+    return s if s in _APP_UI_OK else None
+
+
+def aplicar_app_info(
+    dispositivo: DeskremoteDispositivo,
+    *,
+    app_version: str | None = None,
+    app_ui: str | None = None,
+) -> None:
+    ver = normalizar_app_version(app_version)
+    ui = normalizar_app_ui(app_ui)
+    if ver is not None:
+        dispositivo.app_version = ver
+    if ui is not None:
+        dispositivo.app_ui = ui
 
 
 def _agora() -> datetime:
@@ -270,7 +304,14 @@ def _gravar_id(db: Session, pdv: EmpresaPdv, acesso: EmpresaPdvAcessoRemoto, rus
     return chave
 
 
-def resgatar(db: Session, raw_token: str, rustdesk_id: str | None) -> dict:
+def resgatar(
+    db: Session,
+    raw_token: str,
+    rustdesk_id: str | None,
+    *,
+    app_version: str | None = None,
+    app_ui: str | None = None,
+) -> dict:
     token = _token_aberto(db, raw_token)
     pdv = (
         db.query(EmpresaPdv)
@@ -301,6 +342,7 @@ def resgatar(db: Session, raw_token: str, rustdesk_id: str | None) -> dict:
         id_gravado = _gravar_id(db, pdv, acesso, rustdesk_id)
         dispositivo.rustdesk_id = id_gravado
         marcar_visto_enroll(db, id_gravado, dispositivo.last_seen_at)
+    aplicar_app_info(dispositivo, app_version=app_version, app_ui=app_ui)
     db.add(dispositivo)
     token.used_at = _agora()
     registrar_audit(
@@ -309,7 +351,11 @@ def resgatar(db: Session, raw_token: str, rustdesk_id: str | None) -> dict:
         pdv.id,
         "deskremote_enroll",
         None,
-        payload={"acesso_id": acesso.id, "com_id": bool(id_gravado)},
+        payload={
+            "acesso_id": acesso.id,
+            "com_id": bool(id_gravado),
+            "app_version": dispositivo.app_version,
+        },
     )
     db.commit()
     return {
@@ -339,7 +385,14 @@ def _dispositivo_ativo(db: Session, raw: str) -> DeskremoteDispositivo:
     return row
 
 
-def confirmar_id(db: Session, raw_device: str, rustdesk_id: str) -> dict:
+def confirmar_id(
+    db: Session,
+    raw_device: str,
+    rustdesk_id: str,
+    *,
+    app_version: str | None = None,
+    app_ui: str | None = None,
+) -> dict:
     dispositivo = _dispositivo_ativo(db, raw_device)
     pdv = (
         db.query(EmpresaPdv)
@@ -357,6 +410,7 @@ def confirmar_id(db: Session, raw_device: str, rustdesk_id: str) -> dict:
     chave = _gravar_id(db, pdv, acesso, rustdesk_id)
     dispositivo.rustdesk_id = chave
     dispositivo.last_seen_at = _agora()
+    aplicar_app_info(dispositivo, app_version=app_version, app_ui=app_ui)
     marcar_visto_enroll(db, chave, dispositivo.last_seen_at)
     registrar_audit(
         db,
@@ -364,13 +418,19 @@ def confirmar_id(db: Session, raw_device: str, rustdesk_id: str) -> dict:
         pdv.id,
         "deskremote_id",
         None,
-        payload={"acesso_id": acesso.id},
+        payload={"acesso_id": acesso.id, "app_version": dispositivo.app_version},
     )
     db.commit()
     return {"rustdesk_id": chave, "rotulo": _rotulo_pdv(pdv), "pdv_id": pdv.id}
 
 
-def sync_config(db: Session, raw_device: str) -> dict:
+def sync_config(
+    db: Session,
+    raw_device: str,
+    *,
+    app_version: str | None = None,
+    app_ui: str | None = None,
+) -> dict:
     dispositivo = _dispositivo_ativo(db, raw_device)
     pdv = (
         db.query(EmpresaPdv)
@@ -399,6 +459,7 @@ def sync_config(db: Session, raw_device: str) -> dict:
             payload={"acesso_id": acesso.id, "senha_versao": versao},
         )
     dispositivo.last_seen_at = _agora()
+    aplicar_app_info(dispositivo, app_version=app_version, app_ui=app_ui)
     if dispositivo.rustdesk_id:
         marcar_visto_enroll(db, dispositivo.rustdesk_id, dispositivo.last_seen_at)
     db.commit()
