@@ -21,17 +21,36 @@ import { VoltarButton } from '../components/ui/VoltarButton'
 type Tipo = 'socio' | 'supervisor' | 'colaborador'
 type Escopo = FuncionariosRede.EscopoEmpresas
 
-function redePadraoRecente(list: Redes.Rede[]) {
+function redePadraoRecente(list: Redes.Rede[]): number | null {
   const sorted = [...list].sort((a, b) => (Date.parse(b.created_at ?? '') || 0) - (Date.parse(a.created_at ?? '') || 0))
-  return sorted[0]?.id ?? ''
+  return sorted[0]?.id ?? null
 }
 
 function tituloEscopoEmpresas(aberto: boolean, escopo: Escopo, selecionadas: number) {
   if (aberto) return 'Escopo de empresas'
-  if (escopo === 'all') return 'Escopo de empresas · todas da rede'
+  if (escopo === 'all') return 'Escopo de empresas · todas das redes'
   if (selecionadas <= 0) return 'Escopo de empresas'
   if (selecionadas === 1) return 'Escopo de empresas · 1 selecionada'
   return `Escopo de empresas · ${selecionadas} selecionadas`
+}
+
+/** #1407: redes do contato — usa o vínculo N:N e, sem ele, cai no legado rede_id/empresa. */
+function redesDoItem(item: FuncionariosRede.Funcionario, empresasList: Empresas.Empresa[]): number[] {
+  const vinculadas = (item.redes ?? []).map((r) => r.id)
+  if (vinculadas.length) return vinculadas
+  const atuais: number[] = []
+  if (item.rede_id) atuais.push(item.rede_id)
+  if (item.tipo === 'colaborador' && item.empresa_id) {
+    const em = empresasList.find((e) => e.id === item.empresa_id)
+    if (em) atuais.push(em.rede_id)
+  }
+  if (item.tipo === 'supervisor' && item.empresa_ids?.length) {
+    for (const empresaId of item.empresa_ids) {
+      const em = empresasList.find((e) => e.id === empresaId)
+      if (em) atuais.push(em.rede_id)
+    }
+  }
+  return [...new Set(atuais)]
 }
 
 function tituloDadosFuncionario(aberto: boolean, nome: string) {
@@ -47,6 +66,8 @@ export function FuncionarioRedeForm() {
   const toast = useToast()
   const voltarAnterior = useVoltarAnterior('/funcionarios-rede')
   const topoRef = useRef<HTMLDivElement>(null)
+  /** #1407: não repor a rede padrão depois que o usuário mexeu na seleção. */
+  const redeTocadaRef = useRef(false)
 
   const funcionarioId = id ? parseInt(id, 10) : NaN
   const isEdit = id != null
@@ -67,7 +88,7 @@ export function FuncionarioRedeForm() {
   const [escopoAberto, setEscopoAberto] = useState(true)
   const [dadosAberto, setDadosAberto] = useState(true)
   const [ativo, setAtivo] = useState(true)
-  const [redeId, setRedeId] = useState<number | ''>('')
+  const [redeIds, setRedeIds] = useState<number[]>([])
   const [empresaId, setEmpresaId] = useState<number | ''>('')
   const [empresaIds, setEmpresaIds] = useState<number[]>([])
   const [senhaPortal, setSenhaPortal] = useState('')
@@ -86,17 +107,18 @@ export function FuncionarioRedeForm() {
   }, [])
 
   useEffect(() => {
-    if (isEdit) return
-    if (redeId !== '' || redesList.length === 0) return
-    setRedeId(redePadraoRecente(redesList))
-  }, [isEdit, redeId, redesList])
+    if (isEdit || redeTocadaRef.current) return
+    if (redeIds.length > 0 || redesList.length === 0) return
+    const padrao = redePadraoRecente(redesList)
+    if (padrao != null) setRedeIds([padrao])
+  }, [isEdit, redeIds, redesList])
 
   useEffect(() => {
     if (isEdit) return
     const em = searchParams.get('email')?.trim()
     if (em) setEmail(em)
     const rid = searchParams.get('rede_id')
-    if (rid && !Number.isNaN(Number(rid))) setRedeId(Number(rid))
+    if (rid && !Number.isNaN(Number(rid))) setRedeIds([Number(rid)])
     const eid = searchParams.get('empresa_id')
     if (eid && !Number.isNaN(Number(eid))) {
       const n = Number(eid)
@@ -127,16 +149,7 @@ export function FuncionarioRedeForm() {
         setTipo(item.tipo as Tipo)
         setEscopoEmpresas((item.escopo_empresas as Escopo) || (item.tipo === 'socio' ? 'all' : 'selected'))
         setAtivo(item.ativo)
-        let r = item.rede_id ?? ('' as number | '')
-        if (r === '' && item.tipo === 'colaborador' && item.empresa_id) {
-          const em = empresasList.find((e) => e.id === item.empresa_id)
-          if (em) r = em.rede_id
-        }
-        if (r === '' && item.tipo === 'supervisor' && item.empresa_ids?.length) {
-          const em = empresasList.find((e) => e.id === item.empresa_ids![0])
-          if (em) r = em.rede_id
-        }
-        setRedeId(r)
+        setRedeIds(redesDoItem(item, empresasList))
         setEmpresaId(item.empresa_id ?? '')
         setEmpresaIds(item.empresa_ids ?? [])
         setPortalHabilitado(Boolean(item.portal_habilitado))
@@ -177,23 +190,47 @@ export function FuncionarioRedeForm() {
     }
   }, [loading, id])
 
-  const empresasDaRede = useMemo(
-    () => empresasList.filter((em) => em.rede_id === Number(redeId) && (em.ativo || em.id === empresaId || empresaIds.includes(em.id))),
-    [empresasList, redeId, empresaId, empresaIds],
+  /** #1407: empresas da união das redes escolhidas (todas quando nenhuma rede marcada). */
+  const empresasDasRedes = useMemo(
+    () =>
+      empresasList.filter(
+        (em) =>
+          (redeIds.length === 0 || redeIds.includes(em.rede_id)) &&
+          (em.ativo || em.id === empresaId || empresaIds.includes(em.id)),
+      ),
+    [empresasList, redeIds, empresaId, empresaIds],
   )
+
+  const redesSelecionaveis = useMemo(() => {
+    const lista = redesList.filter((r) => r.ativo || redeIds.includes(r.id))
+    return [...lista].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+  }, [redesList, redeIds])
 
   function toggleEmpresa(id: number) {
     setEmpresaIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
   }
 
+  /** #1407: marcar/desmarcar rede e descartar empresas que deixaram de pertencer à união. */
+  function toggleRede(id: number) {
+    redeTocadaRef.current = true
+    const next = redeIds.includes(id) ? redeIds.filter((x) => x !== id) : [...redeIds, id]
+    setRedeIds(next)
+    const permitidas = new Set(
+      empresasList.filter((em) => next.length === 0 || next.includes(em.rede_id)).map((em) => em.id),
+    )
+    setEmpresaIds((prev) => prev.filter((x) => permitidas.has(x)))
+    setEmpresaId((prev) => (prev !== '' && !permitidas.has(Number(prev)) ? '' : prev))
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!redeId) {
-      toast.showWarning('Selecione a rede.')
+    if (redeIds.length === 0) {
+      toast.showWarning('Selecione ao menos uma rede.')
       return
     }
-    const rid = Number(redeId)
-    const empresasNaRede = empresasList.filter((em) => em.rede_id === rid)
+    const permitidas = new Set(
+      empresasList.filter((em) => redeIds.includes(em.rede_id)).map((em) => em.id),
+    )
     const escopo = escopoEmpresas
     let ids = [...empresaIds]
     if (escopo === 'selected') {
@@ -201,12 +238,12 @@ export function FuncionarioRedeForm() {
         ids = [Number(empresaId)]
       }
       if (!ids.length) {
-        toast.showWarning('Marque ao menos uma empresa da rede ou escolha «Todas as empresas».')
+        toast.showWarning('Marque ao menos uma empresa das redes escolhidas ou escolha «Todas as empresas».')
         return
       }
-      const invalid = ids.some((id) => !empresasNaRede.some((e) => e.id === id))
+      const invalid = ids.some((id) => !permitidas.has(id))
       if (invalid) {
-        toast.showWarning('Todas as empresas selecionadas devem pertencer à rede escolhida.')
+        toast.showWarning('Todas as empresas selecionadas devem pertencer a uma das redes escolhidas.')
         return
       }
     }
@@ -222,7 +259,8 @@ export function FuncionarioRedeForm() {
           tipo,
           escopo_empresas: escopo,
           ativo,
-          rede_id: rid,
+          rede_id: redeIds[0],
+          rede_ids: redeIds,
           empresa_id: escopo === 'selected' && tipo === 'colaborador' && ids.length === 1 ? ids[0] : undefined,
           empresa_ids: escopo === 'selected' ? ids : [],
           notificar_email_portal: notificarEmailPortal,
@@ -239,7 +277,8 @@ export function FuncionarioRedeForm() {
           tipo,
           escopo_empresas: escopo,
           ativo,
-          rede_id: rid,
+          rede_id: redeIds[0],
+          rede_ids: redeIds,
           empresa_id: escopo === 'selected' && tipo === 'colaborador' && ids.length === 1 ? ids[0] : undefined,
           empresa_ids: escopo === 'selected' ? ids : [],
           must_change_password: mustChangePassword,
@@ -331,7 +370,10 @@ export function FuncionarioRedeForm() {
                   setEmpresaId('')
                   setEmpresaIds([])
                   if (t === 'socio') setEscopoEmpresas('all')
-                  if (t === 'socio' && !redeId) setRedeId(redePadraoRecente(redesList))
+                  if (t === 'socio' && redeIds.length === 0) {
+                    const padrao = redePadraoRecente(redesList)
+                    if (padrao != null) setRedeIds([padrao])
+                  }
                 }}
                 options={[
                   { value: 'socio', label: 'Sócio' },
@@ -339,19 +381,30 @@ export function FuncionarioRedeForm() {
                   { value: 'colaborador', label: 'Colaborador' },
                 ]}
               />
-              <SelectComPesquisa
-                id="funcionario-rede-form"
-                label="Rede"
-                value={redeId}
-                onChange={(id) => {
-                  setRedeId(id)
-                  setEmpresaId('')
-                  setEmpresaIds([])
-                }}
-                required
-                items={redesList.map((r) => ({ id: r.id, label: r.nome, createdAt: r.created_at }))}
-                hint="Últimas redes cadastradas. Digite para buscar outras."
-              />
+              <div>
+                <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Redes</p>
+                <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
+                  O contato pode ficar vinculado a mais de uma rede. As empresas abaixo vêm da união das redes
+                  escolhidas.
+                </p>
+                {redesSelecionaveis.length === 0 ? (
+                  <p className="text-sm text-slate-500 dark:text-slate-400">Nenhuma rede cadastrada.</p>
+                ) : (
+                  <CheckboxOptionList>
+                    {redesSelecionaveis.map((r) => (
+                      <CheckboxField
+                        key={r.id}
+                        variant="inline"
+                        checked={redeIds.includes(r.id)}
+                        onChange={() => toggleRede(r.id)}
+                      >
+                        {r.nome}
+                        {r.ativo ? null : ' (inativa)'}
+                      </CheckboxField>
+                    ))}
+                  </CheckboxOptionList>
+                )}
+              </div>
             </FormSection>
 
             <FormSection
@@ -395,29 +448,37 @@ export function FuncionarioRedeForm() {
                   {tipo === 'colaborador' ? (
                     <SelectComPesquisa
                       id="funcionario-empresa-form"
-                      label="Empresa desta rede"
+                      label="Empresa"
                       value={empresaId}
                       onChange={(id) => {
                         setEmpresaId(id)
                         setEmpresaIds(id ? [id] : [])
                       }}
                       required
-                      disabled={!redeId}
-                      items={empresasDaRede.map((x) => ({ id: x.id, label: x.nome, createdAt: x.created_at }))}
-                      hint={!redeId ? 'Selecione a rede primeiro.' : 'Últimas empresas desta rede. Digite para buscar.'}
+                      disabled={redeIds.length === 0}
+                      items={empresasDasRedes.map((x) => ({ id: x.id, label: x.nome, createdAt: x.created_at }))}
+                      hint={
+                        redeIds.length === 0
+                          ? 'Selecione ao menos uma rede primeiro.'
+                          : 'Últimas empresas das redes escolhidas. Digite para buscar.'
+                      }
                     />
                   ) : (
                     <>
                       <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">
-                        Empresas desta rede
+                        Empresas das redes escolhidas
                       </label>
-                      {!redeId ? (
-                        <p className="text-sm text-slate-500 dark:text-slate-400">Selecione a rede primeiro.</p>
-                      ) : empresasDaRede.length === 0 ? (
-                        <p className="text-sm text-slate-500 dark:text-slate-400">Nenhuma empresa ativa nesta rede.</p>
+                      {redeIds.length === 0 ? (
+                        <p className="text-sm text-slate-500 dark:text-slate-400">
+                          Selecione ao menos uma rede primeiro.
+                        </p>
+                      ) : empresasDasRedes.length === 0 ? (
+                        <p className="text-sm text-slate-500 dark:text-slate-400">
+                          Nenhuma empresa ativa nas redes escolhidas.
+                        </p>
                       ) : (
                         <CheckboxOptionList>
-                          {[...empresasDaRede]
+                          {[...empresasDasRedes]
                             .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
                             .map((e) => (
                               <CheckboxField

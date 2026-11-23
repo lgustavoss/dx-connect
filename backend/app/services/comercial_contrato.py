@@ -8,6 +8,7 @@ import html
 from datetime import date, datetime, timezone
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException
 from sqlalchemy import func
@@ -21,6 +22,8 @@ from app.models.comercial_contrato import (
     CONTRATO_RASCUNHO,
     FIDELIDADE_MESES_PADRAO,
     MULTA_MAX_MENSALIDADES_PADRAO,
+    SETUP_MOMENTO_DATA_COMBINADA,
+    SETUP_MOMENTO_OPCOES,
     Contrato,
     ContratoPdf,
     ContratoPolitica,
@@ -41,6 +44,14 @@ from app.services.permissao_grupos import tem_permissao
 from app.services import comercial_proposta as proposta_svc
 from app.services import crm as crm_svc
 from app.services.ticket_anexo_storage import caminho_absoluto_arquivo, gravar_bytes_em_disco, validar_upload
+
+_TZ_SP = ZoneInfo("America/Sao_Paulo")
+
+
+def _hoje() -> date:
+    """Data de hoje no fuso da instância — evita virada UTC nos marcos do contrato."""
+    return datetime.now(_TZ_SP).date()
+
 
 TEMPLATE_PADRAO_HTML = """<!DOCTYPE html>
 <html lang="pt-BR">
@@ -700,6 +711,44 @@ def listar_contratos(
     return q.order_by(Contrato.created_at.desc()).all()
 
 
+def _ref_vigencia(row: Contrato) -> tuple[float, int]:
+    momento = row.assinado_em or row.created_at
+    if momento is None:
+        return (0.0, row.id)
+    if momento.tzinfo is None:
+        momento = momento.replace(tzinfo=timezone.utc)
+    return (momento.timestamp(), row.id)
+
+
+def marcar_vigentes(db: Session, payloads: list[dict]) -> None:
+    """Diz qual contrato de cada linha é o vigente (#1322).
+
+    Aditivo é um contrato novo na mesma linha; o assinado mais recente é o
+    vigente e os anteriores ficam como histórico consultável.
+    """
+    linhas = {p.get("negociacao_linha_cnpj_id") for p in payloads if p.get("negociacao_linha_cnpj_id")}
+    if not linhas:
+        for p in payloads:
+            p["vigente"] = False
+        return
+    rows = (
+        db.query(Contrato)
+        .filter(
+            Contrato.negociacao_linha_cnpj_id.in_(linhas),
+            Contrato.status == CONTRATO_ASSINADO,
+        )
+        .all()
+    )
+    melhores: dict[int, Contrato] = {}
+    for r in rows:
+        atual = melhores.get(r.negociacao_linha_cnpj_id)
+        if atual is None or _ref_vigencia(r) > _ref_vigencia(atual):
+            melhores[r.negociacao_linha_cnpj_id] = r
+    for p in payloads:
+        vig = melhores.get(p.get("negociacao_linha_cnpj_id"))
+        p["vigente"] = bool(vig is not None and vig.id == p["id"])
+
+
 def _p(texto: str) -> str:
     return f"<p>{texto}</p>"
 
@@ -1042,7 +1091,7 @@ def _montar_snapshots(
 
 
 def _aplicar_campos_geracao(row: Contrato, data: ContratoGerarIn, snaps: dict[str, Any], tmpl: ContratoTemplate) -> None:
-    inicio = data.data_inicio or date.today()
+    inicio = data.data_inicio or _hoje()
     meses = int(data.fidelidade_meses or FIDELIDADE_MESES_PADRAO)
     row.template_id = tmpl.id
     row.valor_mensalidade = snaps["valor_mensalidade"]
@@ -1065,8 +1114,13 @@ def _aplicar_campos_geracao(row: Contrato, data: ContratoGerarIn, snaps: dict[st
     row.reajuste_rotulo = snaps["reajuste_rotulo"]
 
 
-def _descartar_pdf_assinado(row: Contrato) -> None:
-    """A correção invalida o anexo assinado da versão anterior."""
+def _descartar_pdf_assinado(
+    db: Session,
+    row: Contrato,
+    *,
+    ator_id: int | None = None,
+) -> None:
+    """Invalida o anexo assinado e apaga evidências da assinatura eletrônica (#1380)."""
     key = (row.pdf_assinado_storage_key or "").strip()
     if key:
         path = caminho_absoluto_arquivo(key)
@@ -1075,6 +1129,12 @@ def _descartar_pdf_assinado(row: Contrato) -> None:
     row.pdf_assinado_storage_key = None
     row.pdf_assinado_nome_original = None
     row.referencia_externa = None
+    from app.services import contrato_assinatura as assinatura_svc
+
+    ativo = assinatura_svc.envelope_ativo(db, row.id)
+    if ativo is not None:
+        assinatura_svc._cancelar_ativo(db, ativo, motivo="descarte do PDF assinado")  # noqa: SLF001
+    assinatura_svc.limpar_evidencias_contrato(db, row.id, ator_id=ator_id)
 
 
 def _gravar_pdf_versao(db: Session, contrato: Contrato, html_doc: str, ator: Atendente) -> ContratoPdf:
@@ -1116,10 +1176,10 @@ def gerar_contrato(db: Session, data: ContratoGerarIn, ator: Atendente) -> Contr
         if voltou_de_envio:
             row.status = CONTRATO_RASCUNHO
             row.enviado_em = None
-            _descartar_pdf_assinado(row)
+            _descartar_pdf_assinado(db, row, ator_id=ator.id)
             texto_ativ = f"Contrato #{row.id} corrigido e voltou para rascunho."
         else:
-            _descartar_pdf_assinado(row)
+            _descartar_pdf_assinado(db, row, ator_id=ator.id)
             texto_ativ = f"Contrato #{row.id} regenerado (rascunho)."
     else:
         row = Contrato(
@@ -1207,6 +1267,10 @@ def marcar_assinado(db: Session, row: Contrato, data: ContratoMarcarAssinadoIn, 
         row.referencia_externa = data.referencia_externa.strip() or None
     row.status = CONTRATO_ASSINADO
     row.assinado_em = data.assinado_em or datetime.now(timezone.utc)
+    # «Marcar enviado» deixou de ser passo obrigatório: se ninguém registrou o
+    # envio antes, a assinatura (envelope) é o fato derivado (#1322).
+    if row.enviado_em is None:
+        row.enviado_em = row.assinado_em
     linha = row.linha or obter_linha(db, row.negociacao_linha_cnpj_id)
     converter_pos_assinatura(db, row, linha, ator)
     if data.abrir_ticket_implantacao:
@@ -1221,19 +1285,74 @@ def marcar_assinado(db: Session, row: Contrato, data: ContratoMarcarAssinadoIn, 
             texto=f"Contrato #{row.id} marcado como assinado (registro manual).",
         )
     )
-    if data.avancar_funil:
-        neg = crm_svc.obter_negociacao(db, linha.negociacao_id)
-        atual = crm_svc.obter_estagio(db, estagio_id=neg.estagio_id)
-        if atual.slug != "contrato_assinado":
-            crm_svc.mover_estagio(
-                db,
-                neg,
-                ator=ator,
-                estagio_slug="contrato_assinado",
-                nota="Contrato assinado (registro manual).",
-            )
+    # Assinar move o funil sempre — o opt-in virou ruído e deixava o Kanban mentir (#1322).
+    # Se o ticket de implantação já foi aberto, o cartão já está em «Implantação» (#1323):
+    # não regride o estágio.
+    neg = crm_svc.obter_negociacao(db, linha.negociacao_id)
+    atual = crm_svc.obter_estagio(db, estagio_id=neg.estagio_id)
+    destino = crm_svc.obter_estagio(db, slug="contrato_assinado")
+    if atual.ordem < destino.ordem:
+        crm_svc.mover_estagio(
+            db,
+            neg,
+            ator=ator,
+            estagio_slug="contrato_assinado",
+            nota="Contrato assinado (registro manual).",
+        )
+    # Taxa de implantação com momento «assinatura» nasce como título agora (#1342).
+    from app.services import faturamento as faturamento_svc
+
+    faturamento_svc.garantir_titulo_setup(db, row)
     db.flush()
     return obter_contrato(db, row.id)
+
+
+def atualizar_cobranca(db: Session, row: Contrato, data, ator: Atendente) -> Contrato:
+    """Data manual da primeira venda e overrides de cobrança da negociação (#1340).
+
+    Grava o autor e o momento do marco (auditoria), além do AuditLog da rota.
+    """
+    payload = data.model_dump(exclude_unset=True)
+    if "primeira_venda_pdv" in payload:
+        valor = payload["primeira_venda_pdv"]
+        if valor is not None:
+            if valor > _hoje():
+                raise HTTPException(
+                    status_code=400,
+                    detail="A primeira venda no PDV não pode estar no futuro.",
+                )
+            row.primeira_venda_pdv = valor
+            row.primeira_venda_pdv_por_id = ator.id
+            row.primeira_venda_pdv_em = datetime.now(timezone.utc)
+        else:
+            row.primeira_venda_pdv = None
+            row.primeira_venda_pdv_por_id = None
+            row.primeira_venda_pdv_em = None
+    if "dia_vencimento_override" in payload:
+        valor = payload["dia_vencimento_override"]
+        if valor is not None and not (1 <= int(valor) <= 28):
+            raise HTTPException(status_code=400, detail="Dia de vencimento deve ficar entre 1 e 28.")
+        row.dia_vencimento_override = int(valor) if valor is not None else None
+    if "inicio_mensalidade_override" in payload:
+        row.inicio_mensalidade_override = payload["inicio_mensalidade_override"]
+    if "setup_momento" in payload:
+        momento = (payload["setup_momento"] or "").strip() or None
+        if momento is not None and momento not in SETUP_MOMENTO_OPCOES:
+            raise HTTPException(status_code=400, detail="Momento da taxa de implantação inválido.")
+        row.setup_momento = momento
+    if "setup_data_combinada" in payload:
+        row.setup_data_combinada = payload["setup_data_combinada"]
+    if row.setup_momento == SETUP_MOMENTO_DATA_COMBINADA and row.setup_data_combinada is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Informe a data combinada para a taxa de implantação.",
+        )
+    db.flush()
+    from app.services import faturamento as faturamento_svc
+
+    faturamento_svc.garantir_titulo_setup(db, row)
+    db.flush()
+    return row
 
 
 def cancelar_contrato(db: Session, row: Contrato, ator: Atendente) -> Contrato:
@@ -1250,23 +1369,43 @@ def cancelar_contrato(db: Session, row: Contrato, ator: Atendente) -> Contrato:
     row.status = CONTRATO_CANCELADO
     linha = row.linha or obter_linha(db, row.negociacao_linha_cnpj_id)
 
+    canceladas: dict[str, int] | None = None
+    titulo_multa = None
+    if era_assinado:
+        # Rescisão não deixa fatura/título do mês em aberto (#1324). A multa nasce
+        # **depois** desta limpeza para não ser cancelada junto (#1386).
+        from app.services import faturamento as faturamento_svc
+
+        canceladas = faturamento_svc.cancelar_pendencias_do_contrato(db, row)
+        row.pendencias_cobranca_canceladas = canceladas  # lido pela API para auditoria
+        if estimativa is not None:
+            titulo_multa = faturamento_svc.garantir_titulo_multa(db, row, estimativa)
+
     if era_assinado and estimativa is not None:
         if estimativa["aplicavel"] and estimativa["valor_estimado"] is not None:
-            texto = (
-                f"Contrato #{row.id} rescindido. Estimativa de multa: "
-                f"{estimativa['mensalidades_estimadas']} mensalidade(s) = "
-                f"{proposta_svc._money_br(estimativa['valor_estimado'])} "
-                f"(ajuda operacional; não é cobrança)."
-            )
+            valor_mult = proposta_svc._money_br(estimativa["valor_estimado"])
+            if titulo_multa is not None:
+                texto = (
+                    f"Contrato #{row.id} rescindido. Multa de rescisão: "
+                    f"{estimativa['mensalidades_estimadas']} mensalidade(s) = {valor_mult} — "
+                    f"título a receber #{titulo_multa.id} criado (tipo multa, "
+                    f"vencimento {titulo_multa.vencimento.strftime('%d/%m/%Y')})."
+                )
+            else:
+                texto = (
+                    f"Contrato #{row.id} rescindido. Multa de rescisão: "
+                    f"{estimativa['mensalidades_estimadas']} mensalidade(s) = {valor_mult} — "
+                    "título de multa já existia no A receber (não duplicado)."
+                )
         elif estimativa["dentro_fidelidade"] and estimativa["multa_max_mensalidades"] <= 0:
             texto = (
                 f"Contrato #{row.id} rescindido dentro da fidelidade; "
-                "teto de multa é 0 — sem estimativa."
+                "teto de multa é 0 — sem título de multa."
             )
         else:
             texto = (
                 f"Contrato #{row.id} rescindido fora do período de fidelidade "
-                "(ou sem meses restantes) — sem estimativa de multa."
+                "(ou sem meses restantes) — sem título de multa."
             )
     else:
         texto = f"Contrato #{row.id} cancelado."
@@ -1280,6 +1419,21 @@ def cancelar_contrato(db: Session, row: Contrato, ator: Atendente) -> Contrato:
         )
     )
     db.flush()
+    if canceladas is not None and (
+        canceladas["faturas_canceladas"] or canceladas["titulos_cancelados"]
+    ):
+        db.add(
+            CrmNegociacaoAtividade(
+                negociacao_id=linha.negociacao_id,
+                autor_id=ator.id,
+                tipo=ATIVIDADE_DOCUMENTO,
+                texto=(
+                    f"Contrato #{row.id}: {canceladas['faturas_canceladas']} fatura(s) e "
+                    f"{canceladas['titulos_cancelados']} título(s) em aberto cancelados na cobrança."
+                ),
+            )
+        )
+        db.flush()
     return row
 
 
@@ -1302,7 +1456,7 @@ def estimar_multa_rescisao(row: Contrato, *, hoje: date | None = None) -> dict[s
     Ajuda operacional: min(meses_restantes, multa_max) × mensalidade.
     Só aplicável dentro da fidelidade e com teto > 0.
     """
-    ref = hoje or date.today()
+    ref = hoje or _hoje()
     fim = row.data_fim_fidelidade
     max_m = int(row.multa_max_mensalidades or 0)
     valor = Decimal(str(row.valor_mensalidade or 0)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
@@ -1345,7 +1499,18 @@ def _interno_read(row: Contrato, linha: CrmNegociacaoCnpjLinha | None) -> dict[s
     }
 
 
-def contrato_para_read(row: Contrato, *, incluir_html: bool = False) -> dict[str, Any]:
+def contrato_para_read(
+    row: Contrato,
+    *,
+    incluir_html: bool = False,
+    titulo_multa: dict | None = None,
+    consultar_titulo_multa: bool = True,
+) -> dict[str, Any]:
+    """Payload do contrato.
+
+    Nas listagens, o chamador passa `titulo_multa` já resolvido em lote com
+    `consultar_titulo_multa=False` para não fazer uma query por contrato (#1386).
+    """
     tmpl = row.template
     linha = row.linha
     neg = linha.negociacao if linha else None
@@ -1353,7 +1518,7 @@ def contrato_para_read(row: Contrato, *, incluir_html: bool = False) -> dict[str
     atual = pdfs[-1] if pdfs else None
     dias: int | None = None
     if row.data_fim_fidelidade:
-        dias = (row.data_fim_fidelidade - date.today()).days
+        dias = (row.data_fim_fidelidade - _hoje()).days
     snap_com = row.snapshot_comercial if isinstance(row.snapshot_comercial, dict) else {}
     versao_snapshot = snap_com.get("template_versao")
     try:
@@ -1373,6 +1538,29 @@ def contrato_para_read(row: Contrato, *, incluir_html: bool = False) -> dict[str
         from app.models.ticket import Ticket
 
         ticket_impl = sess.query(Ticket).filter(Ticket.contrato_id == row.id).first()
+    inicio_mensalidade_efetivo = None
+    dia_vencimento_efetivo = None
+    aguardando_motivo = None
+    if sess is not None:
+        from app.services import faturamento as faturamento_svc
+
+        pol = faturamento_svc.garantir_politica(sess)
+        inicio_mensalidade_efetivo, aguardando_motivo = faturamento_svc.inicio_da_mensalidade(
+            sess, row, politica=pol
+        )
+        dia_vencimento_efetivo = faturamento_svc.dia_vencimento_do_contrato(sess, row, politica=pol)
+        if consultar_titulo_multa:
+            titulo_multa = faturamento_svc.titulo_multa_do_contrato(sess, row.id)
+    assinatura_payload = None
+    assinatura_modo = None
+    if sess is not None:
+        from app.services import contrato_assinatura as assinatura_svc
+
+        assinatura_svc.sincronizar_expiracao(sess, row.id)
+        env = assinatura_svc.envelope_ativo(sess, row.id) or assinatura_svc.ultima_assinatura(sess, row.id)
+        if env is not None:
+            assinatura_payload = assinatura_svc.to_read(env)
+            assinatura_modo = env.provedor
     return {
         "id": row.id,
         "negociacao_linha_cnpj_id": row.negociacao_linha_cnpj_id,
@@ -1391,6 +1579,17 @@ def contrato_para_read(row: Contrato, *, incluir_html: bool = False) -> dict[str
         "fidelidade_meses": row.fidelidade_meses,
         "setup_valor": row.setup_valor,
         "setup_isento": row.setup_isento,
+        "primeira_venda_pdv": row.primeira_venda_pdv,
+        "primeira_venda_pdv_por_id": row.primeira_venda_pdv_por_id,
+        "primeira_venda_pdv_por_nome": row.primeira_venda_pdv_por.nome if row.primeira_venda_pdv_por else None,
+        "primeira_venda_pdv_em": row.primeira_venda_pdv_em,
+        "setup_momento": row.setup_momento,
+        "setup_data_combinada": row.setup_data_combinada,
+        "dia_vencimento_override": row.dia_vencimento_override,
+        "inicio_mensalidade_override": row.inicio_mensalidade_override,
+        "dia_vencimento_efetivo": dia_vencimento_efetivo,
+        "inicio_mensalidade_efetivo": inicio_mensalidade_efetivo,
+        "aguardando_motivo": aguardando_motivo,
         "deslocamento_cliente": row.deslocamento_cliente,
         "alimentacao_cliente": row.alimentacao_cliente,
         "hospedagem_cliente": row.hospedagem_cliente,
@@ -1422,9 +1621,13 @@ def contrato_para_read(row: Contrato, *, incluir_html: bool = False) -> dict[str
         "conteudo_html_snapshot": atual.conteudo_html_snapshot if incluir_html and atual else None,
         "dias_restantes_fidelidade": dias,
         "multa_rescisao": estimar_multa_rescisao(row),
+        # Título a receber da multa, quando a rescisão já o criou (#1386).
+        "titulo_multa": titulo_multa,
         "interno": _interno_read(row, linha),
         "implantacao_ticket_id": ticket_impl.id if ticket_impl else None,
         "implantacao_ticket_protocolo": ticket_impl.protocolo if ticket_impl else None,
+        "assinatura": assinatura_payload,
+        "assinatura_modo": assinatura_modo,
     }
 
 
@@ -1465,8 +1668,19 @@ def anexar_pdf_assinado(
             negociacao_id=linha.negociacao_id,
             autor_id=ator.id,
             tipo=ATIVIDADE_DOCUMENTO,
-            texto=f"PDF assinado anexado ao contrato #{row.id}.",
+            texto=f"PDF assinado anexado ao contrato #{row.id} (assinatura externa).",
         )
+    )
+    # Fluxo B (#1380): registra envelope «externo» com hash do PDF.
+    from app.services import contrato_assinatura as assinatura_svc
+    from app.services.contrato_assinatura_storage import sha256_bytes
+
+    assinatura_svc.registrar_anexo_externo(
+        db,
+        row,
+        pdf_path=key,
+        pdf_sha256=sha256_bytes(conteudo),
+        ator=ator,
     )
     db.flush()
     return obter_contrato(db, row.id)

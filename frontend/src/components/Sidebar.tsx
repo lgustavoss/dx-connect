@@ -343,7 +343,7 @@ const navStructure: NavItem[] = [
     id: 'comercial',
     label: 'Comercial',
     icon: 'tiposNegocio',
-    extraActivePrefixes: ['/crm/'],
+    extraActivePrefixes: ['/crm/', '/operacao/'],
     children: [
       {
         to: '/crm/leads',
@@ -351,6 +351,13 @@ const navStructure: NavItem[] = [
         icon: 'tiposNegocio',
         permissao: 'crm.ver',
         activePrefix: '/crm/leads',
+      },
+      {
+        to: '/operacao/carteira',
+        label: 'Carteira',
+        icon: 'tiposNegocio',
+        permissao: 'crm.ver',
+        activePrefix: '/operacao/',
       },
       {
         to: '/crm/contratos',
@@ -414,6 +421,7 @@ const navStructure: NavItem[] = [
       { to: '/configuracoes/tickets', label: 'Tickets', icon: 'tickets', permissoesAlguma: permissoesDoPrefixo('tickets') },
       { to: '/configuracoes/canais', label: 'Canais', icon: 'chat', permissoesAlguma: permissoesDoPrefixo('canais') },
       { to: '/configuracoes/comercial', label: 'Comercial / CRM', icon: 'tiposNegocio', permissoesAlguma: permissoesDoPrefixo('comercial') },
+      { to: '/configuracoes/financeiro', label: 'Financeiro', icon: 'auditoria', permissoesAlguma: permissoesDoPrefixo('financeiro') },
       { to: '/configuracoes/empresa', label: 'Empresa', icon: 'empresas', permissoesAlguma: permissoesDoPrefixo('empresa') },
       { to: '/configuracoes/postos-pdv', label: 'PDV', icon: 'pdv', permissoesAlguma: permissoesDoPrefixo('postos-pdv') },
       { to: '/configuracoes/administracao', label: 'Administração', icon: 'configuracoes', permissoesAlguma: permissoesDoPrefixo('administracao') },

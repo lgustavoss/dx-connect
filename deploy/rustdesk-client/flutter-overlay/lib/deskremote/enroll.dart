@@ -261,6 +261,90 @@ Future<String> idLocalDeskRemote() async {
   return id.toString().trim();
 }
 
+/// Versão do instalador DeskRemote (DESKRUDDER_CLIENT_VERSION via get_version).
+Future<String?> versaoAppDeskRemote() async {
+  try {
+    final raw = (await bind.mainGetVersion()).toString().trim();
+    final m = RegExp(r'^(\d+\.\d+\.\d+)').firstMatch(raw);
+    return m?.group(1);
+  } catch (_) {
+    return null;
+  }
+}
+
+Map<String, dynamic> _payloadAppInfo([Map<String, dynamic>? base]) {
+  final out = <String, dynamic>{...?base, 'app_ui': 'flutter'};
+  return out;
+}
+
+Future<Map<String, dynamic>> _comAppInfo(Map<String, dynamic> body) async {
+  final ver = await versaoAppDeskRemote();
+  final out = _payloadAppInfo(body);
+  if (ver != null && ver.isNotEmpty) out['app_version'] = ver;
+  return out;
+}
+
+Uri _urlComAppInfo(
+  Uri uri, {
+  String? appVersion,
+  String? updateAck,
+  String? updateErro,
+}) {
+  final q = Map<String, String>.from(uri.queryParameters);
+  q['app_ui'] = 'flutter';
+  if (appVersion != null && appVersion.isNotEmpty) q['app_version'] = appVersion;
+  if (updateAck != null && updateAck.isNotEmpty) q['update_ack'] = updateAck;
+  if (updateErro != null && updateErro.isNotEmpty) q['update_erro'] = updateErro;
+  return uri.replace(queryParameters: q);
+}
+
+File _arquivoPendingUpdateDeskRemote() {
+  final public = Platform.environment['PUBLIC'] ?? r'C:\Users\Public';
+  return File('$public${Platform.pathSeparator}DeskRudder${Platform.pathSeparator}pending_update.txt');
+}
+
+Future<void> _ackUpdateDeskRemote(DispositivoDeskRemote atual, String ack, {String? erro}) async {
+  final appVer = await versaoAppDeskRemote();
+  await _httpJson(
+    uri: _urlComAppInfo(
+      _urlApi(atual.apiBase, '/deskremote/dispositivo/config'),
+      appVersion: appVer,
+      updateAck: ack,
+      updateErro: erro,
+    ),
+    method: 'GET',
+    bearer: atual.token,
+  );
+}
+
+/// Baixa o instalador e enfileira para o serviço Windows (`pending_update.txt`).
+Future<void> aplicarUpdateRemotoDeskRemote(String downloadUrl) async {
+  final url = downloadUrl.trim();
+  if (url.isEmpty || !url.toLowerCase().contains('.exe')) {
+    throw DeskRemoteEnrollErro('URL de atualização inválida.');
+  }
+  final public = Platform.environment['PUBLIC'] ?? r'C:\Users\Public';
+  final pasta = Directory('$public${Platform.pathSeparator}DeskRudder');
+  pasta.createSync(recursive: true);
+  final dest = File('${pasta.path}${Platform.pathSeparator}deskremote-cliente-update.exe');
+  final client = HttpClient();
+  client.connectionTimeout = const Duration(seconds: 30);
+  client.userAgent = 'DeskRemote/2.1.3';
+  try {
+    final req = await client.getUrl(Uri.parse(url));
+    final res = await req.close().timeout(const Duration(minutes: 5));
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      throw DeskRemoteEnrollErro('Não foi possível baixar a atualização (${res.statusCode}).');
+    }
+    final sink = dest.openWrite();
+    await res.pipe(sink);
+    await sink.close();
+    _arquivoPendingUpdateDeskRemote().writeAsStringSync('${dest.path}\n');
+  } finally {
+    client.close(force: true);
+  }
+}
+
 Future<DispositivoDeskRemote> resgatarInstalacaoDeskRemote(String bruto) async {
   final link = parseLinkInstalacaoDeskRemote(bruto);
   if (link == null) {
@@ -269,7 +353,7 @@ Future<DispositivoDeskRemote> resgatarInstalacaoDeskRemote(String bruto) async {
   final json = await _httpJson(
     uri: _urlApi(link.apiBase, '/deskremote/enroll'),
     method: 'POST',
-    body: {'token': link.token},
+    body: await _comAppInfo({'token': link.token}),
   );
   final deviceToken = (json['dispositivo_token'] ?? '').toString().trim();
   if (deviceToken.isEmpty) {
@@ -294,7 +378,7 @@ Future<DispositivoDeskRemote> resgatarInstalacaoDeskRemote(String bruto) async {
     final conf = await _httpJson(
       uri: _urlApi(link.apiBase, '/deskremote/dispositivo/id'),
       method: 'POST',
-      body: {'rustdesk_id': rustdeskId},
+      body: await _comAppInfo({'rustdesk_id': rustdeskId}),
       bearer: deviceToken,
     );
     rustdeskId = (conf['rustdesk_id'] ?? rustdeskId).toString();
@@ -313,8 +397,9 @@ Future<DispositivoDeskRemote> resgatarInstalacaoDeskRemote(String bruto) async {
 Future<void> sincronizarSenhaDeskRemote() async {
   final atual = lerDispositivoDeskRemote();
   if (atual == null) return;
+  final appVer = await versaoAppDeskRemote();
   final json = await _httpJson(
-    uri: _urlApi(atual.apiBase, '/deskremote/dispositivo/config'),
+    uri: _urlComAppInfo(_urlApi(atual.apiBase, '/deskremote/dispositivo/config'), appVersion: appVer),
     method: 'GET',
     bearer: atual.token,
   );
@@ -338,7 +423,7 @@ Future<void> sincronizarSenhaDeskRemote() async {
       final conf = await _httpJson(
         uri: _urlApi(atual.apiBase, '/deskremote/dispositivo/id'),
         method: 'POST',
-        body: {'rustdesk_id': localId},
+        body: await _comAppInfo({'rustdesk_id': localId}),
         bearer: atual.token,
       );
       rustdeskId = (conf['rustdesk_id'] ?? localId).toString();
@@ -355,4 +440,19 @@ Future<void> sincronizarSenhaDeskRemote() async {
       rustdeskId: rustdeskId,
     ),
   );
+
+  // Pedido de update pelo painel (#1436): baixa e enfileira pending_update.
+  final pediuUpdate = json['atualizar'] == true;
+  final downloadUrl = (json['download_url'] ?? '').toString().trim();
+  if (pediuUpdate && downloadUrl.isNotEmpty) {
+    try {
+      await aplicarUpdateRemotoDeskRemote(downloadUrl);
+      await _ackUpdateDeskRemote(atual, 'em_andamento');
+    } catch (e) {
+      final msg = e is DeskRemoteEnrollErro ? e.mensagem : 'Falha ao preparar a atualização.';
+      try {
+        await _ackUpdateDeskRemote(atual, 'falhou', erro: msg);
+      } catch (_) {}
+    }
+  }
 }

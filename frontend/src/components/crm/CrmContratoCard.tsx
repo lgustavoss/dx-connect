@@ -18,6 +18,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { temPermissao } from '../../lib/permissoes'
 import { maskCnpjCpf } from '../../utils/maskCnpjCpf'
 import { CrmDadosFiscaisFields } from './CrmDadosFiscaisFields'
+import { CobrancaContrato } from '../faturamento/CobrancaContrato'
 import {
   emptyFiscal,
   fiscaisDaEmpresa,
@@ -30,15 +31,30 @@ import {
 import { marcarTicketAtivo, TICKETS_PATH } from '../../lib/ticketAtivo'
 import { exibirProtocolo } from '../../lib/exibirProtocolo'
 
+// `renovado` fica fora da UI até existir renovação de verdade (#1322).
 const STATUS_LABEL: Record<string, string> = {
   rascunho: 'Rascunho',
   enviado: 'Enviado',
   assinado: 'Assinado',
   cancelado: 'Cancelado',
-  renovado: 'Renovado',
 }
 
 const ATIVOS = new Set(['rascunho', 'enviado', 'assinado'])
+
+// Status do título avulso de multa (#1386) — mesmo vocabulário de A receber.
+const TITULO_STATUS_LABEL: Record<string, string> = {
+  aberto: 'Em aberto',
+  vencido: 'Vencido',
+  pago: 'Pago',
+  cancelado: 'Cancelado',
+}
+
+function classeStatusTitulo(status: string): string {
+  if (status === 'pago') return 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300'
+  if (status === 'vencido') return 'bg-red-50 text-red-800 dark:bg-red-950/40 dark:text-red-300'
+  if (status === 'aberto') return 'bg-amber-50 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200'
+  return 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200'
+}
 
 function money(v: string | number | null | undefined): string {
   if (v == null || v === '') return '—'
@@ -90,6 +106,23 @@ export function textoDiasFidelidade(dias: number | null | undefined): string {
   return abs === 1 ? 'Fidelidade encerrada há 1 dia' : `Fidelidade encerrada há ${abs} dias`
 }
 
+/** Resultado da rescisão: o título de multa foi criado? Usa a mesma regra de multa_rescisao (#1386). */
+function mensagemRescisao(row: ComercialContrato.Contrato): string {
+  const titulo = row.titulo_multa
+  if (titulo) {
+    return `Contrato rescindido. Título de multa de ${money(titulo.valor)} criado em A receber (vence em ${formatDate(titulo.vencimento)}).`
+  }
+  const multa = row.multa_rescisao
+  if (!multa) return 'Contrato rescindido. Sem título de multa nesta rescisão.'
+  if (multa.aplicavel && multa.valor_estimado != null && Number(multa.valor_estimado) > 0) {
+    return `Contrato rescindido. Multa estimada de ${money(multa.valor_estimado)} — confira o título em A receber.`
+  }
+  if (multa.dentro_fidelidade) {
+    return 'Contrato rescindido. Sem título de multa: o teto de multa deste contrato é 0.'
+  }
+  return 'Contrato rescindido. Sem título de multa: fora do período de fidelidade.'
+}
+
 type Props = {
   negociacao: Crm.Negociacao
   lead?: Crm.Lead | null
@@ -101,7 +134,7 @@ type Props = {
 export function CrmContratoCard({ negociacao, lead = null, onChanged, embedded = false }: Props) {
   const toast = useToast()
   const navigate = useNavigate()
-  const { user } = useAuth()
+  const { user, isFinanceiroOuAdmin } = useAuth()
   const podeEmitir = temPermissao(user, 'contratos.emitir')
   const podeCancelarContrato = temPermissao(user, 'contratos.cancelar')
   const linhas = negociacao.linhas || []
@@ -127,9 +160,7 @@ export function CrmContratoCard({ negociacao, lead = null, onChanged, embedded =
   const [preview, setPreview] = useState<ComercialContrato.Contrato | null>(null)
   const [baixandoId, setBaixandoId] = useState<number | null>(null)
   const [baixandoAssinadoId, setBaixandoAssinadoId] = useState<number | null>(null)
-  const [enviandoId, setEnviandoId] = useState<number | null>(null)
   const [assinandoId, setAssinandoId] = useState<number | null>(null)
-  const [avancarFunil, setAvancarFunil] = useState(true)
   const [abrirTicket, setAbrirTicket] = useState(true)
   const [pdfFile, setPdfFile] = useState<File | null>(null)
   const [referenciaAnexo, setReferenciaAnexo] = useState('')
@@ -138,6 +169,41 @@ export function CrmContratoCard({ negociacao, lead = null, onChanged, embedded =
   const [cancelando, setCancelando] = useState(false)
   const [fiscais, setFiscais] = useState<Crm.DadosFiscais>(emptyFiscal)
   const [editarGeracao, setEditarGeracao] = useState(false)
+  type SignatarioForm = {
+    key: string
+    papel: ComercialContrato.PapelSignatario
+    nome: string
+    email: string
+    cpf: string
+    telefone: string
+  }
+  const novoSignatario = (
+    papel: ComercialContrato.PapelSignatario,
+    opts?: Partial<SignatarioForm>,
+  ): SignatarioForm => ({
+    key: `${papel}-${Math.random().toString(36).slice(2, 9)}`,
+    papel,
+    nome: opts?.nome ?? '',
+    email: opts?.email ?? '',
+    cpf: opts?.cpf ?? '',
+    telefone: opts?.telefone ?? '',
+  })
+  const [signatarios, setSignatarios] = useState<SignatarioForm[]>(() => [
+    novoSignatario('contratante'),
+    novoSignatario('contratada'),
+    novoSignatario('testemunha'),
+    novoSignatario('testemunha'),
+  ])
+  const [enviandoAssinatura, setEnviandoAssinatura] = useState(false)
+  const [cancelandoAssinatura, setCancelandoAssinatura] = useState(false)
+  const [enviandoEmailParteId, setEnviandoEmailParteId] = useState<number | null>(null)
+
+  const rotuloPapel = (papel: string) => {
+    if (papel === 'contratante') return 'Contratante'
+    if (papel === 'contratada') return 'Contratada'
+    if (papel === 'testemunha') return 'Testemunha'
+    return papel
+  }
 
   const load = useCallback(async () => {
     const [tmpls, rows, pol] = await Promise.all([
@@ -237,6 +303,22 @@ export function CrmContratoCard({ negociacao, lead = null, onChanged, embedded =
     }
   }, [preview?.id, preview?.conteudo_html_snapshot])
 
+  useEffect(() => {
+    const nome = (fiscais.resp_legal_nome || '').trim()
+    const cpf = (fiscais.resp_legal_cpf || '').trim()
+    if (!nome && !cpf) return
+    setSignatarios((prev) =>
+      prev.map((s) => {
+        if (s.papel !== 'contratante') return s
+        return {
+          ...s,
+          nome: s.nome.trim() ? s.nome : nome,
+          cpf: s.cpf.trim() ? s.cpf : cpf,
+        }
+      }),
+    )
+  }, [fiscais.resp_legal_nome, fiscais.resp_legal_cpf])
+
   async function handleGerar() {
     if (linhaId === '') {
       toast.showWarning('Selecione o CNPJ do contrato.')
@@ -333,7 +415,7 @@ export function CrmContratoCard({ negociacao, lead = null, onChanged, embedded =
       setPreview(row)
       setPdfFile(null)
       if (pdfInputRef.current) pdfInputRef.current.value = ''
-      toast.showSuccess('PDF assinado anexado. Já pode marcar o contrato como assinado.')
+      toast.showSuccess('PDF assinado anexado (assinatura externa). Já pode marcar o contrato como assinado.')
       await load()
       onChanged()
     } catch (err) {
@@ -343,18 +425,96 @@ export function CrmContratoCard({ negociacao, lead = null, onChanged, embedded =
     }
   }
 
-  async function handleEnviado(id: number) {
-    setEnviandoId(id)
+  async function handleCopiarLinkAssinatura(link: string) {
     try {
-      const row = await comercialContratos.marcarEnviado(id)
+      await navigator.clipboard.writeText(link)
+      toast.showSuccess('Link copiado. Cole no WhatsApp ou no e-mail da pessoa.')
+    } catch {
+      toast.showWarning('Não foi possível copiar. Selecione o link e copie na mão.')
+    }
+  }
+
+  async function handleEnviarEmailParte(contratoId: number, parteId: number) {
+    setEnviandoEmailParteId(parteId)
+    try {
+      await comercialContratos.enviarEmailConviteAssinatura(contratoId, parteId)
+      toast.showSuccess('Convite enviado por e-mail.')
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível enviar o e-mail.'))
+    } finally {
+      setEnviandoEmailParteId(null)
+    }
+  }
+
+  async function handleEnviarAssinatura(id: number, forcar = false) {
+    const preenchidos = signatarios.filter(
+      (s) => s.nome.trim() && s.email.trim() && s.cpf.trim(),
+    )
+    const temContratante = preenchidos.some((s) => s.papel === 'contratante')
+    const temContratada = preenchidos.some((s) => s.papel === 'contratada')
+    if (!temContratante || !temContratada) {
+      toast.showWarning('Informe contratante e contratada com nome, CPF e e-mail.')
+      return
+    }
+    // Testemunhas omitidas se vazias; se algum campo preenchido, exige nome+CPF+e-mail.
+    const testemunhaIncompleta = signatarios.some((s) => {
+      if (s.papel !== 'testemunha') return false
+      const algum = s.nome.trim() || s.email.trim() || s.cpf.trim()
+      if (!algum) return false
+      return !(s.nome.trim() && s.email.trim() && s.cpf.trim())
+    })
+    if (testemunhaIncompleta) {
+      toast.showWarning(
+        'Em cada testemunha, preencha nome, CPF e e-mail — ou deixe tudo em branco.',
+      )
+      return
+    }
+    setEnviandoAssinatura(true)
+    try {
+      await comercialContratos.enviarAssinatura(id, {
+        signatarios: preenchidos.map((s) => ({
+          papel: s.papel,
+          nome: s.nome.trim(),
+          email: s.email.trim(),
+          cpf: s.cpf.trim(),
+          telefone: s.telefone.trim() || null,
+        })),
+        forcar_reenvio: forcar,
+      })
+      const row = await comercialContratos.get(id)
       setPreview(row)
-      toast.showSuccess('Contrato marcado como enviado (registro manual).')
+      toast.showSuccess(forcar ? 'Novo envelope de assinatura gerado.' : 'Contrato enviado para assinatura eletrônica.')
       await load()
       onChanged()
     } catch (err) {
-      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível marcar como enviado.'))
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível enviar para assinatura.'))
     } finally {
-      setEnviandoId(null)
+      setEnviandoAssinatura(false)
+    }
+  }
+
+  async function handleCancelarAssinatura(id: number) {
+    setCancelandoAssinatura(true)
+    try {
+      await comercialContratos.cancelarAssinatura(id)
+      const row = await comercialContratos.get(id)
+      setPreview(row)
+      toast.showSuccess('Envelope de assinatura cancelado.')
+      await load()
+      onChanged()
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível cancelar a assinatura.'))
+    } finally {
+      setCancelandoAssinatura(false)
+    }
+  }
+
+  async function handleEvidencia(id: number, tipo: 'pdf' | 'audit' | 'selfie', nome: string) {
+    try {
+      const blob = await comercialContratos.downloadEvidenciaAssinatura(id, tipo)
+      downloadBlob(blob, nome)
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível baixar a evidência.'))
     }
   }
 
@@ -366,17 +526,13 @@ export function CrmContratoCard({ negociacao, lead = null, onChanged, embedded =
     }
     setAssinandoId(id)
     try {
+      // Assinar move o funil sempre (sem opt-in) — #1322.
       const row = await comercialContratos.marcarAssinado(id, {
-        avancar_funil: avancarFunil,
         abrir_ticket_implantacao: abrirTicket,
       })
       setPreview(row)
       const ticket = abrirTicket ? 'O ticket de implantação foi aberto.' : 'Nenhum ticket de implantação foi aberto.'
-      toast.showSuccess(
-        avancarFunil
-          ? `Contrato assinado e funil atualizado. ${ticket}`
-          : `Contrato marcado como assinado. ${ticket}`,
-      )
+      toast.showSuccess(`Contrato assinado e funil movido para «Contrato assinado». ${ticket}`)
       setAssinandoId(null)
       await load()
       onChanged()
@@ -392,7 +548,7 @@ export function CrmContratoCard({ negociacao, lead = null, onChanged, embedded =
     setCancelando(true)
     try {
       const row = await comercialContratos.cancelar(cancelarId)
-      toast.showSuccess(eraRescisao ? 'Contrato rescindido.' : 'Contrato cancelado.')
+      toast.showSuccess(eraRescisao ? mensagemRescisao(row) : 'Contrato cancelado.')
       setCancelarId(null)
       setPreview(row)
       await load()
@@ -579,6 +735,7 @@ export function CrmContratoCard({ negociacao, lead = null, onChanged, embedded =
             value={fiscais}
             onChange={(patch) => setFiscais((p) => ({ ...p, ...patch }))}
             disabled={gerando}
+            cnpj={preview?.cnpj || linhaSel?.cnpj || null}
           />
           <Button onClick={() => void handleGerar()} disabled={gerando}>
             {gerando
@@ -628,6 +785,17 @@ export function CrmContratoCard({ negociacao, lead = null, onChanged, embedded =
                 {preview.status === 'cancelado'
                   ? ' · contrato cancelado'
                   : ` (${textoDiasFidelidade(preview.dias_restantes_fidelidade)})`}
+                {preview.vigente ? ' · vigente' : preview.status === 'assinado' ? ' · anterior (não vigente)' : ''}
+              </p>
+              <p className="text-xs text-slate-500">
+                Setup:{' '}
+                {preview.setup_isento
+                  ? 'isento'
+                  : preview.setup_valor != null && Number(preview.setup_valor) > 0
+                    ? money(preview.setup_valor)
+                    : 'sem cobrança'}
+                {' · '}
+                Multa: até {pluralPt(preview.multa_max_mensalidades, 'mensalidade', 'mensalidades')} de mensalidade
                 {Number(preview.reajuste_percentual) > 0
                   ? ` · reajuste ${percent(preview.reajuste_percentual)}${preview.reajuste_rotulo ? ` ${preview.reajuste_rotulo}` : ''}`
                   : ' · sem reajuste'}
@@ -699,15 +867,6 @@ export function CrmContratoCard({ negociacao, lead = null, onChanged, embedded =
               >
                 {baixandoId === preview.id ? 'Baixando…' : 'Baixar PDF'}
               </Button>
-              {podeEmitir && preview.status === 'rascunho' ? (
-                <Button
-                  variant="secondary"
-                  onClick={() => void handleEnviado(preview.id)}
-                  disabled={enviandoId === preview.id}
-                >
-                  {enviandoId === preview.id ? 'Salvando…' : 'Marcar enviado'}
-                </Button>
-              ) : null}
               {podeEmitir && (preview.status === 'rascunho' || preview.status === 'enviado') ? (
                 <Button
                   variant="secondary"
@@ -748,6 +907,40 @@ export function CrmContratoCard({ negociacao, lead = null, onChanged, embedded =
                 </Link>
               </p>
             ) : null}
+            {preview.titulo_multa ? (
+              <div className="w-full max-w-xl rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+                <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                  Cobrança da multa de rescisão
+                </p>
+                <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
+                  Título #{preview.titulo_multa.id} de {money(preview.titulo_multa.valor)} · vencimento{' '}
+                  {formatDate(preview.titulo_multa.vencimento)} ·{' '}
+                  <span
+                    className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${classeStatusTitulo(preview.titulo_multa.status)}`}
+                  >
+                    {TITULO_STATUS_LABEL[preview.titulo_multa.status] || preview.titulo_multa.status}
+                  </span>
+                </p>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  Título avulso com tipo «Multa» em A receber — aparece no filtro Tipo = Multa em
+                  Faturamento.
+                </p>
+              </div>
+            ) : null}
+            {preview.status === 'assinado' || preview.status === 'cancelado' ? (
+              <CobrancaContrato
+                contrato={preview}
+                podeEditar={
+                  preview.status === 'assinado' &&
+                  (podeEmitir || isFinanceiroOuAdmin || temPermissao(user, 'faturamento.gerar'))
+                }
+                onUpdated={(atual) => {
+                  setPreview(atual)
+                  setContratos((prev) => prev.map((c) => (c.id === atual.id ? atual : c)))
+                  onChanged()
+                }}
+              />
+            ) : null}
           </div>
           <iframe
             title={`Preview do contrato ${preview.id}`}
@@ -760,62 +953,326 @@ export function CrmContratoCard({ negociacao, lead = null, onChanged, embedded =
 
       {preview && (preview.status === 'rascunho' || preview.status === 'enviado' || preview.tem_pdf_assinado) ? (
         <div className="mt-3 space-y-3 rounded-xl border border-slate-200 p-3 dark:border-slate-700">
-          <p className="text-sm font-medium text-slate-700 dark:text-slate-300">PDF assinado</p>
-          <p className="text-xs text-slate-500">
-            Exporte o PDF gerado, assine no ClickSign ou outro e anexe aqui. Referência/protocolo é opcional.
-            Marcar assinado só fica disponível depois do anexo. O contrato fica ligado à empresa já cadastrada, sem criar outra com o mesmo CNPJ.
-          </p>
-          {preview.tem_pdf_assinado ? (
-            <p className="text-sm text-slate-700 dark:text-slate-300">
-              Anexado: {preview.pdf_assinado_nome_original || 'PDF'}
-              {preview.referencia_externa ? ` · ref. ${preview.referencia_externa}` : ''}
+          <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Assinatura do contrato</p>
+
+          {preview.assinatura_modo === 'docuseal' && preview.assinatura?.status === 'assinado' ? (
+            <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200">
+              Assinado eletronicamente no DeskRudder
+              {preview.assinatura.assinado_em ? ` em ${formatDateTime(preview.assinatura.assinado_em)}` : ''}.
+              {preview.assinatura.pdf_sha256 ? ` Hash: ${preview.assinatura.pdf_sha256.slice(0, 12)}…` : ''}
             </p>
           ) : null}
-          {preview.tem_pdf_assinado ? (
-            <Button
-              variant="secondary"
-              onClick={() => void handlePdfAssinado(preview.id, preview.pdf_assinado_nome_original)}
-              disabled={baixandoAssinadoId === preview.id}
-            >
-              {baixandoAssinadoId === preview.id ? 'Baixando…' : 'Baixar PDF assinado'}
-            </Button>
+          {preview.assinatura_modo === 'externo' && preview.assinatura?.status === 'assinado' ? (
+            <p className="rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-800 dark:bg-slate-800 dark:text-slate-200">
+              Assinado externamente (PDF anexado)
+              {preview.referencia_externa ? ` · ref. ${preview.referencia_externa}` : ''}.
+            </p>
           ) : null}
-          {preview.status === 'rascunho' || preview.status === 'enviado' ? (
-            <div className="space-y-3">
-              <input
-                ref={pdfInputRef}
-                id="contrato-pdf-assinado"
-                type="file"
-                accept="application/pdf,.pdf"
-                className="sr-only"
-                aria-label="Ficheiro PDF assinado"
-                onChange={(e) => setPdfFile(e.target.files?.[0] || null)}
-              />
-              <div className="flex flex-wrap items-center gap-2">
+          {preview.assinatura?.status === 'erro' && preview.assinatura.ultimo_erro ? (
+            <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800 dark:bg-red-950/40 dark:text-red-200">
+              Erro na assinatura eletrônica: {preview.assinatura.ultimo_erro}
+            </p>
+          ) : null}
+
+          {preview.assinatura &&
+          ['pendente', 'enviado', 'visualizado', 'parcial'].includes(preview.assinatura.status) ? (
+            <div className="space-y-2 rounded-lg border border-cyan-200 bg-cyan-50/60 p-3 dark:border-cyan-900 dark:bg-cyan-950/30">
+              <p className="text-sm font-medium text-cyan-900 dark:text-cyan-200">
+                Envelope {preview.assinatura.status}
+                {preview.assinatura.expira_em
+                  ? ` · expira em ${formatDateTime(preview.assinatura.expira_em)}`
+                  : ''}
+              </p>
+              <p className="text-xs text-slate-600 dark:text-slate-400">
+                Copie o link e envie no WhatsApp, ou use Enviar por e-mail.
+              </p>
+              {(preview.assinatura.partes || []).length > 0 ? (
+                <ul className="space-y-2 text-xs text-slate-700 dark:text-slate-300">
+                  {preview.assinatura.partes!.map((p) => (
+                    <li
+                      key={p.id}
+                      className="space-y-2 rounded-md border border-cyan-100 bg-white/70 p-2 dark:border-cyan-900 dark:bg-slate-900/40"
+                    >
+                      <p className="font-medium">
+                        {rotuloPapel(p.papel)} · {p.nome} · {p.status}
+                      </p>
+                      <p className="text-slate-500">
+                        {p.email}
+                        {p.cpf_mascarado ? ` · CPF ${p.cpf_mascarado}` : ''}
+                      </p>
+                      {p.link_assinatura ? (
+                        <a
+                          href={p.link_assinatura}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="break-all underline"
+                        >
+                          {p.link_assinatura}
+                        </a>
+                      ) : null}
+                      {p.link_assinatura && podeEmitir ? (
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            onClick={() => void handleCopiarLinkAssinatura(p.link_assinatura!)}
+                          >
+                            Copiar link
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            onClick={() => void handleEnviarEmailParte(preview.id, p.id)}
+                            disabled={enviandoEmailParteId === p.id || !p.email}
+                          >
+                            {enviandoEmailParteId === p.id ? 'Enviando…' : 'Enviar por e-mail'}
+                          </Button>
+                        </div>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              ) : preview.assinatura.link_assinatura ? (
+                <p className="break-all text-xs text-slate-700 dark:text-slate-300">
+                  Link:{' '}
+                  <a
+                    href={preview.assinatura.link_assinatura}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline"
+                  >
+                    {preview.assinatura.link_assinatura}
+                  </a>
+                </p>
+              ) : null}
+              {podeEmitir ? (
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="secondary"
+                    onClick={() => void handleEnviarAssinatura(preview.id, true)}
+                    disabled={enviandoAssinatura}
+                  >
+                    {enviandoAssinatura ? 'Reenviando…' : 'Reenviar envelope'}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    onClick={() => void handleCancelarAssinatura(preview.id)}
+                    disabled={cancelandoAssinatura}
+                  >
+                    {cancelandoAssinatura ? 'Cancelando…' : 'Cancelar envelope'}
+                  </Button>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          {preview.assinatura?.status === 'assinado' && preview.assinatura_modo === 'docuseal' ? (
+            <div className="flex flex-wrap gap-2">
+              {preview.assinatura.tem_pdf_assinado ? (
+                <Button
+                  variant="secondary"
+                  onClick={() =>
+                    void handleEvidencia(preview.id, 'pdf', `contrato-${preview.id}-assinado.pdf`)
+                  }
+                >
+                  PDF assinado
+                </Button>
+              ) : null}
+              {preview.assinatura.tem_audit_log ? (
+                <Button
+                  variant="secondary"
+                  onClick={() =>
+                    void handleEvidencia(preview.id, 'audit', `contrato-${preview.id}-auditoria.pdf`)
+                  }
+                >
+                  Trilha de auditoria
+                </Button>
+              ) : null}
+              {preview.assinatura.tem_selfie ? (
+                <Button
+                  variant="secondary"
+                  onClick={() =>
+                    void handleEvidencia(preview.id, 'selfie', `contrato-${preview.id}-selfie.jpg`)
+                  }
+                >
+                  Selfie
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
+
+          {podeEmitir && (preview.status === 'rascunho' || preview.status === 'enviado') ? (
+            <div className="space-y-3 border-t border-slate-200 pt-3 dark:border-slate-700">
+              <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                Enviar para assinatura eletrônica
+              </p>
+              <p className="text-xs text-slate-500">
+                Informe as partes com nome, <strong>CPF</strong> e e-mail. Obrigatório:{' '}
+                <strong>contratante</strong> (cliente) e <strong>contratada</strong> (sua empresa).
+                Testemunhas são opcionais. Cada um recebe um link único; o contrato só fica assinado
+                quando todos concluírem. Depois use Copiar link (WhatsApp) ou Enviar por e-mail.
+              </p>
+              <div className="space-y-4">
+                {signatarios.map((s, idx) => (
+                  <div
+                    key={s.key}
+                    className="space-y-2 rounded-lg border border-slate-200 p-3 dark:border-slate-700"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                        {rotuloPapel(s.papel)}
+                        {s.papel === 'testemunha'
+                          ? ` ${signatarios.filter((x) => x.papel === 'testemunha').indexOf(s) + 1}`
+                          : ''}
+                      </p>
+                      {s.papel === 'testemunha' &&
+                      signatarios.filter((x) => x.papel === 'testemunha').length > 0 ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          onClick={() =>
+                            setSignatarios((prev) => prev.filter((x) => x.key !== s.key))
+                          }
+                        >
+                          Remover
+                        </Button>
+                      ) : null}
+                    </div>
+                    <Input
+                      label="Nome"
+                      value={s.nome}
+                      onChange={(e) => {
+                        const v = e.target.value
+                        setSignatarios((prev) =>
+                          prev.map((x, i) => (i === idx ? { ...x, nome: v } : x)),
+                        )
+                      }}
+                      placeholder={
+                        s.papel === 'contratante'
+                          ? fiscais.resp_legal_nome || 'Responsável legal do cliente'
+                          : s.papel === 'contratada'
+                            ? 'Responsável legal da contratada'
+                            : 'Nome completo'
+                      }
+                    />
+                    <Input
+                      label="CPF"
+                      value={s.cpf}
+                      onChange={(e) => {
+                        const v = e.target.value
+                        setSignatarios((prev) =>
+                          prev.map((x, i) => (i === idx ? { ...x, cpf: v } : x)),
+                        )
+                      }}
+                      placeholder={
+                        s.papel === 'contratante' && fiscais.resp_legal_cpf
+                          ? fiscais.resp_legal_cpf
+                          : '000.000.000-00'
+                      }
+                    />
+                    <Input
+                      label="E-mail"
+                      value={s.email}
+                      onChange={(e) => {
+                        const v = e.target.value
+                        setSignatarios((prev) =>
+                          prev.map((x, i) => (i === idx ? { ...x, email: v } : x)),
+                        )
+                      }}
+                      placeholder="email@empresa.com"
+                    />
+                    <Input
+                      label="Telefone (opcional)"
+                      value={s.telefone}
+                      onChange={(e) => {
+                        const v = e.target.value
+                        setSignatarios((prev) =>
+                          prev.map((x, i) => (i === idx ? { ...x, telefone: v } : x)),
+                        )
+                      }}
+                      placeholder="(11) 99999-0000"
+                    />
+                  </div>
+                ))}
+              </div>
+              {signatarios.filter((s) => s.papel === 'testemunha').length < 4 ? (
                 <Button
                   type="button"
                   variant="secondary"
-                  onClick={() => pdfInputRef.current?.click()}
+                  onClick={() => setSignatarios((prev) => [...prev, novoSignatario('testemunha')])}
                 >
-                  {preview.tem_pdf_assinado ? 'Escolher outro PDF' : 'Anexar PDF assinado'}
+                  Adicionar testemunha
                 </Button>
-                {pdfFile ? (
-                  <span className="text-sm text-slate-600 dark:text-slate-300">{pdfFile.name}</span>
-                ) : (
-                  <span className="text-xs text-slate-500">Só ficheiros PDF</span>
-                )}
-              </div>
-              <Input
-                label="Referência / protocolo (opcional)"
-                value={referenciaAnexo}
-                onChange={(e) => setReferenciaAnexo(e.target.value)}
-                placeholder="Ex.: envelope ClickSign"
-              />
-              <Button onClick={() => void handleAnexarPdf(preview.id)} disabled={anexandoPdf || !pdfFile}>
-                {anexandoPdf ? 'Anexando…' : preview.tem_pdf_assinado ? 'Substituir PDF assinado' : 'Enviar anexo'}
+              ) : null}
+              <Button
+                onClick={() => void handleEnviarAssinatura(preview.id, false)}
+                disabled={enviandoAssinatura}
+              >
+                {enviandoAssinatura ? 'Enviando…' : 'Enviar para assinatura'}
               </Button>
             </div>
           ) : null}
+
+          <div className="space-y-3 border-t border-slate-200 pt-3 dark:border-slate-700">
+            <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
+              Ou assinar por fora (PDF anexado)
+            </p>
+            <p className="text-xs text-slate-500">
+              Baixe o PDF gerado, assine no provedor do cliente e anexe aqui. Fica identificado como
+              «assinado externamente». Marcar assinado só fica disponível depois do anexo.
+            </p>
+            {preview.tem_pdf_assinado ? (
+              <p className="text-sm text-slate-700 dark:text-slate-300">
+                Anexado: {preview.pdf_assinado_nome_original || 'PDF'}
+                {preview.referencia_externa ? ` · ref. ${preview.referencia_externa}` : ''}
+              </p>
+            ) : null}
+            {preview.tem_pdf_assinado ? (
+              <Button
+                variant="secondary"
+                onClick={() => void handlePdfAssinado(preview.id, preview.pdf_assinado_nome_original)}
+                disabled={baixandoAssinadoId === preview.id}
+              >
+                {baixandoAssinadoId === preview.id ? 'Baixando…' : 'Baixar PDF assinado'}
+              </Button>
+            ) : null}
+            {preview.status === 'rascunho' || preview.status === 'enviado' ? (
+              <div className="space-y-3">
+                <input
+                  ref={pdfInputRef}
+                  id="contrato-pdf-assinado"
+                  type="file"
+                  accept="application/pdf,.pdf"
+                  className="sr-only"
+                  aria-label="Arquivo PDF assinado"
+                  onChange={(e) => setPdfFile(e.target.files?.[0] || null)}
+                />
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => pdfInputRef.current?.click()}
+                  >
+                    {preview.tem_pdf_assinado ? 'Escolher outro PDF' : 'Anexar PDF assinado'}
+                  </Button>
+                  {pdfFile ? (
+                    <span className="text-sm text-slate-600 dark:text-slate-300">{pdfFile.name}</span>
+                  ) : (
+                    <span className="text-xs text-slate-500">Só arquivos PDF</span>
+                  )}
+                </div>
+                <Input
+                  label="Referência / protocolo (opcional)"
+                  value={referenciaAnexo}
+                  onChange={(e) => setReferenciaAnexo(e.target.value)}
+                  placeholder="Ex.: envelope do provedor externo"
+                />
+                <Button onClick={() => void handleAnexarPdf(preview.id)} disabled={anexandoPdf || !pdfFile}>
+                  {anexandoPdf ? 'Anexando…' : preview.tem_pdf_assinado ? 'Substituir PDF assinado' : 'Enviar anexo'}
+                </Button>
+              </div>
+            ) : null}
+          </div>
         </div>
       ) : null}
 
@@ -832,6 +1289,7 @@ export function CrmContratoCard({ negociacao, lead = null, onChanged, embedded =
                   <span className="font-medium text-slate-900 dark:text-slate-100">#{c.id}</span>
                   {' · '}
                   {STATUS_LABEL[c.status] || c.status}
+                  {c.vigente ? ' · vigente' : c.status === 'assinado' ? ' · anterior' : ''}
                   {' · '}
                   {c.razao_social || (c.cnpj ? maskCnpjCpf(c.cnpj) : `linha ${c.negociacao_linha_cnpj_id}`)}
                   <div className="text-xs text-slate-500">
@@ -882,21 +1340,9 @@ export function CrmContratoCard({ negociacao, lead = null, onChanged, embedded =
                   da primeira assinatura já cobre o cliente.
                 </p>
               </div>
-              <div className="space-y-1">
-                <label className="inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
-                  <input
-                    type="checkbox"
-                    checked={avancarFunil}
-                    onChange={(e) => setAvancarFunil(e.target.checked)}
-                    className="size-4 rounded border-slate-300"
-                  />
-                  Avançar funil para «Contrato assinado»
-                </label>
-                <p className="pl-6 text-xs text-slate-500">
-                  Pode pular proposta ou outros estágios — há cliente que manda a documentação e já fecha o
-                  contrato. Desmarque só se quiser deixar o funil onde está.
-                </p>
-              </div>
+              <p className="text-xs text-slate-500">
+                Assinar move o funil para «Contrato assinado» automaticamente — não precisa mexer no Kanban.
+              </p>
             </div>
             <div className="flex justify-end gap-2 pt-4">
               <Button type="button" variant="secondary" onClick={() => setAssinandoId(null)}>
@@ -947,6 +1393,12 @@ export function CrmContratoCard({ negociacao, lead = null, onChanged, embedded =
               <p>Fora do período de fidelidade (ou sem meses restantes) — sem estimativa de multa.</p>
             )}
             <p className="text-xs opacity-90">{multaPreview.aviso}</p>
+            {multaPreview.aplicavel && multaPreview.valor_estimado != null ? (
+              <p className="text-xs opacity-90">
+                Ao confirmar, a multa é lançada como título avulso de tipo «Multa» em A receber, com
+                vencimento pela política de cobrança da instância.
+              </p>
+            ) : null}
           </div>
         ) : null}
       </ConfirmDialog>

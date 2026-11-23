@@ -47,6 +47,9 @@ def _ticket_empresa_rede_visivel(db: Session, funcionario: FuncionarioRede, tick
 
 
 def ticket_no_escopo(db: Session, funcionario: FuncionarioRede, ticket: Ticket) -> bool:
+    # Ticket de implantação é interno: não aparece no portal do cliente (#1323).
+    if ticket.contrato_id is not None:
+        return False
     if not _ticket_empresa_rede_visivel(db, funcionario, ticket):
         return False
     if tipo_portal(funcionario) == "colaborador":
@@ -57,6 +60,8 @@ def ticket_no_escopo(db: Session, funcionario: FuncionarioRede, ticket: Ticket) 
 
 def filtro_query_tickets_portal(query: Query, db: Session, funcionario: FuncionarioRede) -> Query | None:
     """Aplica escopo RBAC à query de tickets. Retorna None se a listagem deve ser vazia."""
+    # Ticket de implantação é interno: não aparece no portal do cliente (#1323).
+    query = query.filter(Ticket.contrato_id.is_(None))
     ids = empresa_ids_visiveis(db, funcionario)
     rede_id = rede_id_efetiva(db, funcionario)
     filtros = []

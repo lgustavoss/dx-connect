@@ -27,6 +27,11 @@ class RustdeskPeerRead(BaseModel):
     vinculos: list[RustdeskVinculoRead]
     sem_vinculo: bool
     id_repetido: bool
+    deskremote_app_version: str | None = None
+    deskremote_app_ui: str | None = None
+    deskremote_desatualizado: bool | None = None
+    deskremote_update_status: str | None = None
+    deskremote_pode_atualizar: bool = False
 
 
 class RustdeskPdvAusenteRead(RustdeskVinculoRead):
@@ -41,6 +46,7 @@ class RustdeskListaRead(BaseModel):
     agent_configurado: bool
     agent_indisponivel: bool
     sincronizado_em: datetime | None = None
+    deskremote_versao_release: str | None = None
 
 
 class RustdeskVincularIn(BaseModel):
@@ -64,6 +70,12 @@ class RustdeskDesvincularOut(BaseModel):
 class RustdeskExcluirOut(BaseModel):
     rustdesk_id: str
     removido: bool = True
+
+
+class RustdeskAtualizarOut(BaseModel):
+    rustdesk_id: str
+    update_status: str
+    mensagem: str
 
 
 class RustdeskConfiguracaoRead(BaseModel):

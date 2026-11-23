@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ApiError, crmFunil, type Crm } from '../api/client'
+import { ApiError, crmFunil, crmOrigens, type Crm } from '../api/client'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
@@ -8,6 +8,7 @@ import { Select } from '../components/ui/Select'
 import { Switch } from '../components/ui/Switch'
 import { FiltroInativos } from '../components/ui/FiltroInativos'
 import { IconPencil } from '../components/ui/IconPencil'
+import { IconTrash } from '../components/ui/IconTrash'
 import { useToast } from '../components/ui/Toast'
 import { ConfigListPageShell } from '../components/config/ConfigListPageShell'
 import { SemPermissao } from './SemPermissao'
@@ -60,6 +61,12 @@ export function ConfigCrmFunil({ embedded = false }: { embedded?: boolean }) {
   const [form, setForm] = useState<FormState>(emptyForm())
   const [saving, setSaving] = useState(false)
 
+  const [origens, setOrigens] = useState<Crm.OrigemLead[]>([])
+  const [loadingOrigens, setLoadingOrigens] = useState(true)
+  const [origemModal, setOrigemModal] = useState<'create' | Crm.OrigemLead | null>(null)
+  const [origemForm, setOrigemForm] = useState({ nome: '', ordem: '100', ativo: true })
+  const [savingOrigem, setSavingOrigem] = useState(false)
+
   const load = useCallback(() => {
     setLoading(true)
     setForbidden(false)
@@ -81,6 +88,80 @@ export function ConfigCrmFunil({ embedded = false }: { embedded?: boolean }) {
   useEffect(() => {
     load()
   }, [load])
+
+  const loadOrigens = useCallback(() => {
+    setLoadingOrigens(true)
+    crmOrigens
+      .list({ incluir_inativos: incluirInativos })
+      .then(setOrigens)
+      .catch((err) => {
+        if (err instanceof ApiError && err.status === 403) {
+          setOrigens([])
+          return
+        }
+        toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível carregar as origens do lead.'))
+        setOrigens([])
+      })
+      .finally(() => setLoadingOrigens(false))
+  }, [incluirInativos, toast])
+
+  useEffect(() => {
+    loadOrigens()
+  }, [loadOrigens])
+
+  function openOrigemCreate() {
+    const maxOrdem = origens.reduce((m, o) => Math.max(m, o.ordem), 0)
+    setOrigemForm({ nome: '', ordem: String(maxOrdem + 10), ativo: true })
+    setOrigemModal('create')
+  }
+
+  function openOrigemEdit(row: Crm.OrigemLead) {
+    setOrigemForm({ nome: row.nome, ordem: String(row.ordem), ativo: row.ativo })
+    setOrigemModal(row)
+  }
+
+  async function handleSaveOrigem(e: React.FormEvent) {
+    e.preventDefault()
+    if (!origemForm.nome.trim()) {
+      toast.showWarning('Informe o nome da origem.')
+      return
+    }
+    setSavingOrigem(true)
+    try {
+      if (origemModal === 'create') {
+        await crmOrigens.create({
+          nome: origemForm.nome.trim(),
+          ordem: parseInt(origemForm.ordem, 10) || 0,
+          ativo: origemForm.ativo,
+        })
+        toast.showSuccess('Origem criada.')
+      } else if (origemModal && typeof origemModal === 'object') {
+        await crmOrigens.update(origemModal.id, {
+          nome: origemForm.nome.trim(),
+          ordem: parseInt(origemForm.ordem, 10) || 0,
+          ativo: origemForm.ativo,
+        })
+        toast.showSuccess('Origem atualizada.')
+      }
+      setOrigemModal(null)
+      loadOrigens()
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível salvar a origem.'))
+    } finally {
+      setSavingOrigem(false)
+    }
+  }
+
+  async function removerOrigem(row: Crm.OrigemLead) {
+    if (!confirm(`Excluir a origem «${row.nome}»?`)) return
+    try {
+      await crmOrigens.remove(row.id)
+      toast.showSuccess('Origem excluída.')
+      loadOrigens()
+    } catch (err) {
+      toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível excluir a origem.'))
+    }
+  }
 
   function openCreate() {
     const maxOrdem = list.reduce((m, e) => Math.max(m, e.ordem), 0)
@@ -206,6 +287,109 @@ export function ConfigCrmFunil({ embedded = false }: { embedded?: boolean }) {
           </div>
         )}
       </Card>
+
+      <Card>
+        <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <p className="text-sm font-medium text-slate-800 dark:text-slate-100">Origens do lead</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              A origem no cadastro do lead vem desta lista (não é texto livre). Renomear atualiza as leads que já
+              usam o nome antigo; uma origem em uso pode ser desativada, não excluída.
+            </p>
+          </div>
+          <Button variant="secondary" onClick={openOrigemCreate}>
+            Nova origem
+          </Button>
+        </div>
+        {loadingOrigens ? (
+          <p className="text-slate-500">Carregando…</p>
+        ) : origens.length === 0 ? (
+          <p className="text-slate-500">Nenhuma origem encontrada.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[420px] text-left text-sm">
+              <thead>
+                <tr className="border-b border-slate-100 bg-slate-50/60 dark:border-slate-800 dark:bg-slate-800/40">
+                  <th className="px-3 py-2 font-medium text-slate-600 dark:text-slate-300">Ordem</th>
+                  <th className="px-3 py-2 font-medium text-slate-600 dark:text-slate-300">Nome</th>
+                  <th className="px-3 py-2 font-medium text-slate-600 dark:text-slate-300">Ativo</th>
+                  <th className="px-3 py-2" />
+                </tr>
+              </thead>
+              <tbody>
+                {origens.map((row) => (
+                  <tr key={row.id} className="border-b border-slate-100 dark:border-slate-800/80">
+                    <td className="px-3 py-2.5 text-slate-600">{row.ordem}</td>
+                    <td className="px-3 py-2.5 font-medium text-slate-900 dark:text-slate-100">{row.nome}</td>
+                    <td className="px-3 py-2.5">{row.ativo ? 'Sim' : 'Não'}</td>
+                    <td className="px-3 py-2.5">
+                      <div className="flex justify-end gap-1">
+                        <button
+                          type="button"
+                          onClick={() => openOrigemEdit(row)}
+                          className="inline-flex size-8 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+                          aria-label={`Editar ${row.nome}`}
+                        >
+                          <IconPencil />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void removerOrigem(row)}
+                          className="inline-flex size-8 items-center justify-center rounded-md text-slate-500 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950/40"
+                          aria-label={`Excluir ${row.nome}`}
+                        >
+                          <IconTrash />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+
+      {origemModal ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4">
+          <div className="max-h-[92vh] w-full overflow-y-auto rounded-t-2xl bg-white p-5 shadow-xl dark:bg-slate-900 sm:max-w-md sm:rounded-2xl">
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+              {origemModal === 'create' ? 'Nova origem' : 'Editar origem'}
+            </h2>
+            <form onSubmit={handleSaveOrigem} className="mt-4 space-y-3">
+              <Input
+                label="Nome"
+                value={origemForm.nome}
+                onChange={(e) => setOrigemForm((p) => ({ ...p, nome: e.target.value }))}
+                required
+              />
+              <Input
+                label="Ordem"
+                value={origemForm.ordem}
+                onChange={(e) => setOrigemForm((p) => ({ ...p, ordem: e.target.value }))}
+              />
+              <Switch
+                bare
+                checked={origemForm.ativo}
+                onCheckedChange={(ativo) => setOrigemForm((p) => ({ ...p, ativo }))}
+                label="Origem ativa"
+                description="Inativa não aparece no cadastro do lead; as leads que já usam continuam com o nome."
+                showStatusPill
+                statusOnText="Ativo"
+                statusOffText="Inativo"
+              />
+              <div className="flex flex-wrap justify-end gap-2 pt-2">
+                <Button type="button" variant="cancel" onClick={() => setOrigemModal(null)} disabled={savingOrigem}>
+                  Cancelar
+                </Button>
+                <Button type="submit" disabled={savingOrigem}>
+                  {savingOrigem ? 'Salvando…' : 'Salvar'}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
 
       {modal ? (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4">

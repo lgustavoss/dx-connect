@@ -1,11 +1,11 @@
 ---
 name: browser-qa
-description: Executa smoke tests e validação visual do DX Connect no navegador integrado do Cursor. Use após subir ambiente local, antes de PR, ou quando o usuário reportar tela branca/erro na UI.
+description: Executa smoke tests e validação visual do DX Connect no navegador. Use após subir ambiente local, antes de PR, ou quando o usuário reportar tela branca/erro na UI.
 ---
 
 # Browser QA — DX Connect
 
-Playbook para testes manuais assistidos via MCP `cursor-ide-browser`.
+Playbook para testes manuais assistidos. Com MCP de navegador (ex.: `cursor-ide-browser` no Cursor), use as ferramentas `browser_*`. Sem MCP de navegador (caso do DSH hoje), valide por HTTP (`curl`) e peça as evidências visuais ao usuário.
 
 ## Pré-check (terminal)
 

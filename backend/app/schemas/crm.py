@@ -8,6 +8,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.models.crm import ATIVIDADE_NOTA, ATIVIDADE_TIPOS
 from app.schemas.comercial_custo import CustoTefOverride
 
 
@@ -45,6 +46,27 @@ class FunilEstagioUpdate(BaseModel):
     nome: str | None = Field(None, min_length=1, max_length=120)
     ordem: int | None = None
     tipo: str | None = None
+    ativo: bool | None = None
+
+
+class CrmOrigemLeadRead(BaseModel):
+    id: int
+    nome: str
+    ordem: int
+    ativo: bool
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CrmOrigemLeadCreate(BaseModel):
+    nome: str = Field(..., min_length=1, max_length=80)
+    ordem: int = 0
+    ativo: bool = True
+
+
+class CrmOrigemLeadUpdate(BaseModel):
+    nome: str | None = Field(None, min_length=1, max_length=80)
+    ordem: int | None = None
     ativo: bool | None = None
 
 
@@ -189,6 +211,7 @@ class CrmLinhaRead(BaseModel):
 class CrmNegociacaoCreate(BaseModel):
     lead_id: int
     titulo: str | None = Field(None, max_length=255)
+    nome_base_webposto: str | None = Field(None, max_length=255)
     responsavel_id: int | None = None
     linhas: list[CrmLinhaCreate] = Field(default_factory=list)
 
@@ -232,9 +255,20 @@ class CrmMoverEstagioRequest(BaseModel):
 
 
 class CrmAtividadeCreate(BaseModel):
-    tipo: str = "nota"
+    tipo: str = ATIVIDADE_NOTA
     texto: str = Field(..., min_length=1)
     lembrete_em: datetime | None = None
+
+    @field_validator("tipo")
+    @classmethod
+    def _tipo_atividade(cls, v: str) -> str:
+        """Aceita apenas os tipos de atividade suportados (#1388)."""
+        tipo = (v or "").strip().lower()
+        if not tipo:
+            return ATIVIDADE_NOTA
+        if tipo not in ATIVIDADE_TIPOS:
+            raise ValueError(f"tipo inválido: use {', '.join(sorted(ATIVIDADE_TIPOS))}")
+        return tipo
 
 
 class CrmAtividadeUpdate(BaseModel):

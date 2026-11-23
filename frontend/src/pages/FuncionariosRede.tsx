@@ -23,6 +23,13 @@ import { PageContainer, PageHeader } from '../components/ui/PageContainer'
 type Tipo = 'socio' | 'supervisor' | 'colaborador'
 type ColunaFuncionario = 'nome' | 'email' | 'tipo'
 
+/** #1407: todas as redes do contato; rede_nome fica como fallback legado. */
+function redesDoFuncionario(f: FuncionarioRedeTipo.Funcionario): string[] {
+  const nomes = (f.redes ?? []).map((r) => r.nome).filter(Boolean)
+  if (nomes.length > 0) return nomes
+  return f.rede_nome ? [f.rede_nome] : []
+}
+
 export function FuncionariosRede() {
   const navigate = useNavigate()
   const { user } = useAuth()
@@ -139,7 +146,7 @@ export function FuncionariosRede() {
           <p className="text-slate-500 dark:text-slate-400">Nenhum cadastrado.</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] text-left text-sm">
+            <table className="w-full min-w-[900px] text-left text-sm">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50/60 dark:border-slate-800 dark:bg-slate-800/40">
                   <CabecalhoOrdenavel
@@ -152,6 +159,9 @@ export function FuncionariosRede() {
                       aoOrdenarColuna(c)
                     }}
                   />
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500 sm:px-6 dark:text-slate-400">
+                    Redes
+                  </th>
                   <CabecalhoOrdenavel
                     coluna="email"
                     rotulo="E-mail"
@@ -201,6 +211,23 @@ export function FuncionariosRede() {
                           </span>
                         )}
                       </div>
+                    </td>
+                    <td className="px-4 py-3.5">
+                      {redesDoFuncionario(f).length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {redesDoFuncionario(f).map((nome) => (
+                            <span
+                              key={nome}
+                              title={nome}
+                              className="inline-flex max-w-[12rem] truncate rounded-md bg-violet-50 px-1.5 py-0.5 text-[11px] font-medium text-violet-800 ring-1 ring-violet-600/15 dark:bg-violet-950/40 dark:text-violet-200"
+                            >
+                              {nome}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-slate-400">—</span>
+                      )}
                     </td>
                     <td className="max-w-[14rem] truncate px-4 py-3.5 text-slate-600 sm:px-6 dark:text-slate-400" title={f.email ?? undefined}>
                       {f.email}

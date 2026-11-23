@@ -14,7 +14,7 @@ from app.models.ponto_competencia import PontoCompetencia, PontoEspelhoCiencia
 from app.models.ponto_settings import PontoFeriado, PontoLocal, PontoSettings
 from app.models.setor import Setor
 from app.models.setor_distribuicao_round_robin import SetorDistribuicaoRoundRobin
-from app.models.funcionario_rede import FuncionarioRede, FuncionarioRedeEmpresa
+from app.models.funcionario_rede import FuncionarioRede, FuncionarioRedeEmpresa, FuncionarioRedeVinculo
 from app.models.status_ticket import StatusTicket
 from app.models.ticket import Ticket, TicketHistorico, TicketMensagem
 from app.models.ticket_anexo import TicketAnexo
@@ -73,11 +73,13 @@ from app.models.crm import (
     CrmNegociacao,
     CrmNegociacaoAtividade,
     CrmNegociacaoCnpjLinha,
+    CrmOrigemLead,
     FunilEstagio,
 )
 from app.models.comercial_proposta import Proposta, PropostaTemplate
 from app.models.comercial_contrato import Contrato, ContratoPdf, ContratoPolitica, ContratoTemplate
-from app.models.faturamento import Fatura
+from app.models.contrato_assinatura import ContratoAssinatura, ContratoAssinaturaParte
+from app.models.faturamento import Fatura, FaturaAnexo, FaturamentoPolitica, TituloReceber
 from app.models.implantacao_checklist import (
     ImplantacaoChecklistTemplate,
     ImplantacaoChecklistTemplateItem,
@@ -127,6 +129,7 @@ __all__ = [
     "PontoFeriado",
     "FuncionarioRede",
     "FuncionarioRedeEmpresa",
+    "FuncionarioRedeVinculo",
     "StatusTicket",
     "Ticket",
     "TicketHistorico",
@@ -199,11 +202,16 @@ __all__ = [
     "CrmNegociacao",
     "CrmNegociacaoCnpjLinha",
     "CrmNegociacaoAtividade",
+    "CrmOrigemLead",
     "PropostaTemplate",
     "Proposta",
     "ContratoTemplate",
     "Contrato",
+    "ContratoAssinatura",
     "Fatura",
+    "FaturaAnexo",
+    "FaturamentoPolitica",
+    "TituloReceber",
     "ContratoPdf",
     "ContratoPolitica",
     "ImplantacaoChecklistTemplate",

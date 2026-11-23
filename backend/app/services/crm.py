@@ -11,15 +11,14 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.models.atendente import Atendente
 from app.models.crm import (
-    ATIVIDADE_LIGACAO,
     ATIVIDADE_MUDANCA_ESTAGIO,
     ATIVIDADE_NOTA,
-    ATIVIDADE_REUNIAO,
     ATIVIDADE_TIPOS,
     FUNIL_SEED,
     FUNIL_TIPOS,
     FUNIL_TIPO_PERDIDO,
     SLUG_DOCUMENTACAO,
+    SLUG_PROPOSTA_ENVIADA,
     CrmLead,
     CrmNegociacao,
     CrmNegociacaoAtividade,
@@ -42,12 +41,13 @@ from app.schemas.crm import (
     FunilEstagioUpdate,
 )
 from app.services import comercial_custo as custo_svc
+from app.services.crm_origens import ensure_origens_padrao, normalizar_origem
 
 # O autor edita a própria nota até 5 minutos depois de salvar (#1098).
 NOTA_EDICAO = timedelta(minutes=5)
 # Sem confirmação do autor, outro aviso só depois desta folga (evita rajada entre workers).
 LEMBRETE_RETRY = timedelta(minutes=2)
-TIPOS_NOTA_EDITAVEIS = frozenset({ATIVIDADE_NOTA, ATIVIDADE_LIGACAO, ATIVIDADE_REUNIAO})
+TIPOS_NOTA_EDITAVEIS = frozenset({ATIVIDADE_NOTA})
 
 
 def ensure_funil_padrao(db: Session) -> None:
@@ -384,18 +384,34 @@ def listar_leads(
     return rows, total
 
 
+def _identidade_do_lead(lead: CrmLead | None) -> str | None:
+    """Identidade única do cliente no lead (nome fantasia/posto).
+
+    É a sugestão de primeira vez para a razão social da linha e para o nome da
+    Rede — o comercial confirma, não redigita do zero (#1319).
+    """
+    texto = (lead.empresa_texto or "").strip() if lead is not None else ""
+    return texto or None
+
+
+def _lead_da_negociacao(db: Session, neg: CrmNegociacao) -> CrmLead | None:
+    return neg.lead or db.query(CrmLead).filter(CrmLead.id == neg.lead_id).first()
+
+
 def criar_lead(db: Session, data: CrmLeadCreate, ator: Atendente) -> CrmLead:
     ensure_funil_padrao(db)
+    ensure_origens_padrao(db)
     responsavel_id = data.responsavel_id or ator.id
     _assert_responsavel_comercial(db, responsavel_id)
     est = estagio_inicial(db)
+    notas = (data.notas or "").strip() or None
     lead = CrmLead(
         nome=data.nome.strip(),
         telefone=(data.telefone or None),
         email=(data.email or None),
         empresa_texto=(data.empresa_texto or None),
-        origem=(data.origem or None),
-        notas=data.notas,
+        origem=normalizar_origem(db, data.origem),
+        notas=notas,
         responsavel_id=responsavel_id,
         estagio_id=est.id,
         ativo=True,
@@ -409,6 +425,7 @@ def criar_lead(db: Session, data: CrmLeadCreate, ator: Atendente) -> CrmLead:
             estagio_id=est.id,
             ativa=True,
             titulo=data.titulo_negociacao or f"Negociação — {lead.nome}",
+            nome_base_webposto=_identidade_do_lead(lead),
         )
         db.add(neg)
         db.flush()
@@ -420,6 +437,16 @@ def criar_lead(db: Session, data: CrmLeadCreate, ator: Atendente) -> CrmLead:
                 texto=f"Negociação criada no estágio «{est.nome}».",
             )
         )
+        # O texto digitado no cadastro não pode sumir: vira a primeira anotação (#1319).
+        if notas:
+            db.add(
+                CrmNegociacaoAtividade(
+                    negociacao_id=neg.id,
+                    autor_id=ator.id,
+                    tipo=ATIVIDADE_NOTA,
+                    texto=notas,
+                )
+            )
     db.flush()
     return lead
 
@@ -430,6 +457,8 @@ def atualizar_lead(db: Session, lead: CrmLead, data: CrmLeadUpdate) -> CrmLead:
         _assert_responsavel_comercial(db, payload["responsavel_id"])
     if "nome" in payload and payload["nome"]:
         payload["nome"] = str(payload["nome"]).strip()
+    if "origem" in payload:
+        payload["origem"] = normalizar_origem(db, payload["origem"])
     for k, v in payload.items():
         setattr(lead, k, v)
     db.flush()
@@ -524,6 +553,8 @@ def criar_negociacao(db: Session, data: CrmNegociacaoCreate, ator: Atendente) ->
         estagio_id=est.id,
         ativa=True,
         titulo=data.titulo or f"Negociação — {lead.nome}",
+        # Primeira vez: o nome da Rede já vem da identidade do lead (#1319).
+        nome_base_webposto=data.nome_base_webposto or _identidade_do_lead(lead),
     )
     db.add(neg)
     db.flush()
@@ -596,7 +627,9 @@ def add_linha(db: Session, neg: CrmNegociacao, data: CrmLinhaCreate) -> CrmNegoc
     linha = CrmNegociacaoCnpjLinha(
         negociacao_id=neg.id,
         cnpj=data.cnpj,
-        razao_social=data.razao_social,
+        # Primeira vez: a razão social é sugerida pela identidade do lead (#1319).
+        razao_social=(data.razao_social or "").strip()
+        or _identidade_do_lead(_lead_da_negociacao(db, neg)),
         dados_fiscais=(data.dados_fiscais.model_dump(exclude_none=True) if data.dados_fiscais else {}),
         item_ids=list(data.item_ids or []),
         quantidade_pdvs=data.quantidade_pdvs,
@@ -675,6 +708,25 @@ def excluir_linha(db: Session, linha: CrmNegociacaoCnpjLinha) -> None:
     db.flush()
 
 
+def _exigir_proposta_enviada(db: Session, neg: CrmNegociacao) -> None:
+    """O Kanban não mente: «Proposta enviada» exige proposta de fato enviada (#1321)."""
+    from app.models.comercial_proposta import PROPOSTA_ENVIADA, Proposta
+
+    existe = (
+        db.query(Proposta.id)
+        .filter(Proposta.negociacao_id == neg.id, Proposta.status == PROPOSTA_ENVIADA)
+        .first()
+    )
+    if existe is None:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Só dá para mover para «Proposta enviada» quando existe proposta enviada. "
+                "Gere e envie a proposta na ficha da negociação."
+            ),
+        )
+
+
 def mover_estagio(
     db: Session,
     neg: CrmNegociacao,
@@ -688,6 +740,8 @@ def mover_estagio(
     destino = obter_estagio(db, estagio_id=estagio_id, slug=estagio_slug)
     _validar_transicao(origem, destino)
     _validar_cnpjs_obrigatorios(db, neg, destino)
+    if destino.slug == SLUG_PROPOSTA_ENVIADA:
+        _exigir_proposta_enviada(db, neg)
 
     neg.estagio_id = destino.id
     lead = obter_lead(db, neg.lead_id)
@@ -823,7 +877,7 @@ def editar_atividade(
     if row is None:
         raise HTTPException(status_code=404, detail="Nota não encontrada.")
     if row.tipo not in TIPOS_NOTA_EDITAVEIS:
-        raise HTTPException(status_code=400, detail="Só é possível editar notas, ligações e reuniões.")
+        raise HTTPException(status_code=400, detail="Só é possível editar notas.")
     if row.autor_id != ator.id:
         raise HTTPException(status_code=403, detail="Só o autor pode editar esta nota.")
     if not nota_pode_editar(row, ator):

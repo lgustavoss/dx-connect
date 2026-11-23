@@ -38,6 +38,7 @@ from app.api import (
     whatsapp_webhook,
     email_inbound_webhook,
     resend_inbound_webhook,
+    docuseal_webhook,
     respostas_prontas,
     pdv_catalogos,
     ticket_catalogos,
@@ -50,6 +51,8 @@ from app.api import (
     implantacao,
     faturamento,
     crm,
+    crm_origens,
+    operacao_timeline,
     system_settings,
     tenant,
     public_csat,
@@ -717,6 +720,7 @@ app.include_router(whatsapp_figurinhas.router, prefix=API_V1_PREFIX)
 app.include_router(whatsapp_webhook.router, prefix=API_V1_PREFIX)
 app.include_router(email_inbound_webhook.router, prefix=API_V1_PREFIX)
 app.include_router(resend_inbound_webhook.router, prefix=API_V1_PREFIX)
+app.include_router(docuseal_webhook.router, prefix=API_V1_PREFIX)
 app.include_router(respostas_prontas.router, prefix=API_V1_PREFIX)
 app.include_router(pdv_catalogos.router, prefix=API_V1_PREFIX)
 app.include_router(ticket_catalogos.router, prefix=API_V1_PREFIX)
@@ -726,6 +730,8 @@ app.include_router(comercial_contrato.router, prefix=API_V1_PREFIX)
 app.include_router(implantacao.router, prefix=API_V1_PREFIX)
 app.include_router(faturamento.router, prefix=API_V1_PREFIX)
 app.include_router(crm.router, prefix=API_V1_PREFIX)
+app.include_router(crm_origens.router, prefix=API_V1_PREFIX)
+app.include_router(operacao_timeline.router, prefix=API_V1_PREFIX)
 app.include_router(empresa_pdvs.router, prefix=API_V1_PREFIX)
 app.include_router(deskremote.router, prefix=API_V1_PREFIX)
 app.include_router(rustdesk_peers.router, prefix=API_V1_PREFIX)

@@ -34,7 +34,74 @@ const FILTROS: { id: RustdeskFrota.Filtro; rotulo: string }[] = [
   { id: 'offline', rotulo: 'Offline' },
   { id: 'sem_vinculo', rotulo: 'Sem vínculo' },
   { id: 'vinculado', rotulo: 'Vinculados' },
+  { id: 'desatualizado', rotulo: 'Desatualizados' },
 ]
+
+function rotuloUpdateStatus(status: string | null | undefined) {
+  switch (status) {
+    case 'pendente':
+      return 'Atualização pedida (próximo sync, ~30 s)'
+    case 'enviado':
+      return 'Aguardando o app (~30 s)'
+    case 'em_andamento':
+      return 'Atualizando…'
+    case 'falhou':
+      return 'Falha na atualização'
+    case 'concluido':
+      return 'Atualizado'
+    default:
+      return null
+  }
+}
+
+function SeloVersao({ peer }: { peer: RustdeskFrota.Peer }) {
+  const ver = peer.deskremote_app_version?.trim()
+  const updateRotulo = rotuloUpdateStatus(peer.deskremote_update_status)
+  if (!ver) {
+    return (
+      <div className="space-y-1">
+        <span className="text-xs text-slate-400" title="Este computador ainda não reportou a versão do DeskRemote">
+          Desconhecida
+        </span>
+        {updateRotulo ? <p className="text-xs text-slate-500 dark:text-slate-400">{updateRotulo}</p> : null}
+      </div>
+    )
+  }
+  return (
+    <div className="space-y-1">
+      <p className="font-mono text-sm text-slate-800 dark:text-slate-100">{ver}</p>
+      {peer.deskremote_desatualizado === true ? (
+        <span className="inline-flex rounded-md bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-900 dark:bg-amber-950/60 dark:text-amber-100">
+          Desatualizado
+        </span>
+      ) : null}
+      {updateRotulo ? (
+        <p
+          className={
+            peer.deskremote_update_status === 'falhou'
+              ? 'text-xs text-rose-600 dark:text-rose-300'
+              : 'text-xs text-slate-500 dark:text-slate-400'
+          }
+        >
+          {updateRotulo}
+        </p>
+      ) : null}
+    </div>
+  )
+}
+
+function IconeAtualizar() {
+  return (
+    <svg className="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+      />
+    </svg>
+  )
+}
 
 function IconeVinculo({ ligado }: { ligado: boolean }) {
   return (
@@ -384,6 +451,19 @@ export function RustdeskPeers() {
     })
   }
 
+  async function pedirAtualizar(peer: RustdeskFrota.Peer) {
+    setSalvando(true)
+    try {
+      const out = await rustdeskPeers.atualizar(peer.rustdesk_id)
+      toast.showSuccess(out.mensagem || 'Pedido de atualização enviado.')
+      carregar()
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível pedir a atualização.'))
+    } finally {
+      setSalvando(false)
+    }
+  }
+
   async function confirmarAcao() {
     if (!acaoPendente) return
     setSalvando(true)
@@ -436,6 +516,12 @@ export function RustdeskPeers() {
           Não foi possível consultar o servidor de acesso remoto agora. A lista abaixo é a última leitura que deu certo.
         </p>
       ) : null}
+      {lista?.deskremote_versao_release ? (
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          Versão publicada do DeskRemote Cliente:{" "}
+          <span className="font-mono text-slate-700 dark:text-slate-200">{lista.deskremote_versao_release}</span>
+        </p>
+      ) : null}
       <Input
         label="Buscar"
         placeholder="Rede, empresa, rótulo, código ou ID"
@@ -460,12 +546,13 @@ export function RustdeskPeers() {
         <p className="text-sm text-slate-500">Carregando computadores…</p>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
-          <table className="w-full min-w-[720px] text-left text-sm">
+          <table className="w-full min-w-[820px] text-left text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50/60 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:border-slate-800 dark:bg-slate-800/40">
                 <th className="px-4 py-3">ID</th>
                 <th className="px-4 py-3">IP</th>
                 <th className="px-4 py-3">Situação</th>
+                <th className="px-4 py-3">Versão</th>
                 <th className="px-4 py-3">Última atividade</th>
                 <th className="px-4 py-3">Vínculo</th>
                 <th className="px-4 py-3 text-right">Ações</th>
@@ -480,6 +567,7 @@ export function RustdeskPeers() {
                       peer.rustdesk_id,
                       formatarIdRustdesk(peer.rustdesk_id),
                       peer.ip,
+                      peer.deskremote_app_version,
                       ...peer.vinculos.map((v) => textoBuscaVinculo(v)),
                     ].join(' '),
                   ),
@@ -487,7 +575,7 @@ export function RustdeskPeers() {
                 if (visiveis.length === 0) {
                   return (
                     <tr>
-                      <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
+                      <td colSpan={7} className="px-4 py-8 text-center text-slate-500">
                         Nenhum computador neste filtro.
                       </td>
                     </tr>
@@ -499,6 +587,9 @@ export function RustdeskPeers() {
                     <td className="px-4 py-3 font-mono text-slate-600 dark:text-slate-300">{peer.ip || '—'}</td>
                     <td className="px-4 py-3">
                       <SeloOnline online={peer.online} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <SeloVersao peer={peer} />
                     </td>
                     <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{formatarQuando(peer.last_seen)}</td>
                     <td className="px-4 py-3">
@@ -542,6 +633,15 @@ export function RustdeskPeers() {
                         />
                         {podeVincular ? (
                           <>
+                          {peer.deskremote_pode_atualizar ? (
+                            <BotaoIcone
+                              title="Atualizar DeskRemote"
+                              disabled={salvando}
+                              onClick={() => void pedirAtualizar(peer)}
+                            >
+                              <IconeAtualizar />
+                            </BotaoIcone>
+                          ) : null}
                           {peer.vinculos.length === 0 ? (
                             <BotaoIcone title="Vincular" onClick={() => abrirVinculo(peer)}>
                               <IconeVinculo ligado={false} />
@@ -671,7 +771,7 @@ export function RustdeskPeers() {
             <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-50">{acaoPendente.titulo}</h3>
             <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">{acaoPendente.texto}</p>
             <div className="mt-6 flex justify-end gap-2">
-              <Button type="button" variant="cancel" onClick={() => setAcaoPendente(null)} disabled={salvando}>
+              <Button type="button" variant="secondary" onClick={() => setAcaoPendente(null)} disabled={salvando}>
                 Cancelar
               </Button>
               <Button

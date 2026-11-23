@@ -6,6 +6,7 @@ import {
   crmFunil,
   crmLeads,
   crmNegociacoes,
+  crmOrigens,
   type Atendentes,
   type Crm,
 } from '../api/client'
@@ -102,6 +103,8 @@ export function CrmLeads() {
   const [responsavelId, setResponsavelId] = useState<number | ''>('')
   const [responsaveis, setResponsaveis] = useState<Atendentes.Atendente[]>([])
   const [maisDados, setMaisDados] = useState(false)
+  const [origens, setOrigens] = useState<Crm.OrigemLead[]>([])
+  const [criandoNegociacaoId, setCriandoNegociacaoId] = useState<number | null>(null)
   const loadGenRef = useRef(0)
 
   useEffect(() => {
@@ -139,6 +142,13 @@ export function CrmLeads() {
   useEffect(() => {
     loadEstagios()
   }, [loadEstagios])
+
+  useEffect(() => {
+    crmOrigens
+      .list()
+      .then(setOrigens)
+      .catch(() => setOrigens([]))
+  }, [])
 
   useEffect(() => {
     if (!isAdmin) return
@@ -316,6 +326,24 @@ export function CrmLeads() {
       return
     }
     toast.showWarning('Esta lead não tem negociação ativa.')
+  }
+
+  /** Lead perdido/encerrado: a API já permite, a UI passa a oferecer (#1319). */
+  async function criarNovaNegociacao(lead: Crm.Lead) {
+    if (lead.negociacao_ativa_id) {
+      navigate(`/crm/negociacoes/${lead.negociacao_ativa_id}`)
+      return
+    }
+    setCriandoNegociacaoId(lead.id)
+    try {
+      const neg = await crmNegociacoes.create({ lead_id: lead.id })
+      toast.showSuccess('Nova negociação criada.')
+      navigate(`/crm/negociacoes/${neg.id}`)
+    } catch (err) {
+      toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível criar a nova negociação.'))
+    } finally {
+      setCriandoNegociacaoId(null)
+    }
   }
 
   async function moverLeadParaEstagio(lead: Crm.Lead, destinoId: number) {
@@ -563,9 +591,19 @@ export function CrmLeads() {
                         </td>
                         <td className="px-3 py-2.5 text-slate-500">{formatDate(lead.created_at)}</td>
                         <td className="px-3 py-2.5 text-right">
-                          <Button variant="secondary" onClick={() => abrirNegociacao(lead)}>
-                            Abrir
-                          </Button>
+                          {lead.negociacao_ativa_id ? (
+                            <Button variant="secondary" onClick={() => abrirNegociacao(lead)}>
+                              Abrir
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="secondary"
+                              onClick={() => void criarNovaNegociacao(lead)}
+                              loading={criandoNegociacaoId === lead.id}
+                            >
+                              Nova negociação
+                            </Button>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -718,45 +756,56 @@ export function CrmLeads() {
                         </div>
                       ) : (
                         cards.map((lead) => (
-                          <button
-                            key={lead.id}
-                            type="button"
-                            draggable={!moving && !reorderingCols}
-                            onDragStart={(e) => {
-                              setDraggingId(lead.id)
-                              e.dataTransfer.setData(DND_LEAD, String(lead.id))
-                              e.dataTransfer.setData('text/plain', String(lead.id))
-                              e.dataTransfer.effectAllowed = 'move'
-                            }}
-                            onDragEnd={() => {
-                              setDraggingId(null)
-                              setDropColId(null)
-                            }}
-                            onClick={() => abrirNegociacao(lead)}
-                            className={`rounded-lg border border-slate-200/90 bg-white p-3 text-left shadow-sm transition hover:border-cyan-400/50 hover:shadow dark:border-slate-600/80 dark:bg-slate-800/90 ${
-                              draggingId === lead.id ? 'opacity-50' : ''
-                            }`}
-                          >
-                            <div className="font-medium text-slate-900 dark:text-slate-100">{lead.nome}</div>
-                            {lead.empresa_texto ? (
-                              <div className="mt-0.5 truncate text-xs text-slate-500">{lead.empresa_texto}</div>
+                          <div key={lead.id} className="space-y-1">
+                            <button
+                              type="button"
+                              draggable={!moving && !reorderingCols}
+                              onDragStart={(e) => {
+                                setDraggingId(lead.id)
+                                e.dataTransfer.setData(DND_LEAD, String(lead.id))
+                                e.dataTransfer.setData('text/plain', String(lead.id))
+                                e.dataTransfer.effectAllowed = 'move'
+                              }}
+                              onDragEnd={() => {
+                                setDraggingId(null)
+                                setDropColId(null)
+                              }}
+                              onClick={() => abrirNegociacao(lead)}
+                              className={`w-full rounded-lg border border-slate-200/90 bg-white p-3 text-left shadow-sm transition hover:border-cyan-400/50 hover:shadow dark:border-slate-600/80 dark:bg-slate-800/90 ${
+                                draggingId === lead.id ? 'opacity-50' : ''
+                              }`}
+                            >
+                              <div className="font-medium text-slate-900 dark:text-slate-100">{lead.nome}</div>
+                              {lead.empresa_texto ? (
+                                <div className="mt-0.5 truncate text-xs text-slate-500">{lead.empresa_texto}</div>
+                              ) : null}
+                              <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-500">
+                                {lead.telefone ? <span>{lead.telefone}</span> : null}
+                                {lead.origem ? <span>· {lead.origem}</span> : null}
+                              </div>
+                              {lead.ultima_nota ? (
+                                <p className="mt-2 line-clamp-2 text-xs text-slate-600 dark:text-slate-300">
+                                  {lead.ultima_nota}
+                                </p>
+                              ) : null}
+                              {lead.proximo_lembrete_em ? (
+                                <p className="mt-1 text-[11px] font-medium text-cyan-700 dark:text-cyan-300">
+                                  Próximo: {formatDateTime(lead.proximo_lembrete_em)}
+                                </p>
+                              ) : null}
+                              <div className="mt-1 text-[11px] text-slate-400">{formatDate(lead.created_at)}</div>
+                            </button>
+                            {!lead.negociacao_ativa_id ? (
+                              <button
+                                type="button"
+                                disabled={criandoNegociacaoId === lead.id}
+                                onClick={() => void criarNovaNegociacao(lead)}
+                                className="w-full rounded-lg border border-dashed border-cyan-600/50 px-2 py-1.5 text-xs font-medium text-cyan-700 transition hover:bg-cyan-50 disabled:opacity-50 dark:border-cyan-400/40 dark:text-cyan-300 dark:hover:bg-cyan-950/30"
+                              >
+                                {criandoNegociacaoId === lead.id ? 'Criando…' : 'Nova negociação'}
+                              </button>
                             ) : null}
-                            <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-500">
-                              {lead.telefone ? <span>{lead.telefone}</span> : null}
-                              {lead.origem ? <span>· {lead.origem}</span> : null}
-                            </div>
-                            {lead.ultima_nota ? (
-                              <p className="mt-2 line-clamp-2 text-xs text-slate-600 dark:text-slate-300">
-                                {lead.ultima_nota}
-                              </p>
-                            ) : null}
-                            {lead.proximo_lembrete_em ? (
-                              <p className="mt-1 text-[11px] font-medium text-cyan-700 dark:text-cyan-300">
-                                Próximo: {formatDateTime(lead.proximo_lembrete_em)}
-                              </p>
-                            ) : null}
-                            <div className="mt-1 text-[11px] text-slate-400">{formatDate(lead.created_at)}</div>
-                          </button>
+                          </div>
                         ))
                       )}
                     </div>
@@ -790,15 +839,18 @@ export function CrmLeads() {
                 <>
                   <Input label="E-mail" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
                   <Input
-                    label="Empresa / prospecto"
+                    label="Nome do cliente / posto"
                     value={empresaTexto}
                     onChange={(e) => setEmpresaTexto(e.target.value)}
+                    hint="Sugere a razão social da linha e o nome da Rede na primeira vez."
                   />
-                  <Input
+                  <Select
                     label="Origem"
                     value={origem}
-                    onChange={(e) => setOrigem(e.target.value)}
-                    placeholder="WhatsApp, indicação…"
+                    onChange={(v) => setOrigem(String(v))}
+                    options={origens.map((o) => ({ value: o.nome, label: o.nome }))}
+                    includeEmpty
+                    emptyLabel="— selecione —"
                   />
                   <Input label="Observações" value={notas} onChange={(e) => setNotas(e.target.value)} />
                   {isAdmin && responsaveis.length > 0 ? (

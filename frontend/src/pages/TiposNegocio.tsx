@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { CabecalhoOrdenavel } from '../components/ui/CabecalhoOrdenavel'
 import { useOrdenacaoLista } from '../hooks/useOrdenacaoLista'
@@ -103,6 +103,10 @@ export function TiposNegocio({ embedded = false }: { embedded?: boolean }) {
       title="Tipos de negócio"
       actions={podeCriar ? <Button onClick={() => navigate('/tipos-negocio/novo')}>Novo tipo</Button> : undefined}
     >
+      <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">
+        Este cadastro é usado no <strong>cadastro de Empresas</strong> (e das empresas da rede). Ele não tem vínculo
+        com lead, linha da negociação, proposta ou fatura — o funil do CRM não usa esta classificação.
+      </p>
       <Card>
         <BarraBuscaPaginacao
           busca={busca}

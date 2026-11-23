@@ -514,7 +514,7 @@ def write_branding(out_dir: Path, source: Path = DEFAULT_SOURCE) -> None:
         return outlined_fit[size]
 
     def sciter_icon(size: int) -> Image.Image:
-        """Sciter 1.x de producao: sem halo extra, para o posto nao mudar no rebuild."""
+        """Sciter 1.x de producao: sem halo extra, para o cliente nao mudar no rebuild."""
         if size not in sciter_fit:
             sciter_fit[size] = _fit_square(full, size)
         return sciter_fit[size]

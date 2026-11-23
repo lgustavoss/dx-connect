@@ -7,7 +7,7 @@ from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from app.core.audit import registrar_audit
-from app.core.auth import exigir_permissao
+from app.core.auth import exigir_permissao, obter_atendente_atual
 from app.services.permissao_grupos import tem_permissao
 from app.database import get_db
 from app.models.atendente import Atendente
@@ -16,6 +16,7 @@ from app.schemas.crm import DadosFiscaisLinha
 from app.schemas.empresa import EmpresaRead
 from app.schemas.comercial_contrato import (
     ContratoChaveCatalogoItem,
+    ContratoCobrancaUpdate,
     ContratoGerarIn,
     ContratoMarcarAssinadoIn,
     ContratoMarcarEnviadoIn,
@@ -28,9 +29,33 @@ from app.schemas.comercial_contrato import (
     ContratoTemplateRead,
     ContratoTemplateUpdate,
 )
+from app.schemas.contrato_assinatura import ContratoAssinaturaEnviarIn, ContratoAssinaturaRead
 from app.services import comercial_contrato as svc
 
 router = APIRouter(prefix="/comercial", tags=["comercial-contratos"])
+
+
+def exigir_cobranca_contrato(
+    atendente: Atendente = Depends(obter_atendente_atual),
+    db: Session = Depends(get_db),
+) -> Atendente:
+    """Cobrança do contrato (#1340): quem emite contrato ou quem gera fatura, e o Financeiro."""
+    from app.core.setor_scope import atendente_e_financeiro
+
+    if tem_permissao(atendente, "contratos.emitir") or tem_permissao(atendente, "faturamento.gerar"):
+        return atendente
+    if atendente_e_financeiro(db, atendente):
+        return atendente
+    raise HTTPException(status_code=403, detail="Sem permissão para editar a cobrança do contrato.")
+
+
+def _contrato_para_cobranca(db: Session, contrato_id: int, atendente: Atendente):
+    """Financeiro/gerador de fatura enxerga qualquer contrato; comercial só o próprio (#1340)."""
+    from app.core.setor_scope import atendente_e_financeiro
+
+    if atendente_e_financeiro(db, atendente) or tem_permissao(atendente, "faturamento.gerar"):
+        return svc.obter_contrato(db, contrato_id)
+    return svc.obter_contrato(db, contrato_id, atendente=atendente)
 
 
 @router.get("/contrato-templates/chaves", response_model=list[ContratoChaveCatalogoItem])
@@ -137,18 +162,30 @@ def listar_contratos(
     elif filtrar_minhas is None:
         filtrar_minhas = False
     incluir_html = negociacao_id is not None
-    return [
-        svc.contrato_para_read(r, incluir_html=incluir_html)
-        for r in svc.listar_contratos(
-            db,
-            negociacao_id=negociacao_id,
-            status=status,
-            cnpj=cnpj,
-            responsavel_id=responsavel_id,
-            so_minhas=bool(filtrar_minhas),
-            atendente=atendente,
+    rows = svc.listar_contratos(
+        db,
+        negociacao_id=negociacao_id,
+        status=status,
+        cnpj=cnpj,
+        responsavel_id=responsavel_id,
+        so_minhas=bool(filtrar_minhas),
+        atendente=atendente,
+    )
+    # Multa de rescisão resolvida em lote: a listagem não faz uma query por contrato (#1386).
+    from app.services import faturamento as faturamento_svc
+
+    titulos_multa = faturamento_svc.titulos_multa_por_contrato(db, [r.id for r in rows])
+    payloads = [
+        svc.contrato_para_read(
+            r,
+            incluir_html=incluir_html,
+            titulo_multa=titulos_multa.get(r.id),
+            consultar_titulo_multa=False,
         )
+        for r in rows
     ]
+    svc.marcar_vigentes(db, payloads)
+    return payloads
 
 
 @router.get("/contratos/linhas/{linha_id}/empresa", response_model=EmpresaRead)
@@ -220,7 +257,11 @@ def obter_contrato(
     db: Session = Depends(get_db),
     atendente: Atendente = Depends(exigir_permissao("contratos.ver")),
 ):
-    return svc.contrato_para_read(svc.obter_contrato(db, contrato_id, atendente=atendente), incluir_html=True)
+    payload = svc.contrato_para_read(
+        svc.obter_contrato(db, contrato_id, atendente=atendente), incluir_html=True
+    )
+    svc.marcar_vigentes(db, [payload])
+    return payload
 
 
 @router.get("/contratos/{contrato_id}/pdf")
@@ -357,6 +398,33 @@ def marcar_assinado(
     return svc.contrato_para_read(svc.obter_contrato(db, row.id, atendente=atendente), incluir_html=True)
 
 
+@router.patch("/contratos/{contrato_id}/cobranca", response_model=ContratoRead)
+def atualizar_cobranca_contrato(
+    contrato_id: int,
+    data: ContratoCobrancaUpdate,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(exigir_cobranca_contrato),
+):
+    """Primeira venda no PDV e overrides de cobrança da negociação (#1340)."""
+    row = _contrato_para_cobranca(db, contrato_id, atendente)
+    row = svc.atualizar_cobranca(db, row, data, atendente)
+    alterados = {
+        k: (v.isoformat() if hasattr(v, "isoformat") else v)
+        for k, v in data.model_dump(exclude_unset=True).items()
+    }
+    registrar_audit(
+        db,
+        "comercial_contrato",
+        row.id,
+        "update",
+        atendente.id,
+        payload={"cobranca": alterados},
+    )
+    db.commit()
+    db.refresh(row)
+    return svc.contrato_para_read(_contrato_para_cobranca(db, row.id, atendente), incluir_html=True)
+
+
 @router.post("/contratos/{contrato_id}/cancelar", response_model=ContratoRead)
 def cancelar_contrato(
     contrato_id: int,
@@ -386,8 +454,117 @@ def cancelar_contrato(
             "status": row.status,
             "rescisao": era_assinado,
             "multa_rescisao": payload_multa,
+            "cobranca_cancelada": getattr(row, "pendencias_cobranca_canceladas", None),
         },
     )
     db.commit()
     db.refresh(row)
     return svc.contrato_para_read(svc.obter_contrato(db, row.id, atendente=atendente), incluir_html=True)
+
+
+@router.post("/contratos/{contrato_id}/assinatura/enviar", response_model=ContratoAssinaturaRead)
+def enviar_assinatura(
+    contrato_id: int,
+    data: ContratoAssinaturaEnviarIn,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(exigir_permissao("contratos.emitir")),
+):
+    """Fluxo A (#1380 / #1429): envelope DocuSeal multiparte."""
+    from app.models.contrato_assinatura import STATUS_ERRO
+    from app.services import contrato_assinatura as assinatura_svc
+
+    row = svc.obter_contrato(db, contrato_id, atendente=atendente)
+    env = assinatura_svc.enviar_para_assinatura(db, row, data, atendente)
+    env_id = env.id
+    db.commit()
+    env = assinatura_svc.obter_assinatura(db, env_id)
+    if env.status == STATUS_ERRO:
+        raise HTTPException(
+            status_code=502,
+            detail=env.ultimo_erro or "Falha ao criar envelope no DocuSeal.",
+        )
+    return assinatura_svc.to_read(env)
+
+
+@router.post("/contratos/{contrato_id}/assinatura/cancelar", response_model=ContratoAssinaturaRead)
+def cancelar_assinatura(
+    contrato_id: int,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(exigir_permissao("contratos.emitir")),
+):
+    from app.services import contrato_assinatura as assinatura_svc
+
+    row = svc.obter_contrato(db, contrato_id, atendente=atendente)
+    env = assinatura_svc.cancelar_envelope(db, row, atendente)
+    db.commit()
+    db.refresh(env)
+    return assinatura_svc.to_read(env)
+
+
+@router.get("/contratos/{contrato_id}/assinatura", response_model=ContratoAssinaturaRead)
+def obter_assinatura_contrato(
+    contrato_id: int,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(exigir_permissao("contratos.ver")),
+):
+    from app.services import contrato_assinatura as assinatura_svc
+
+    svc.obter_contrato(db, contrato_id, atendente=atendente)
+    assinatura_svc.sincronizar_expiracao(db, contrato_id)
+    env = assinatura_svc.envelope_ativo(db, contrato_id) or assinatura_svc.ultima_assinatura(db, contrato_id)
+    if env is None:
+        raise HTTPException(status_code=404, detail="Nenhuma assinatura registrada neste contrato.")
+    return assinatura_svc.to_read(env)
+
+
+@router.post("/contratos/{contrato_id}/assinatura/partes/{parte_id}/enviar-email")
+def enviar_email_convite_assinatura(
+    contrato_id: int,
+    parte_id: int,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(exigir_permissao("contratos.emitir")),
+):
+    """Envia o link de assinatura da parte por e-mail (modelo A / mercado)."""
+    from app.services import contrato_assinatura as assinatura_svc
+
+    row = svc.obter_contrato(db, contrato_id, atendente=atendente)
+    parte = assinatura_svc.obter_parte(db, contrato_id, parte_id)
+    assinatura_svc.enviar_convite_email_parte(db, row, parte, atendente)
+    db.commit()
+    return {"ok": True, "parte_id": parte_id, "email": parte.email}
+
+
+@router.get("/contratos/{contrato_id}/assinatura/evidencias/{tipo}")
+def baixar_evidencia_assinatura(
+    contrato_id: int,
+    tipo: str,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(exigir_permissao("contratos.ver")),
+):
+    """Download auditado de PDF assinado / trilha / selfie (#1380)."""
+    from app.services import contrato_assinatura as assinatura_svc
+
+    svc.obter_contrato(db, contrato_id, atendente=atendente)
+    env = assinatura_svc.ultima_assinatura(db, contrato_id)
+    if env is None:
+        raise HTTPException(status_code=404, detail="Nenhuma assinatura registrada neste contrato.")
+    if env.provedor == "externo" and tipo in {"audit", "selfie"}:
+        raise HTTPException(
+            status_code=404,
+            detail="Assinatura externa não tem trilha de auditoria nem selfie no DeskRudder.",
+        )
+    conteudo, nome, media = assinatura_svc.bytes_evidencia(env, tipo)
+    registrar_audit(
+        db,
+        "contrato_assinatura",
+        env.id,
+        "download",
+        atendente.id,
+        payload={"tipo": tipo, "contrato_id": contrato_id},
+    )
+    db.commit()
+    return Response(
+        content=conteudo,
+        media_type=media,
+        headers={"Content-Disposition": f'attachment; filename="{nome}"'},
+    )

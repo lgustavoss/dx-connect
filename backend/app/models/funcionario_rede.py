@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Enum
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Enum, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import enum
@@ -39,6 +39,13 @@ class FuncionarioRede(Base):
     rede = relationship("Rede", back_populates="socios", foreign_keys=[rede_id])
     empresa = relationship("Empresa", back_populates="colaboradores", foreign_keys=[empresa_id])
     empresas_supervisor = relationship("FuncionarioRedeEmpresa", back_populates="funcionario", foreign_keys="FuncionarioRedeEmpresa.funcionario_id")
+    # N:N contato × rede (#1407). O campo legado rede_id continua como "primeira rede".
+    vinculos_redes = relationship(
+        "FuncionarioRedeVinculo",
+        back_populates="funcionario",
+        cascade="all, delete-orphan",
+        order_by="FuncionarioRedeVinculo.id",
+    )
     tickets_abertos = relationship("Ticket", back_populates="aberto_por")
 
 
@@ -53,3 +60,30 @@ class FuncionarioRedeEmpresa(Base):
 
     funcionario = relationship("FuncionarioRede", back_populates="empresas_supervisor", foreign_keys=[funcionario_id])
     empresa = relationship("Empresa", back_populates="empresas_supervisor", foreign_keys=[empresa_id])
+
+
+class FuncionarioRedeVinculo(Base):
+    """Contato vinculado a mais de uma rede (#1407) — N:N explícito."""
+
+    __tablename__ = "funcionario_rede_vinculo"
+    __table_args__ = (
+        UniqueConstraint("funcionario_id", "rede_id", name="uq_funcionario_rede_vinculo"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    funcionario_id = Column(
+        Integer,
+        ForeignKey("funcionarios_rede.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    rede_id = Column(
+        Integer,
+        ForeignKey("redes.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    funcionario = relationship("FuncionarioRede", back_populates="vinculos_redes")
+    rede = relationship("Rede")

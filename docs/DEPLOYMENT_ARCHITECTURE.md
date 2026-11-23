@@ -40,6 +40,19 @@ Isto serve **desenvolvimento/staging** com vários “tenants” num Postgres lo
 3. Frontend estático pode ser um build por cliente (`VITE_API_URL` do subdomínio) ou um artefacto com API no mesmo host.
 4. No deploy: `alembic upgrade head` na BD do cliente antes ou durante o restart do container.
 
+### Backup, migrations e troca de imagem
+
+- **A imagem não guarda dados.** O Postgres vive em volume próprio (`dx-connect-pgdata-<slug>`) ou no Postgres do host; rebuild da imagem backend (`docker compose build backend`) e `up --no-deps backend` **não recriam nem removem** o volume. O risco de dados está na **migration**, não no bump da imagem base.
+- **Backup automático antes de migrar (fail-closed):** o deploy (`deploy/scripts/gha-deploy-vps.sh`) grava um dump lógico em `backups/pre-deploy-*.dump` **antes** de `alembic upgrade head`, tanto na base do cliente legado (host) quanto no painel ops (`stack-client.sh backup admin-center`). Se o dump falhar ou sair vazio, o deploy **para** antes da migration. Mantém as 5 últimas cópias.
+- **Restaurar um dump** (exemplo, painel ops):
+  ```bash
+  docker exec -i dx-connect-db-admin-center \
+    pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" --clean --if-exists < backups/pre-deploy-admin-center-AAAAMMDDTHHMMSSZ.dump
+  ```
+  Para a base do cliente legado, o mesmo `pg_restore`/`psql` apontando para a `DATABASE_URL` do `backend/.env`.
+- **Rollback de release:** voltar a `staging` ao commit anterior e rodar o deploy de novo (a imagem é reconstruída); se a migration precisar descer, `alembic downgrade <revisão-anterior>` — as migrations do ciclo CRM→cobrança são aditivas.
+- **Bump de imagem base (ex.: Python 3.12 → 3.15):** validado pelo job `docker` do CI (build real da imagem) e, no deploy, pelo build remoto; o backup precede qualquer migration. Se o build falhar no VPS, o deploy para antes de tocar a base.
+
 Não será usada, por agora, uma única API com roteamento dinâmico entre várias bases (opção A).
 
 ### Fase 1 — templates e runbook (implementado)

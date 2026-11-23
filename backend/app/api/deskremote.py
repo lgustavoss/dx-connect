@@ -79,7 +79,13 @@ def resgatar_instalacao(
     db: Session = Depends(get_db),
 ):
     check_deskremote_enroll_rate_limit(request)
-    return svc.resgatar(db, body.token, body.rustdesk_id)
+    return svc.resgatar(
+        db,
+        body.token,
+        body.rustdesk_id,
+        app_version=body.app_version,
+        app_ui=body.app_ui,
+    )
 
 
 @router.post("/deskremote/dispositivo/id", response_model=DeskremoteConfirmarIdOut)
@@ -90,7 +96,13 @@ def confirmar_id(
     creds: HTTPAuthorizationCredentials | None = Depends(_bearer),
 ):
     check_deskremote_sync_rate_limit(request)
-    return svc.confirmar_id(db, _token_dispositivo(creds), body.rustdesk_id)
+    return svc.confirmar_id(
+        db,
+        _token_dispositivo(creds),
+        body.rustdesk_id,
+        app_version=body.app_version,
+        app_ui=body.app_ui,
+    )
 
 
 @router.get("/deskremote/dispositivo/config", response_model=DeskremoteSyncOut)
@@ -98,6 +110,17 @@ def sync_config(
     request: Request,
     db: Session = Depends(get_db),
     creds: HTTPAuthorizationCredentials | None = Depends(_bearer),
+    app_version: str | None = None,
+    app_ui: str | None = None,
+    update_ack: str | None = None,
+    update_erro: str | None = None,
 ):
     check_deskremote_sync_rate_limit(request)
-    return svc.sync_config(db, _token_dispositivo(creds))
+    return svc.sync_config(
+        db,
+        _token_dispositivo(creds),
+        app_version=app_version,
+        app_ui=app_ui,
+        update_ack=update_ack,
+        update_erro=update_erro,
+    )

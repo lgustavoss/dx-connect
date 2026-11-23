@@ -1,4 +1,4 @@
-# Setup do ATENDENTE: painel DeskRudder + Acesso Remoto embutido.
+﻿# Setup do ATENDENTE: painel DeskRudder + Acesso Remoto embutido.
 # Rápido: só monta o Electron e baixa o remoto já publicado.
 #
 # Pré-requisito (1.ª vez ou ao atualizar o remoto):
@@ -36,7 +36,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -52,7 +52,7 @@ jobs:
           set -euo pipefail
           DEST="desktop/vendor/remoto-controle"
           mkdir -p "$DEST"
-          SRC="DeskRudder-AcessoRemoto-Controle-Flutter.exe"
+          SRC="deskremote-atendente.exe"
           ASSET="DeskRudder-AcessoRemoto-Controle.exe"
           if ! gh release download acesso-remoto-controle-flutter-windows \
             --repo "${{ github.repository }}" \
@@ -93,7 +93,7 @@ jobs:
           ls -lh "$SRC"
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: DeskRudder-Setup-windows
           path: desktop/release/DeskRudder-Setup-*.exe

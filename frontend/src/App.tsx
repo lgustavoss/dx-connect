@@ -27,6 +27,8 @@ import { CrmLeads } from './pages/CrmLeads'
 import { CrmNegociacaoDetalhe } from './pages/CrmNegociacaoDetalhe'
 import { CrmContratos } from './pages/CrmContratos'
 import { Faturamento } from './pages/Faturamento'
+import { OperacaoCarteira } from './pages/operacao/OperacaoCarteira'
+import { OperacaoTimeline } from './pages/operacao/OperacaoTimeline'
 import { ConfigCrmFunil } from './pages/ConfigCrmFunil'
 import { Redes } from './pages/Redes'
 import { RedeDetalhe } from './pages/RedeDetalhe'
@@ -76,6 +78,7 @@ import { TipoNegocioDetalhe } from './pages/TipoNegocioDetalhe'
 import { ConfigWhatsapp } from './pages/ConfigWhatsapp'
 import { ConfigPdvCatalogos } from './pages/ConfigPdvCatalogos'
 import { ConfigComercialCustos } from './pages/ConfigComercialCustos'
+import { ConfigFaturamentoPolitica } from './pages/ConfigFaturamentoPolitica'
 import { ConfigEmpresaEmail } from './pages/ConfigEmpresaEmail'
 import { ConfigHubPage } from './pages/config/ConfigHubPage'
 import { ConfigDomainIndexRedirect, ConfigDomainLayout } from './pages/config/ConfigDomainLayout'
@@ -474,6 +477,22 @@ function AppRoutes() {
           }
         />
         <Route
+          path="operacao/carteira"
+          element={
+            <PermissaoRoute codigo="crm.ver">
+              <OperacaoCarteira />
+            </PermissaoRoute>
+          }
+        />
+        <Route
+          path="operacao/timeline"
+          element={
+            <PermissaoRoute codigo="crm.ver">
+              <OperacaoTimeline />
+            </PermissaoRoute>
+          }
+        />
+        <Route
           path="faturamento"
           element={
             <AlgumaPermissaoRoute codigos={['faturamento.ver']} tambemFinanceiro>
@@ -857,6 +876,7 @@ function AppRoutes() {
           <Route path="propostas" element={<PermissaoRoute codigo="propostas.modelos"><ConfigPropostaTemplates embedded /></PermissaoRoute>} />
           <Route path="contratos" element={<PermissaoRoute codigo="contratos.modelos"><ConfigContratoTemplates embedded /></PermissaoRoute>} />
           <Route path="custos" element={<AlgumaPermissaoRoute codigos={['custos.ver', 'custos.simular', 'custos.editar']}><ConfigComercialCustos embedded /></AlgumaPermissaoRoute>} />
+          <Route path="faturamento" element={<PermissaoRoute codigo="faturamento.politica"><ConfigFaturamentoPolitica embedded /></PermissaoRoute>} />
           <Route path="implantacao" element={<PermissaoRoute codigo="implantacao.editar"><ConfigImplantacaoChecklist embedded /></PermissaoRoute>} />
           <Route path="empresa" element={<PermissaoRoute codigo="instalacao.ver"><ConfigEmpresaEmail embedded section="empresa" /></PermissaoRoute>} />
           <Route path="tipos-negocio" element={<PermissaoRoute codigo="tipos_negocio.ver"><TiposNegocio embedded /></PermissaoRoute>} />

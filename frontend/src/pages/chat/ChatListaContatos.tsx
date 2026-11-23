@@ -9,6 +9,13 @@ import { useToast } from '../../components/ui/Toast'
 
 const PAGE = 40
 
+/** #1407: todas as redes do contato; rede_nome fica como fallback legado. */
+function redesDoContato(c: WhatsappChats.Contato): string[] {
+  const nomes = (c.redes ?? []).map((r) => r.nome).filter(Boolean)
+  if (nomes.length > 0) return nomes
+  return c.rede_nome ? [c.rede_nome] : []
+}
+
 export function ChatListaContatos() {
   const { busca } = useChatHub()
   const location = useLocation()
@@ -81,6 +88,15 @@ export function ChatListaContatos() {
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">{c.nome}</p>
                   <div className="mt-0.5 flex flex-wrap gap-1">
+                    {redesDoContato(c).map((nome) => (
+                      <span
+                        key={nome}
+                        className="inline-flex max-w-[10rem] truncate rounded-md bg-violet-50 px-1.5 py-0.5 text-[10px] font-medium text-violet-800 ring-1 ring-violet-600/15 dark:bg-violet-950/40 dark:text-violet-200"
+                        title={nome}
+                      >
+                        {nome}
+                      </span>
+                    ))}
                     {c.empresas.length > 0 ? (
                       c.empresas.map((e) => (
                         <span
@@ -91,9 +107,9 @@ export function ChatListaContatos() {
                           {e.nome}
                         </span>
                       ))
-                    ) : (
-                      <span className="text-[10px] text-slate-400">{c.rede_nome || 'Sem empresa'}</span>
-                    )}
+                    ) : redesDoContato(c).length === 0 ? (
+                      <span className="text-[10px] text-slate-400">Sem empresa</span>
+                    ) : null}
                   </div>
                   <p className="mt-0.5 truncate font-mono text-[11px] text-slate-500">
                     {c.telefone || 'Sem WhatsApp'}

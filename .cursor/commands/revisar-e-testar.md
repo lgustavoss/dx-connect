@@ -56,7 +56,7 @@ cd mobile && npm run typecheck
 - `frontend=false` → **não** rode `npm run build`; no relatório: `npm run build: omitido (diff sem frontend/CI)`
 - `mobile=false` → **não** rode tsc do Expo; no relatório: `mobile tsc: omitido (diff sem mobile/CI)`
 - Vários `true` → rode os que aplicarem
-- Todos `false` (só docs/Cursor) → não rode testes pesados; diga isso no relatório
+- Todos `false` (só docs/config) → não rode testes pesados; diga isso no relatório
 
 Se o script falhar (sem `origin/main`), assuma os três `true`.
 

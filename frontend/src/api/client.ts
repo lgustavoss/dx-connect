@@ -1255,6 +1255,8 @@ export namespace WhatsappChats {
     telefone?: string | null
     tipo: string
     empresas: EmpresaOpcao[]
+    /** Todas as redes do contato (#1407); rede_id/rede_nome ficam como legado. */
+    redes?: Array<{ id: number; nome: string }>
     rede_id?: number | null
     rede_nome?: string | null
     similaridade?: number | null
@@ -1267,6 +1269,8 @@ export namespace WhatsappChats {
     telefone?: string | null
     tipo: string
     empresas: EmpresaOpcao[]
+    /** Todas as redes do contato (#1407); rede_id/rede_nome ficam como legado. */
+    redes?: Array<{ id: number; nome: string }>
     rede_id?: number | null
     rede_nome?: string | null
   }
@@ -1456,6 +1460,25 @@ export async function fetchChatInternoMidiaBlob(conversaId: number, mensagemId: 
   if (token) headers.Authorization = `Bearer ${token}`
   const res = await fetch(
     `${apiOrigin()}${API_VERSION_PREFIX}/chat-interno/conversas/${conversaId}/mensagens/${mensagemId}/download`,
+    { headers },
+  )
+  if (res.status === 401) {
+    invalidateSessionAndRedirectToLogin()
+    throw new ApiError('Sessão expirada ou inválida.', 401, {})
+  }
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => ({}))
+    throw new ApiError(mensagemErroApi(errBody, res.status), res.status, errBody)
+  }
+  return res.blob()
+}
+
+export async function fetchFaturaAnexoBlob(faturaId: number, anexoId: number): Promise<Blob> {
+  const token = getAuthToken()
+  const headers: Record<string, string> = {}
+  if (token) headers.Authorization = `Bearer ${token}`
+  const res = await fetch(
+    `${apiOrigin()}${API_VERSION_PREFIX}/faturamento/faturas/${faturaId}/anexos/${anexoId}/download`,
     { headers },
   )
   if (res.status === 401) {
@@ -2818,6 +2841,11 @@ export namespace FuncionariosRede {
     id: number;
     nome: string;
   }
+  /** Rede vinculada ao contato (#1407) — N:N; rede_id/rede_nome seguem como legado. */
+  export interface RedeVinculo {
+    id: number;
+    nome: string;
+  }
   export interface Funcionario {
     id: number;
     nome: string;
@@ -2826,6 +2854,7 @@ export namespace FuncionariosRede {
     tipo: string;
     escopo_empresas: EscopoEmpresas;
     ativo: boolean;
+    redes?: RedeVinculo[];
     rede_id?: number;
     rede_nome?: string | null;
     empresa_id?: number;
@@ -2844,6 +2873,8 @@ export namespace FuncionariosRede {
     tipo: string;
     escopo_empresas?: EscopoEmpresas;
     ativo?: boolean;
+    redes?: RedeVinculo[];
+    rede_ids?: number[];
     rede_id?: number;
     empresa_id?: number;
     empresa_ids?: number[];
@@ -2857,6 +2888,8 @@ export namespace FuncionariosRede {
     tipo?: string;
     escopo_empresas?: EscopoEmpresas;
     ativo?: boolean;
+    redes?: RedeVinculo[];
+    rede_ids?: number[];
     rede_id?: number;
     empresa_id?: number;
     empresa_ids?: number[];
@@ -3566,7 +3599,7 @@ export namespace ComercialProposta {
     condicoes?: string | null;
   }
   export interface MarcarEnviadaRequest {
-    canal: 'email' | 'impresso' | 'outro';
+    canal: 'email' | 'impresso' | 'outro' | 'whatsapp';
     enviado_em?: string | null;
     avancar_funil?: boolean;
   }
@@ -3688,6 +3721,8 @@ export namespace ComercialContrato {
     template_versao?: number | null;
     gerado_por_id: number;
     status: 'rascunho' | 'enviado' | 'assinado' | 'cancelado' | 'renovado' | string;
+    /** Assinado mais recente da linha CNPJ (aditivo passa a ser o vigente) — #1322. */
+    vigente?: boolean;
     valor_mensalidade: string | number;
     snapshot_itens: unknown[];
     data_inicio: string;
@@ -3695,6 +3730,17 @@ export namespace ComercialContrato {
     fidelidade_meses: number;
     setup_valor?: string | number | null;
     setup_isento: boolean;
+    primeira_venda_pdv?: string | null;
+    primeira_venda_pdv_por_id?: number | null;
+    primeira_venda_pdv_por_nome?: string | null;
+    primeira_venda_pdv_em?: string | null;
+    setup_momento?: 'assinatura' | 'data_combinada' | 'primeira_mensalidade' | 'isento' | string | null;
+    setup_data_combinada?: string | null;
+    dia_vencimento_override?: number | null;
+    inicio_mensalidade_override?: string | null;
+    dia_vencimento_efetivo?: number | null;
+    inicio_mensalidade_efetivo?: string | null;
+    aguardando_motivo?: string | null;
     deslocamento_cliente: boolean;
     alimentacao_cliente: boolean;
     hospedagem_cliente: boolean;
@@ -3717,9 +3763,65 @@ export namespace ComercialContrato {
     conteudo_html_snapshot?: string | null;
     dias_restantes_fidelidade?: number | null;
     multa_rescisao?: MultaRescisao | null;
+    /** Título avulso de multa gerado na rescisão do contrato assinado (#1386). */
+    titulo_multa?: { id: number; valor: string | number; vencimento: string; status: string } | null;
     interno?: Interno | null;
     implantacao_ticket_id?: number | null;
     implantacao_ticket_protocolo?: string | null;
+    /** Envelope DocuSeal ou anexo externo (#1380). */
+    assinatura?: Assinatura | null;
+    assinatura_modo?: 'docuseal' | 'externo' | string | null;
+  }
+  export type PapelSignatario = 'contratante' | 'contratada' | 'testemunha'
+  export interface AssinaturaParte {
+    id: number
+    papel: PapelSignatario | string
+    ordem: number
+    nome: string
+    email: string
+    cpf_mascarado?: string | null
+    telefone?: string | null
+    role_docuseal: string
+    submitter_slug?: string | null
+    link_assinatura?: string | null
+    status: string
+    visualizado_em?: string | null
+    assinado_em?: string | null
+    ultimo_erro?: string | null
+  }
+  export interface Assinatura {
+    id: number;
+    contrato_id: number;
+    provedor: 'docuseal' | 'externo' | string;
+    status: string;
+    submission_id?: string | null;
+    submitter_slug?: string | null;
+    link_assinatura?: string | null;
+    enviado_em?: string | null;
+    visualizado_em?: string | null;
+    assinado_em?: string | null;
+    expira_em?: string | null;
+    tem_pdf_assinado?: boolean;
+    tem_audit_log?: boolean;
+    tem_selfie?: boolean;
+    pdf_sha256?: string | null;
+    audit_sha256?: string | null;
+    ultimo_erro?: string | null;
+    criado_por_id?: number | null;
+    created_at: string;
+    /** Partes do envelope (#1429). */
+    partes?: AssinaturaParte[];
+  }
+  export interface SignatarioEnviar {
+    papel: PapelSignatario
+    nome: string
+    email: string
+    cpf: string
+    telefone?: string | null
+  }
+  export interface EnviarAssinaturaRequest {
+    signatarios: SignatarioEnviar[]
+    forcar_reenvio?: boolean
   }
   export interface GerarRequest {
     linha_id: number;
@@ -3745,6 +3847,13 @@ export namespace ComercialContrato {
     abrir_ticket_implantacao?: boolean;
     referencia_externa?: string | null;
   }
+  export interface CobrancaUpdate {
+    primeira_venda_pdv?: string | null;
+    dia_vencimento_override?: number | null;
+    inicio_mensalidade_override?: string | null;
+    setup_momento?: 'assinatura' | 'data_combinada' | 'primeira_mensalidade' | 'isento' | null;
+    setup_data_combinada?: string | null;
+  }
   export interface Politica {
     reajuste_percentual: string | number;
     reajuste_rotulo: string;
@@ -3767,6 +3876,14 @@ export const comercialImplantacaoTemplates = {
 };
 
 export namespace Faturamento {
+  export interface Anexo {
+    id: number;
+    tipo: 'boleto' | 'nfse_pdf' | 'nfse_xml' | string;
+    nome_original: string;
+    content_type: string | null;
+    tamanho_bytes: number;
+    created_at?: string | null;
+  }
   export interface Fatura {
     id: number;
     contrato_id: number;
@@ -3777,6 +3894,8 @@ export namespace Faturamento {
     competencia: string;
     valor: string | number;
     vencimento: string;
+    periodo_inicio?: string | null;
+    periodo_fim?: string | null;
     emite_nfse: boolean;
     status: string;
     rejeicao_motivo: string | null;
@@ -3784,6 +3903,37 @@ export namespace Faturamento {
     aprovada_por_id: number | null;
     aprovada_por_nome: string | null;
     aprovada_em: string | null;
+    boleto_linha_digitavel?: string | null;
+    boleto_nosso_numero?: string | null;
+    nfse_numero?: string | null;
+    documentos_completos?: boolean;
+    anexos?: Anexo[];
+    titulo?: Titulo | null;
+  }
+  export interface Titulo {
+    id: number;
+    fatura_id: number | null;
+    contrato_id: number;
+    empresa_id: number | null;
+    empresa_nome: string | null;
+    rede_id?: number | null;
+    rede_nome?: string | null;
+    cnpj: string | null;
+    razao_social: string | null;
+    tipo?: 'mensalidade' | 'implantacao' | 'multa' | string;
+    competencia: string;
+    valor: string | number;
+    vencimento: string;
+    status: string;
+    status_persistido?: string;
+    pago_em?: string | null;
+    valor_pago?: string | number | null;
+    baixa_observacao?: string | null;
+    /** Fatura do título tem anexo de boleto (#1387). Título sem fatura (implantação/multa) vem false — a regra não se aplica. */
+    tem_boleto?: boolean;
+    baixado_por_id?: number | null;
+    baixado_por_nome?: string | null;
+    baixado_em?: string | null;
   }
   export interface ContratoElegivel {
     id: number;
@@ -3792,18 +3942,69 @@ export namespace Faturamento {
     cnpj: string | null;
     razao_social: string | null;
     valor_mensalidade: string | number;
+    dia_vencimento?: number | null;
+    inicio_mensalidade?: string | null;
+    aguardando_motivo?: string | null;
+    rede_id?: number | null;
+    rede_nome?: string | null;
+  }
+  export interface ResumoFaixa {
+    chave: string;
+    label: string;
+    quantidade: number;
+    valor: string | number;
+  }
+  export interface ResumoAReceber {
+    competencia: string;
+    total_aberto: string | number;
+    total_vencido: string | number;
+    quantidade_titulos: number;
+    faixas: ResumoFaixa[];
+    /** #1385: menor vencimento em aberto (ou o mais antigo, se só houver atrasados). */
+    proximo_vencimento?: string | null;
+    /** #1385: total pago no ano corrente, com os mesmos filtros do resumo. */
+    pago_ano?: string | number;
+    pago_ano_quantidade?: number;
+    previsao_mes: {
+      competencia: string;
+      titulos: string | number;
+      mensalidades_ativas: string | number;
+      total: string | number;
+    };
   }
   export interface GerarCompetenciaOut {
     competencia: string;
     criadas: number;
     existentes: number;
     reabertas: number;
+    aguardando?: number;
   }
+  export type GatilhoFaturamento =
+    | 'data_inicio'
+    | 'dias_apos_assinatura'
+    | 'dias_apos_marco'
+    | 'ticket_implantacao_fechado';
+  export interface Politica {
+    dia_vencimento: number;
+    gatilho: GatilhoFaturamento;
+    gatilho_dias: number;
+    proporcional_primeira_fatura: boolean;
+  }
+  export type PoliticaUpdate = Partial<Politica>;
 }
 
 export const faturamento = {
-  listFaturas: (params?: { competencia?: string; status?: string }) =>
+  politica: {
+    get: () => api<Faturamento.Politica>('/faturamento/politica'),
+    patch: (data: Faturamento.PoliticaUpdate) =>
+      api<Faturamento.Politica>('/faturamento/politica', {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
+  },
+  listFaturas: (params?: { competencia?: string; status?: string; emite_nfse?: boolean }) =>
     api<Faturamento.Fatura[]>(withParams('/faturamento/faturas', params)),
+  obterFatura: (id: number) => api<Faturamento.Fatura>(`/faturamento/faturas/${id}`),
   listContratosElegiveis: () => api<Faturamento.ContratoElegivel[]>('/faturamento/contratos-elegiveis'),
   gerarFatura: (data: { contrato_id: number; competencia?: string | null }) =>
     api<Faturamento.Fatura>('/faturamento/faturas', { method: 'POST', body: JSON.stringify(data) }),
@@ -3818,6 +4019,93 @@ export const faturamento = {
     api<Faturamento.Fatura>(`/faturamento/faturas/${id}/rejeitar`, {
       method: 'POST',
       body: JSON.stringify({ motivo }),
+    }),
+  cancelarFatura: (id: number, motivo?: string) =>
+    api<Faturamento.Fatura>(`/faturamento/faturas/${id}/cancelar`, {
+      method: 'POST',
+      body: JSON.stringify({ motivo: motivo?.trim() || null }),
+    }),
+  atualizarDocumentos: (
+    id: number,
+    data: {
+      boleto_linha_digitavel?: string | null;
+      boleto_nosso_numero?: string | null;
+      nfse_numero?: string | null;
+    },
+  ) =>
+    api<Faturamento.Fatura>(`/faturamento/faturas/${id}/documentos`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  enviarAnexo: (id: number, file: File, tipo: 'boleto' | 'nfse_pdf' | 'nfse_xml') => {
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('tipo', tipo);
+    return api<Faturamento.Fatura>(`/faturamento/faturas/${id}/anexos`, { method: 'POST', body: fd });
+  },
+  removerAnexo: (id: number, anexoId: number) =>
+    api<Faturamento.Fatura>(`/faturamento/faturas/${id}/anexos/${anexoId}`, { method: 'DELETE' }),
+  listTitulos: (params?: {
+    competencia?: string;
+    status?: string;
+    rede_id?: number;
+    empresa_id?: number;
+    tipo?: string;
+  }) => api<Faturamento.Titulo[]>(withParams('/faturamento/titulos', params)),
+  resumoAReceber: (params?: {
+    competencia?: string;
+    rede_id?: number;
+    empresa_id?: number;
+    tipo?: string;
+  }) => api<Faturamento.ResumoAReceber>(withParams('/faturamento/a-receber/resumo', params)),
+  exportarTitulosCsv: async (params?: {
+    competencia?: string;
+    status?: string;
+    rede_id?: number;
+    empresa_id?: number;
+    tipo?: string;
+  }) => {
+    const token = getAuthToken();
+    const headers: Record<string, string> = {};
+    if (isMultiTenantMode()) {
+      headers['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname());
+    }
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const url = `${apiOrigin()}${API_VERSION_PREFIX}${withParams('/faturamento/titulos/export.csv', params)}`;
+    const res = await fetch(url, { headers });
+    if (res.status === 401) {
+      invalidateSessionAndRedirectToLogin();
+      throw new ApiError('Sessão expirada ou inválida.', 401, {});
+    }
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}));
+      throw new ApiError(mensagemErroApi(errBody, res.status), res.status, errBody);
+    }
+    return res.blob();
+  },
+  baixarTitulo: (
+    id: number,
+    data?: {
+      pago_em?: string;
+      valor_pago?: number | string;
+      observacao?: string;
+      /** Exceção auditada: baixa sem boleto anexado (só faturamento.aprovar; #1387). */
+      sem_documento_motivo?: string;
+    },
+  ) =>
+    api<Faturamento.Titulo>(`/faturamento/titulos/${id}/baixar`, {
+      method: 'POST',
+      body: JSON.stringify(data ?? {}),
+    }),
+  cancelarTitulo: (id: number, motivo?: string) =>
+    api<Faturamento.Titulo>(`/faturamento/titulos/${id}/cancelar`, {
+      method: 'POST',
+      body: JSON.stringify({ motivo: motivo?.trim() || null }),
+    }),
+  estornarTitulo: (id: number, motivo?: string) =>
+    api<Faturamento.Titulo>(`/faturamento/titulos/${id}/estornar`, {
+      method: 'POST',
+      body: JSON.stringify({ motivo: motivo?.trim() || null }),
     }),
 };
 
@@ -3903,6 +4191,11 @@ export const comercialContratos = {
     }),
   cancelar: (id: number) =>
     api<ComercialContrato.Contrato>(`/comercial/contratos/${id}/cancelar`, { method: 'POST' }),
+  atualizarCobranca: (id: number, data: ComercialContrato.CobrancaUpdate) =>
+    api<ComercialContrato.Contrato>(`/comercial/contratos/${id}/cobranca`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
   anexarPdfAssinado: (id: number, file: File, referenciaExterna?: string) => {
     const fd = new FormData()
     fd.append('arquivo', file)
@@ -3911,6 +4204,41 @@ export const comercialContratos = {
       method: 'POST',
       body: fd,
     })
+  },
+  enviarAssinatura: (id: number, data: ComercialContrato.EnviarAssinaturaRequest) =>
+    api<ComercialContrato.Assinatura>(`/comercial/contratos/${id}/assinatura/enviar`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  cancelarAssinatura: (id: number) =>
+    api<ComercialContrato.Assinatura>(`/comercial/contratos/${id}/assinatura/cancelar`, {
+      method: 'POST',
+    }),
+  enviarEmailConviteAssinatura: (contratoId: number, parteId: number) =>
+    api<{ ok: boolean; parte_id: number; email: string }>(
+      `/comercial/contratos/${contratoId}/assinatura/partes/${parteId}/enviar-email`,
+      { method: 'POST' },
+    ),
+  obterAssinatura: (id: number) =>
+    api<ComercialContrato.Assinatura>(`/comercial/contratos/${id}/assinatura`),
+  downloadEvidenciaAssinatura: async (id: number, tipo: 'pdf' | 'audit' | 'selfie') => {
+    const token = getAuthToken();
+    const headers: Record<string, string> = {};
+    if (isMultiTenantMode()) {
+      headers['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname());
+    }
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const url = `${apiOrigin()}${API_VERSION_PREFIX}/comercial/contratos/${id}/assinatura/evidencias/${tipo}`;
+    const res = await fetch(url, { headers });
+    if (res.status === 401) {
+      invalidateSessionAndRedirectToLogin();
+      throw new ApiError('Sessão expirada ou inválida.', 401, {});
+    }
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}));
+      throw new ApiError(mensagemErroApi(errBody, res.status), res.status, errBody);
+    }
+    return res.blob();
   },
   downloadPdf: async (id: number, pdfId?: number) => {
     const token = getAuthToken();
@@ -3961,6 +4289,16 @@ export const comercialContratoPolitica = {
       method: 'PATCH',
       body: JSON.stringify(data),
     }),
+};
+
+export const crmOrigens = {
+  list: (params?: { incluir_inativos?: boolean }) =>
+    api<Crm.OrigemLead[]>(withParams('/crm/origens-lead', params)),
+  create: (data: Crm.OrigemLeadCreate) =>
+    api<Crm.OrigemLead>('/crm/origens-lead', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: number, data: Crm.OrigemLeadUpdate) =>
+    api<Crm.OrigemLead>(`/crm/origens-lead/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  remove: (id: number) => api<void>(`/crm/origens-lead/${id}`, { method: 'DELETE' }),
 };
 
 export const crmFunil = {
@@ -4046,6 +4384,25 @@ export const crmLembretes = {
 };
 
 export namespace Crm {
+  export interface OrigemLead {
+    id: number;
+    nome: string;
+    ordem: number;
+    ativo: boolean;
+  }
+
+  export interface OrigemLeadCreate {
+    nome: string;
+    ordem?: number;
+    ativo?: boolean;
+  }
+
+  export interface OrigemLeadUpdate {
+    nome?: string;
+    ordem?: number;
+    ativo?: boolean;
+  }
+
   export interface FunilEstagio {
     id: number;
     slug: string;
@@ -4218,6 +4575,7 @@ export namespace Crm {
   export interface NegociacaoCreate {
     lead_id: number;
     titulo?: string | null;
+    nome_base_webposto?: string | null;
     responsavel_id?: number | null;
     linhas?: LinhaCreate[];
   }
@@ -4324,6 +4682,10 @@ export const rustdeskPeers = {
     api<RustdeskFrota.ExcluirResultado>(`/rustdesk/peers/${encodeURIComponent(rustdeskId)}/excluir`, {
       method: 'POST',
     }),
+  atualizar: (rustdeskId: string) =>
+    api<RustdeskFrota.AtualizarResultado>(`/rustdesk/peers/${encodeURIComponent(rustdeskId)}/atualizar`, {
+      method: 'POST',
+    }),
 };
 
 export namespace RustdeskFrota {
@@ -4333,7 +4695,7 @@ export namespace RustdeskFrota {
     servidor_relay: string
     chave: string
   }
-  export type Filtro = 'todos' | 'online' | 'offline' | 'sem_vinculo' | 'vinculado'
+  export type Filtro = 'todos' | 'online' | 'offline' | 'sem_vinculo' | 'vinculado' | 'desatualizado'
   export interface Vinculo {
     empresa_id: number
     empresa_nome: string
@@ -4357,6 +4719,11 @@ export namespace RustdeskFrota {
     vinculos: Vinculo[]
     sem_vinculo: boolean
     id_repetido: boolean
+    deskremote_app_version?: string | null
+    deskremote_app_ui?: string | null
+    deskremote_desatualizado?: boolean | null
+    deskremote_update_status?: string | null
+    deskremote_pode_atualizar?: boolean
   }
   export interface PdvAusente extends Vinculo {
     acesso_remoto_id?: string | null
@@ -4369,6 +4736,7 @@ export namespace RustdeskFrota {
     agent_configurado: boolean
     agent_indisponivel: boolean
     sincronizado_em?: string | null
+    deskremote_versao_release?: string | null
   }
   export interface Vincular {
     pdv_id: number
@@ -4384,6 +4752,11 @@ export namespace RustdeskFrota {
   export interface ExcluirResultado {
     rustdesk_id: string
     removido: boolean
+  }
+  export interface AtualizarResultado {
+    rustdesk_id: string
+    update_status: string
+    mensagem: string
   }
 }
 
@@ -4795,6 +5168,8 @@ export namespace Tickets {
     progresso_pct: number;
     itens_obrigatorios_pendentes: number;
     pdvs_ativos?: number | null;
+    /** Quantidade prevista na linha do contrato (#1323). */
+    pdvs_necessarios?: number | null;
     itens: ChecklistItem[];
   }
   export interface ChecklistItemPatch {

@@ -16,6 +16,7 @@ import { CheckboxField } from '../components/ui/CheckboxField'
 import { SemPermissao } from './SemPermissao'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
 import { PRIORIDADE_OPCOES, type PrioridadeTicket } from '../lib/ticketPrioridade'
+import { buscarOpcoesEmpresa, opcaoEmpresa } from '../lib/opcaoEmpresa'
 import { useAbrirTicket } from '../lib/ticketAtivo'
 const MAX_ANEXO_BYTES = 25 * 1024 * 1024
 const MAX_ANEXOS_COUNT = 10
@@ -50,15 +51,7 @@ export function TicketNovo() {
     return [...ativos].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
   }, [setoresList])
 
-  const empresaItems = useMemo(
-    () =>
-      empresasList.map((e) => ({
-        id: e.id,
-        label: e.nome,
-        createdAt: 'created_at' in e ? e.created_at : undefined,
-      })),
-    [empresasList],
-  )
+  const empresaItems = useMemo(() => empresasList.map(opcaoEmpresa), [empresasList])
 
   const redeItems = useMemo(
     () =>
@@ -160,7 +153,7 @@ export function TicketNovo() {
     for (const f of files) {
       if (f.size <= 0) continue
       if (f.size > MAX_ANEXO_BYTES) {
-        toast.showWarning(`O arquivo \"${f.name}\" excede 25 MB e foi ignorado.`)
+        toast.showWarning(`O arquivo "${f.name}" excede 25 MB e foi ignorado.`)
         continue
       }
       ok.push(f)
@@ -219,7 +212,7 @@ export function TicketNovo() {
             await tickets.uploadAnexo(created.id, f)
             anexosOk += 1
           } catch (err) {
-            toast.showWarning(mensagemFalhaParaToast(err, `Falha ao enviar anexo \"${f.name}\".`))
+            toast.showWarning(mensagemFalhaParaToast(err, `Falha ao enviar anexo "${f.name}".`))
           }
         }
       }
@@ -358,6 +351,7 @@ export function TicketNovo() {
                   required
                   disabled={semSetorPermitido || semEmpresasNoEscopo || Boolean(paiResumo && paiResumo.empresa_id != null)}
                   recentCount={10}
+                  onSearch={buscarOpcoesEmpresa}
                 />
               )}
 

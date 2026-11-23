@@ -6,9 +6,11 @@ from pathlib import Path
 import pytest
 
 from app.config import settings
-from app.models.empresa_pdv import EmpresaPdv, PdvTipoAcessoRemoto
+from app.models.deskremote_enroll import DeskremoteDispositivo
+from app.models.empresa_pdv import EmpresaPdv, EmpresaPdvAcessoRemoto, PdvTipoAcessoRemoto
 from app.models.rustdesk_peer import RustdeskPeer
 from app.services import rustdesk_peers as svc
+from app.services.deskremote_enroll import hash_token
 
 
 def _agente():
@@ -155,6 +157,155 @@ def test_lista_cruza_pdv_e_marca_online(client, auth_headers, base):
 
     so_soltos = client.get("/v1/rustdesk/peers?filtro=sem_vinculo", headers=auth_headers["admin"])
     assert {item["rustdesk_id"] for item in so_soltos.json()["items"]} == {"999000111", "555000555"}
+
+
+def test_lista_mostra_versao_deskremote_e_filtro_desatualizado(client, auth_headers, base, db_session, monkeypatch):
+    monkeypatch.setattr(svc, "versao_release_cliente_flutter", lambda: "2.1.2")
+    pdv = db_session.query(EmpresaPdv).filter_by(codigo="001").one()
+    tipo = db_session.query(PdvTipoAcessoRemoto).filter_by(nome="DeskRemote").one()
+    acesso = EmpresaPdvAcessoRemoto(
+        pdv_id=pdv.id,
+        tipo_acesso_remoto_id=tipo.id,
+        acesso_remoto_id="123456789",
+        ordem_exibicao=0,
+    )
+    db_session.add(acesso)
+    db_session.flush()
+    db_session.add(
+        DeskremoteDispositivo(
+            token_hash=hash_token("tok-versao-frota"),
+            pdv_id=pdv.id,
+            acesso_id=acesso.id,
+            rustdesk_id="123456789",
+            app_version="2.1.0",
+            app_ui="flutter",
+            last_seen_at=datetime.now(timezone.utc),
+        )
+    )
+    db_session.commit()
+
+    r = client.get("/v1/rustdesk/peers", headers=auth_headers["admin"])
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["deskremote_versao_release"] == "2.1.2"
+    peer = next(item for item in body["items"] if item["rustdesk_id"] == "123456789")
+    assert peer["deskremote_app_version"] == "2.1.0"
+    assert peer["deskremote_app_ui"] == "flutter"
+    assert peer["deskremote_desatualizado"] is True
+    assert peer["deskremote_pode_atualizar"] is True
+
+    filtro = client.get("/v1/rustdesk/peers?filtro=desatualizado", headers=auth_headers["admin"])
+    assert {item["rustdesk_id"] for item in filtro.json()["items"]} == {"123456789"}
+
+
+def test_solicitar_atualizacao_enfileira_pedido(client, auth_headers, base, db_session, monkeypatch):
+    monkeypatch.setattr(svc, "versao_release_cliente_flutter", lambda: "2.1.3")
+    monkeypatch.setattr(
+        svc,
+        "meta_release_cliente_flutter",
+        lambda: {"version": "2.1.3", "download_url": "https://example.com/deskremote-cliente.exe"},
+    )
+    pdv = db_session.query(EmpresaPdv).filter_by(codigo="001").one()
+    tipo = db_session.query(PdvTipoAcessoRemoto).filter_by(nome="DeskRemote").one()
+    acesso = EmpresaPdvAcessoRemoto(
+        pdv_id=pdv.id,
+        tipo_acesso_remoto_id=tipo.id,
+        acesso_remoto_id="123456789",
+        ordem_exibicao=0,
+    )
+    db_session.add(acesso)
+    db_session.flush()
+    dispositivo = DeskremoteDispositivo(
+        token_hash=hash_token("tok-update-painel"),
+        pdv_id=pdv.id,
+        acesso_id=acesso.id,
+        rustdesk_id="123456789",
+        app_version="2.1.0",
+        app_ui="flutter",
+        last_seen_at=datetime.now(timezone.utc),
+    )
+    db_session.add(dispositivo)
+    db_session.commit()
+
+    ok = client.post("/v1/rustdesk/peers/123456789/atualizar", headers=auth_headers["admin"])
+    assert ok.status_code == 200, ok.text
+    assert ok.json()["update_status"] == "pendente"
+    db_session.refresh(dispositivo)
+    assert dispositivo.update_status == "pendente"
+
+    de_novo = client.post("/v1/rustdesk/peers/123456789/atualizar", headers=auth_headers["admin"])
+    assert de_novo.status_code == 409
+
+    dispositivo.last_seen_at = datetime.now(timezone.utc) - timedelta(hours=1)
+    dispositivo.update_status = None
+    db_session.commit()
+    velho = client.post("/v1/rustdesk/peers/123456789/atualizar", headers=auth_headers["admin"])
+    assert velho.status_code == 409
+
+
+def test_solicitar_atualizacao_403_sem_editar_empresa(client, auth_headers, seed_base, base):
+    grupo = client.post(
+        "/v1/permissao-grupos",
+        headers=auth_headers["admin"],
+        json={"nome": "Só monitora update", "permissoes": ["rustdesk.monitorar"]},
+    )
+    assert grupo.status_code == 201, grupo.text
+    patch = client.patch(
+        f"/v1/atendentes/{seed_base['a1'].id}",
+        headers=auth_headers["admin"],
+        json={"grupo_ids": [grupo.json()["id"]]},
+    )
+    assert patch.status_code == 200, patch.text
+    negado = client.post("/v1/rustdesk/peers/123456789/atualizar", headers=auth_headers["a1"])
+    assert negado.status_code == 403, negado.text
+
+
+def test_versao_menor_compara_semver():
+    assert svc.versao_menor("2.1.0", "2.1.2") is True
+    assert svc.versao_menor("2.1.2", "2.1.2") is False
+    assert svc.versao_menor("2.2.0", "2.1.2") is False
+    assert svc.versao_menor("abc", "2.1.2") is None
+    assert svc.versao_menor(None, "2.1.2") is None
+
+
+def test_lista_online_usa_sync_do_enroll_quando_hbbs_nao_viu(client, auth_headers, base, db_session, monkeypatch):
+    """Frota alinha ao selo do PDV: sync recente do Cliente conta como Online."""
+    monkeypatch.setattr(svc, "versao_release_cliente_flutter", lambda: "2.1.2")
+    monkeypatch.setattr(settings, "RUSTDESK_ONLINE_SECONDS", 45)
+    pdv = db_session.query(EmpresaPdv).filter_by(codigo="001").one()
+    tipo = db_session.query(PdvTipoAcessoRemoto).filter_by(nome="DeskRemote").one()
+    acesso = EmpresaPdvAcessoRemoto(
+        pdv_id=pdv.id,
+        tipo_acesso_remoto_id=tipo.id,
+        acesso_remoto_id="123456789",
+        ordem_exibicao=0,
+    )
+    db_session.add(acesso)
+    db_session.flush()
+    peer = db_session.query(RustdeskPeer).filter_by(rustdesk_id="123456789").one()
+    peer.last_seen = datetime.now(timezone.utc) - timedelta(hours=2)
+    peer.ip = None
+    db_session.add(
+        DeskremoteDispositivo(
+            token_hash=hash_token("tok-online-enroll"),
+            pdv_id=pdv.id,
+            acesso_id=acesso.id,
+            rustdesk_id="123456789",
+            app_version="2.1.2",
+            app_ui="flutter",
+            last_seen_at=datetime.now(timezone.utc),
+        )
+    )
+    db_session.commit()
+
+    r = client.get("/v1/rustdesk/peers", headers=auth_headers["admin"])
+    assert r.status_code == 200, r.text
+    peer_json = next(item for item in r.json()["items"] if item["rustdesk_id"] == "123456789")
+    assert peer_json["online"] is True
+    assert peer_json["deskremote_app_version"] == "2.1.2"
+
+    so_online = client.get("/v1/rustdesk/peers?filtro=online", headers=auth_headers["admin"])
+    assert "123456789" in {item["rustdesk_id"] for item in so_online.json()["items"]}
 
 
 def test_selo_no_pdv(client, auth_headers, base):

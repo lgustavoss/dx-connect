@@ -25,15 +25,11 @@ FUNIL_TIPO_GANHO = "ganho"
 FUNIL_TIPO_PERDIDO = "perdido"
 FUNIL_TIPOS = frozenset({FUNIL_TIPO_ABERTO, FUNIL_TIPO_GANHO, FUNIL_TIPO_PERDIDO})
 
-# Atividades
+# Atividades (#1388: só nota é criada pela UI; estágio/documento são gerados pelo sistema)
 ATIVIDADE_NOTA = "nota"
-ATIVIDADE_LIGACAO = "ligacao"
-ATIVIDADE_REUNIAO = "reuniao"
 ATIVIDADE_MUDANCA_ESTAGIO = "mudanca_estagio"
 ATIVIDADE_DOCUMENTO = "documento_anexado"
-ATIVIDADE_TIPOS = frozenset(
-    {ATIVIDADE_NOTA, ATIVIDADE_LIGACAO, ATIVIDADE_REUNIAO, ATIVIDADE_MUDANCA_ESTAGIO, ATIVIDADE_DOCUMENTO}
-)
+ATIVIDADE_TIPOS = frozenset({ATIVIDADE_NOTA, ATIVIDADE_MUDANCA_ESTAGIO, ATIVIDADE_DOCUMENTO})
 
 # Seed padrão do funil (#339)
 FUNIL_SEED = (
@@ -47,6 +43,10 @@ FUNIL_SEED = (
 )
 
 SLUG_DOCUMENTACAO = "documentacao"
+SLUG_PROPOSTA_ENVIADA = "proposta_enviada"
+
+# Seed da lista de origens do lead (#1319). A lista é configurável em Configurações.
+ORIGENS_SEED = ("WhatsApp", "Indicação", "Site", "Visita", "Outro")
 
 
 class FunilEstagio(Base):
@@ -58,6 +58,20 @@ class FunilEstagio(Base):
     nome = Column(String(120), nullable=False)
     ordem = Column(Integer, nullable=False, default=0, index=True)
     tipo = Column(String(20), nullable=False, default=FUNIL_TIPO_ABERTO)
+    ativo = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+
+class CrmOrigemLead(Base):
+    """Origem do lead configurável (#1319). Seed em `ORIGENS_SEED`."""
+
+    __tablename__ = "crm_origens_lead"
+    __table_args__ = (UniqueConstraint("nome", name="uq_crm_origem_lead_nome"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    nome = Column(String(80), nullable=False, index=True)
+    ordem = Column(Integer, nullable=False, default=0, index=True)
     ativo = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

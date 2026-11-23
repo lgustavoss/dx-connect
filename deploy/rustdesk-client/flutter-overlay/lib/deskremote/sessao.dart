@@ -141,6 +141,34 @@ void limparSessaoDeskRemote() {
     final file = arquivoSessaoDeskRemote();
     if (file.existsSync()) file.deleteSync();
   } catch (_) {}
+  limparIdentidadeDeskRemote();
+}
+
+/// #1406: identidade do atendente publicada para o RustDesk (peer_info do controlador).
+/// O PC acessado mostra "Nome do atendente (ID RustDesk)" em vez do usuário do Windows.
+const kDeskRemoteIdentidadePath = r'C:\ProgramData\DeskRudder\identidade.txt';
+const kDeskRemoteIdentidadeMax = 80;
+
+void publicarIdentidadeDeskRemote(Map<String, dynamic> me) {
+  var nome = (me['nome'] ?? '').toString().trim();
+  if (nome.isEmpty) return;
+  if (nome.length > kDeskRemoteIdentidadeMax) {
+    nome = nome.substring(0, kDeskRemoteIdentidadeMax);
+  }
+  try {
+    final arquivo = File(kDeskRemoteIdentidadePath);
+    arquivo.parent.createSync(recursive: true);
+    arquivo.writeAsStringSync(nome);
+  } catch (_) {
+    // Sem permissão em ProgramData: o cliente cai no usuário do Windows.
+  }
+}
+
+void limparIdentidadeDeskRemote() {
+  try {
+    final arquivo = File(kDeskRemoteIdentidadePath);
+    if (arquivo.existsSync()) arquivo.deleteSync();
+  } catch (_) {}
 }
 
 /// API da instância: `https://api-{slug}.deskrudder.com.br/v1/...` (não o host do painel).
@@ -191,7 +219,7 @@ Future<Map<String, dynamic>> _httpJson({
 }) async {
   final client = HttpClient();
   client.connectionTimeout = const Duration(seconds: 20);
-  client.userAgent = 'DeskRemote/2.3.0';
+  client.userAgent = 'DeskRemote/2.4.0';
   try {
     final req = method == 'GET'
         ? await client.getUrl(uri)

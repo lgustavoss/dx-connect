@@ -40,6 +40,14 @@ class DeskremoteDispositivo(Base):
     token_hash = Column(String(64), nullable=False, unique=True, index=True)
     rustdesk_id = Column(String(64), nullable=True)
     senha_versao_aplicada = Column(Integer, nullable=False, default=0)
+    # Versão do instalador DeskRemote reportada pelo PC (#1434).
+    app_version = Column(String(32), nullable=True)
+    app_ui = Column(String(16), nullable=True)  # flutter | sciter
+    # Pedido de update pelo painel (#1436): pendente|enviado|em_andamento|falhou|concluido.
+    update_solicitado_em = Column(DateTime(timezone=True), nullable=True)
+    update_status = Column(String(32), nullable=True)
+    update_erro = Column(String(255), nullable=True)
+    update_solicitado_por_id = Column(Integer, ForeignKey("atendentes.id", ondelete="SET NULL"), nullable=True)
     last_seen_at = Column(DateTime(timezone=True), nullable=True)
     revoked_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

@@ -42,10 +42,10 @@ jobs:
           echo "::error::Sciter 1.0.14 está congelado. O canal de produção é o Flutter 2.x. Para hotfix 32-bit, rode de novo com confirmar=gerar-sciter."
           exit 1
   build:
-    name: Instalador cliente (posto)
+    name: Instalador cliente (PC acessado)
     needs: guard
     uses: ./.github/workflows/rustdesk-windows-reusable.yml
     with:
-      profile: posto
+      profile: cliente
       rustdesk_ref: ${{ inputs.rustdesk_ref }}
       publish_release: true

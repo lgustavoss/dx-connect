@@ -44,6 +44,136 @@ _estado: dict = {
     "sincronizado_em": None,
 }
 
+# Cache do version.json do canal Cliente Flutter (#1434).
+_RELEASE_CLIENTE_VERSION_URL = (
+    "https://github.com/lgustavoss/dx-connect/releases/download/"
+    "acesso-remoto-windows-flutter/version.json"
+)
+_versao_release_lock = threading.Lock()
+# version/download_url: última lida; mono: quando gravada; attempt_mono: último GET.
+_versao_release_cache: dict = {
+    "version": None,
+    "download_url": None,
+    "mono": 0.0,
+    "attempt_mono": 0.0,
+}
+_RELEASE_CACHE_TTL_S = 900.0
+_RELEASE_RETRY_APOS_FALHA_S = 60.0
+_RELEASE_HTTP_TIMEOUT_S = 2.5
+_UPDATE_LAST_SEEN_MAX = timedelta(minutes=15)
+DOWNLOAD_CLIENTE_FALLBACK = (
+    "https://github.com/lgustavoss/dx-connect/releases/download/"
+    "acesso-remoto-windows-flutter/deskremote-cliente.exe"
+)
+
+
+def _tupla_versao(raw: str | None) -> tuple[int, ...] | None:
+    if not raw:
+        return None
+    partes = str(raw).strip().split(".")
+    if len(partes) != 3 or not all(p.isdigit() for p in partes):
+        return None
+    return tuple(int(p) for p in partes)
+
+
+def versao_menor(instalada: str | None, release: str | None) -> bool | None:
+    """True se instalada < release; None se não dá para comparar."""
+    a = _tupla_versao(instalada)
+    b = _tupla_versao(release)
+    if a is None or b is None:
+        return None
+    return a < b
+
+
+def meta_release_cliente_flutter() -> dict[str, str | None]:
+    """Lê version.json do Release do Cliente (cache ~15 min; timeout curto)."""
+    agora = time.monotonic()
+    with _versao_release_lock:
+        cached = _versao_release_cache.get("version")
+        mono = float(_versao_release_cache.get("mono") or 0)
+        attempt = float(_versao_release_cache.get("attempt_mono") or 0)
+        if cached and agora - mono < _RELEASE_CACHE_TTL_S:
+            return {
+                "version": str(cached),
+                "download_url": _versao_release_cache.get("download_url") or DOWNLOAD_CLIENTE_FALLBACK,
+            }
+        if agora - attempt < _RELEASE_RETRY_APOS_FALHA_S:
+            if cached:
+                return {
+                    "version": str(cached),
+                    "download_url": _versao_release_cache.get("download_url") or DOWNLOAD_CLIENTE_FALLBACK,
+                }
+            return {"version": None, "download_url": None}
+        _versao_release_cache["attempt_mono"] = agora
+    try:
+        req = urllib.request.Request(
+            _RELEASE_CLIENTE_VERSION_URL,
+            headers={"User-Agent": "DeskRudder-Frota/1.0", "Accept": "application/json"},
+        )
+        with urllib.request.urlopen(req, timeout=_RELEASE_HTTP_TIMEOUT_S) as resp:
+            raw = resp.read()
+        data = json.loads(raw.decode("utf-8"))
+        ver = str((data or {}).get("version") or "").strip()
+        if not _tupla_versao(ver):
+            return {"version": None, "download_url": None}
+        url = str((data or {}).get("download_url") or "").strip() or DOWNLOAD_CLIENTE_FALLBACK
+        with _versao_release_lock:
+            _versao_release_cache["version"] = ver
+            _versao_release_cache["download_url"] = url
+            _versao_release_cache["mono"] = agora
+            _versao_release_cache["attempt_mono"] = agora
+        return {"version": ver, "download_url": url}
+    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, json.JSONDecodeError, OSError):
+        with _versao_release_lock:
+            cached = _versao_release_cache.get("version")
+            if cached:
+                return {
+                    "version": str(cached),
+                    "download_url": _versao_release_cache.get("download_url") or DOWNLOAD_CLIENTE_FALLBACK,
+                }
+            return {"version": None, "download_url": None}
+
+
+def versao_release_cliente_flutter() -> str | None:
+    meta = meta_release_cliente_flutter()
+    ver = meta.get("version")
+    return str(ver) if ver else None
+
+
+def _dispositivo_recente(dispositivo: DeskremoteDispositivo) -> bool:
+    visto = dispositivo.last_seen_at
+    if visto is None:
+        return False
+    if visto.tzinfo is None:
+        visto = visto.replace(tzinfo=timezone.utc)
+    return datetime.now(timezone.utc) - visto <= _UPDATE_LAST_SEEN_MAX
+
+
+def _app_info_por_rustdesk_id(db: Session) -> dict[str, dict]:
+    """Mapa rustdesk_id → info do dispositivo DeskRemote ativo."""
+    rows = (
+        db.query(DeskremoteDispositivo)
+        .filter(
+            DeskremoteDispositivo.revoked_at.is_(None),
+            DeskremoteDispositivo.rustdesk_id.isnot(None),
+        )
+        .order_by(DeskremoteDispositivo.id.desc())
+        .all()
+    )
+    out: dict[str, dict] = {}
+    for row in rows:
+        chave = normalizar_id_remoto(row.rustdesk_id)
+        if not chave or chave in out:
+            continue
+        out[chave] = {
+            "app_version": row.app_version,
+            "app_ui": row.app_ui,
+            "update_status": row.update_status,
+            "last_seen_at": row.last_seen_at,
+            "dispositivo_id": row.id,
+        }
+    return out
+
 
 def normalizar_id_remoto(valor: str | None) -> str | None:
     """Tira espaços. ID numérico fica só com dígitos; ID com letras fica em minúsculas."""
@@ -101,8 +231,38 @@ def calcular_online(last_seen: datetime | None, monitoramento: bool | None = Non
 
 
 def _limite_dispositivo() -> timedelta:
-    """O cliente DeskRemote consulta a API a cada ~2 min; folga além do UDP do hbbs (45s)."""
+    """O Cliente DeskRemote sincroniza a API a cada ~30 s; folga além do UDP do hbbs (~45 s)."""
     return timedelta(seconds=max(settings.RUSTDESK_ONLINE_SECONDS, 180))
+
+
+def _enroll_recente(visto_em: datetime | None, *, agora: datetime | None = None) -> bool:
+    if visto_em is None:
+        return False
+    ref = agora or datetime.now(timezone.utc)
+    return ref - _como_utc(visto_em) <= _limite_dispositivo()
+
+
+def online_com_enroll(
+    last_seen_peer: datetime | None,
+    last_seen_dispositivo: datetime | None,
+    *,
+    monitoramento: bool | None = None,
+) -> bool | None:
+    """Online pela frota: UDP/hbbs **ou** sync recente do DeskRemote Cliente (mesmo critério do selo no PDV)."""
+    online = calcular_online(last_seen_peer, monitoramento=monitoramento)
+    if online is True:
+        return True
+    if _enroll_recente(last_seen_dispositivo):
+        return True
+    return online
+
+
+def _last_seen_exibido(last_seen_peer: datetime | None, last_seen_dispositivo: datetime | None) -> datetime | None:
+    """Mostra a atividade mais recente entre hbbs e sync do enroll."""
+    candidatos = [v for v in (last_seen_peer, last_seen_dispositivo) if v is not None]
+    if not candidatos:
+        return None
+    return max((_como_utc(v) for v in candidatos))
 
 
 def marcar_visto_enroll(db: Session, rustdesk_id: str, last_seen: datetime | None = None) -> None:
@@ -141,8 +301,7 @@ def mapa_online(db: Session) -> dict[str, bool | None]:
             continue
         if chave not in mapa:
             mapa[chave] = False
-        visto_em = dispositivo.last_seen_at
-        if visto_em is not None and agora - _como_utc(visto_em) <= _limite_dispositivo():
+        if _enroll_recente(dispositivo.last_seen_at, agora=agora):
             mapa[chave] = True
     return mapa
 
@@ -281,7 +440,10 @@ def _aplicar_snapshot(db: Session, payload: dict) -> None:
         row.sistema = _truncar(item.get("os"), 120)
         row.ip = _truncar(item.get("ip"), 64)
         if observando:
-            row.last_seen = _parse_last_seen(item.get("last_seen"))
+            visto_agente = _parse_last_seen(item.get("last_seen"))
+            # Não apagar last_seen do enroll/UDP anterior quando o agente não viu o ID neste ciclo.
+            if visto_agente is not None:
+                row.last_seen = visto_agente
     protegidos = {
         chave
         for chave in (
@@ -369,22 +531,47 @@ def _pdvs_nao_vistos(db: Session, ids_servidor: set[str]) -> list[dict]:
 def listar(db: Session, filtro: str) -> dict:
     sincronizar(db)
     indice = _vinculos_por_id(db)
+    app_por_id = _app_info_por_rustdesk_id(db)
+    release_ver = versao_release_cliente_flutter()
     peers = db.query(RustdeskPeer).order_by(RustdeskPeer.rustdesk_id.asc()).all()
     items: list[dict] = []
     for row in peers:
         vinculos = indice.get(row.rustdesk_id, [])
-        online = calcular_online(row.last_seen)
+        chave_app = normalizar_id_remoto(row.rustdesk_id) or row.rustdesk_id
+        info = app_por_id.get(chave_app) or {}
+        app_ver = info.get("app_version")
+        app_ui = info.get("app_ui")
+        update_status = info.get("update_status")
+        visto_dispositivo = info.get("last_seen_at")
+        online = online_com_enroll(row.last_seen, visto_dispositivo)
+        last_seen = _last_seen_exibido(row.last_seen, visto_dispositivo)
+        desatualizado = versao_menor(app_ver, release_ver)
+        # Pedir update: janela de 15 min (mais folgada que o selo Online ~3 min).
+        recente = (
+            visto_dispositivo is not None
+            and datetime.now(timezone.utc) - _como_utc(visto_dispositivo) <= _UPDATE_LAST_SEEN_MAX
+        )
+        pode_atualizar = (
+            desatualizado is True
+            and recente
+            and (update_status is None or update_status in {"falhou", "concluido"})
+        )
         item = {
             "rustdesk_id": row.rustdesk_id,
             "hostname": row.hostname,
             "username": row.username,
             "sistema": row.sistema,
             "ip": row.ip,
-            "last_seen": row.last_seen,
+            "last_seen": last_seen,
             "online": online,
             "vinculos": vinculos,
             "sem_vinculo": len(vinculos) == 0,
             "id_repetido": len(vinculos) > 1,
+            "deskremote_app_version": app_ver,
+            "deskremote_app_ui": app_ui,
+            "deskremote_desatualizado": desatualizado,
+            "deskremote_update_status": update_status,
+            "deskremote_pode_atualizar": pode_atualizar,
         }
         if filtro == "online" and online is not True:
             continue
@@ -393,6 +580,8 @@ def listar(db: Session, filtro: str) -> dict:
         if filtro == "sem_vinculo" and vinculos:
             continue
         if filtro == "vinculado" and not vinculos:
+            continue
+        if filtro == "desatualizado" and desatualizado is not True:
             continue
         items.append(item)
     items.sort(key=lambda item: (item["online"] is not True, (item["hostname"] or "").casefold(), item["rustdesk_id"]))
@@ -404,6 +593,7 @@ def listar(db: Session, filtro: str) -> dict:
         "agent_configurado": bool(_estado["agent_configurado"]),
         "agent_indisponivel": bool(_estado["agent_indisponivel"]),
         "sincronizado_em": _estado["sincronizado_em"],
+        "deskremote_versao_release": release_ver,
     }
 
 
@@ -577,3 +767,60 @@ def excluir(db: Session, rustdesk_id: str, atendente: Atendente) -> dict:
     db.delete(peer)
     db.commit()
     return {"rustdesk_id": chave, "removido": True}
+
+
+def solicitar_atualizacao(db: Session, rustdesk_id: str, atendente: Atendente) -> dict:
+    """Enfileira update do DeskRemote Cliente para o próximo sync (#1436)."""
+    chave = normalizar_id_remoto(rustdesk_id)
+    if not chave:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Computador não encontrado.")
+    dispositivo = (
+        db.query(DeskremoteDispositivo)
+        .filter(
+            DeskremoteDispositivo.revoked_at.is_(None),
+            DeskremoteDispositivo.rustdesk_id.isnot(None),
+        )
+        .order_by(DeskremoteDispositivo.id.desc())
+        .all()
+    )
+    alvo = next((row for row in dispositivo if normalizar_id_remoto(row.rustdesk_id) == chave), None)
+    if alvo is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Este computador ainda não sincronizou com o DeskRemote Cliente.",
+        )
+    if not _dispositivo_recente(alvo):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="O computador precisa ter sincronizado nos últimos 15 minutos.",
+        )
+    release = versao_release_cliente_flutter()
+    if versao_menor(alvo.app_version, release) is not True:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Este computador já está na versão publicada ou a versão ainda é desconhecida.",
+        )
+    if alvo.update_status in {"pendente", "enviado", "em_andamento"}:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Já existe um pedido de atualização em andamento para este computador.",
+        )
+    agora = datetime.now(timezone.utc)
+    alvo.update_solicitado_em = agora
+    alvo.update_status = "pendente"
+    alvo.update_erro = None
+    alvo.update_solicitado_por_id = atendente.id
+    registrar_audit(
+        db,
+        "deskremote_dispositivo",
+        alvo.id,
+        "deskremote_update_solicitar",
+        atendente.id,
+        payload={"rustdesk_id": chave, "app_version": alvo.app_version, "release": release},
+    )
+    db.commit()
+    return {
+        "rustdesk_id": chave,
+        "update_status": "pendente",
+        "mensagem": "Pedido enviado. O DeskRemote aplica no próximo sync (cerca de 30 segundos).",
+    }

@@ -1,8 +1,8 @@
-# DeskRemote Atendente v2 (Flutter) — embutido no DeskRudder Painel v1.
+﻿# DeskRemote Atendente v2 (Flutter) — embutido no DeskRudder Painel v1.
 # Sciter v1 (1.0.14) está congelado em acesso-remoto-controle-windows.
 #
 # Actions → «DeskRemote Atendente v2» → Run workflow
-# Artefato: DeskRudder-AcessoRemoto-Controle-Flutter.exe
+# Artefato: deskremote-atendente.exe
 # Release: acesso-remoto-controle-flutter-windows
 #
 # Branding: deploy/rustdesk-client/branding/kit-1253 (issue #1253)
@@ -42,7 +42,7 @@ env:
   VCPKG_COMMIT_ID: "9e593bb18ea69cc5095e012465dcd675a822ed0d"
   VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
   VERSION: ${{ inputs.rustdesk_ref }}
-  PROFILE: controle
+  PROFILE: atendente
 
 jobs:
   bridge:
@@ -50,7 +50,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout RustDesk
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           repository: rustdesk/rustdesk
           ref: ${{ inputs.rustdesk_ref }}
@@ -88,7 +88,7 @@ jobs:
           cp ./flutter/macos/Runner/bridge_generated.h ./flutter/ios/Runner/bridge_generated.h
 
       - name: Upload bridge
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: bridge-artifact
           path: |
@@ -110,12 +110,12 @@ jobs:
       client_version: ${{ steps.ver.outputs.client_version }}
     steps:
       - name: Checkout DX Connect
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           path: dx-connect
 
       - name: Checkout RustDesk
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           repository: rustdesk/rustdesk
           ref: ${{ inputs.rustdesk_ref }}
@@ -123,7 +123,7 @@ jobs:
           path: rustdesk
 
       - name: Restore bridge
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: bridge-artifact
           path: rustdesk
@@ -141,7 +141,7 @@ jobs:
             --config dx-connect/deploy/rustdesk-client/server.config.json \
             --branding dx-connect/deploy/rustdesk-client/branding \
             --client-version dx-connect/deploy/rustdesk-client/CLIENT_VERSION_FLUTTER \
-            --profile controle \
+            --profile atendente \
             --ui flutter
           test -f rustdesk/flutter/windows/runner/resources/app_icon.ico
           test -f rustdesk/flutter/assets/icon.png
@@ -196,7 +196,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: rustdesk
-          prefix-key: deskrudder-flutter-x64-controle
+          prefix-key: deskrudder-flutter-x64-atendente
 
       - name: vcpkg
         uses: lukka/run-vcpkg@v11
@@ -243,16 +243,16 @@ jobs:
 
           mkdir -p ../dist
           CLIENT_VER="${CLIENT_VERSION:?}"
-          OUT="DeskRudder-AcessoRemoto-Controle-Flutter-${CLIENT_VER}.exe"
+          OUT="deskremote-atendente-${CLIENT_VER}.exe"
           mv ./target/release/rustdesk-portable-packer.exe "../dist/${OUT}"
           echo "Built ../dist/${OUT}"
           ls -lh ../dist/
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
-          name: DeskRudder-AcessoRemoto-controle-flutter-windows
-          path: dist/DeskRudder-AcessoRemoto-Controle-Flutter-*.exe
+          name: DeskRudder-AcessoRemoto-atendente-flutter-windows
+          path: dist/deskremote-atendente-*.exe
           if-no-files-found: error
           retention-days: 30
 
@@ -265,8 +265,8 @@ jobs:
           CLIENT_VER="${{ steps.ver.outputs.client_version }}"
           RD_VER="${VERSION:-1.5.0}"
           TAG="acesso-remoto-controle-flutter-windows"
-          SRC="dist/DeskRudder-AcessoRemoto-Controle-Flutter-${CLIENT_VER}.exe"
-          STABLE="dist/DeskRudder-AcessoRemoto-Controle-Flutter.exe"
+          SRC="dist/deskremote-atendente-${CLIENT_VER}.exe"
+          STABLE="dist/deskremote-atendente.exe"
           test -f "$SRC"
           cp -f "$SRC" "$STABLE"
           VERSION_JSON="dist/version.json"
@@ -277,13 +277,13 @@ jobs:
           Path("${VERSION_JSON}").write_text(json.dumps({
               "version": "${CLIENT_VER}",
               "rustdesk_base": "${RD_VER}",
-              "profile": "controle",
+              "profile": "atendente",
               "ui": "flutter",
               "download_url": "${DOWNLOAD_URL}",
           }, indent=2) + "\n", encoding="utf-8")
           PY
           TITLE="DeskRemote Atendente v2 ${CLIENT_VER}"
-          NOTES="DeskRemote **${CLIENT_VER}** (Flutter, controle). O DeskRudder Painel v1 embute este Release. Sciter 1.0.14 está congelado em \`acesso-remoto-controle-windows\`."
+          NOTES="DeskRemote **${CLIENT_VER}** (Flutter, atendente). O DeskRudder Painel v1 embute este Release. Sciter 1.0.14 está congelado em \`acesso-remoto-controle-windows\`."
           if gh release view "$TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
             gh release upload "$TAG" "$STABLE" "$VERSION_JSON" \
               --repo "${{ github.repository }}" --clobber

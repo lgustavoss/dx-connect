@@ -103,6 +103,32 @@ def _anexar_pdf_assinado(client, h, contrato_id: int, *, referencia: str | None 
     return r.json()
 
 
+def _assinar_com_multa(client, h, *, multa_max: int = 3, fidelidade_meses: int = 12):
+    """Contrato assinado com multa de rescisão configurada (#1386)."""
+    _, linha = _negociacao_com_linha(client, h)
+    c = client.post(
+        "/v1/comercial/contratos",
+        headers=h,
+        json={
+            "linha_id": linha["id"],
+            "multa_max_mensalidades": multa_max,
+            "fidelidade_meses": fidelidade_meses,
+        },
+    )
+    assert c.status_code == 201, c.text
+    cid = c.json()["id"]
+    _anexar_pdf_assinado(client, h, cid)
+    ass = client.post(f"/v1/comercial/contratos/{cid}/marcar-assinado", headers=h, json={})
+    assert ass.status_code == 200, ass.text
+    return ass.json()
+
+
+def _titulos(client, h, **params):
+    r = client.get("/v1/faturamento/titulos", headers=h, params=params)
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
 def _assert_sem_internos(texto: str | bytes) -> None:
     blob = texto.decode("utf-8", errors="ignore") if isinstance(texto, (bytes, bytearray)) else texto
     low = blob.lower()
@@ -581,6 +607,177 @@ def test_estimativa_multa_sem_teto_ou_fora_fidelidade(client, auth_headers, seed
     assert est["meses_restantes"] == 0
 
 
+def test_rescisao_cria_titulo_multa_em_a_receber(client, auth_headers, seed_base):
+    """#1386: multa aplicável vira título avulso, com lista/CSV/resumo por tipo."""
+    from app.services.faturamento import competencia_atual, vencimento_da_competencia
+
+    h = auth_headers["comercial"]
+    h_fin = auth_headers["a2"]
+    contrato = _assinar_com_multa(client, h)
+    cid = contrato["id"]
+    est = contrato["multa_rescisao"]
+    assert est["aplicavel"] is True
+    assert est["valor_estimado"] is not None
+    # Antes da rescisão não existe título de multa na ficha.
+    assert client.get(f"/v1/comercial/contratos/{cid}", headers=h).json()["titulo_multa"] is None
+
+    resc = client.post(f"/v1/comercial/contratos/{cid}/cancelar", headers=h)
+    assert resc.status_code == 200, resc.text
+    det = resc.json()
+    assert det["status"] == "cancelado"
+    titulo_multa = det["titulo_multa"]
+    assert titulo_multa is not None
+    assert float(titulo_multa["valor"]) == float(est["valor_estimado"])
+    assert titulo_multa["status"] in {"aberto", "vencido"}
+    comp = competencia_atual()
+    assert titulo_multa["vencimento"] == vencimento_da_competencia(comp, dia=10).isoformat()
+
+    # A listagem resolve a multa em lote (sem N+1) e mantém o campo no payload.
+    lista_contratos = client.get("/v1/comercial/contratos", headers=h)
+    assert lista_contratos.status_code == 200, lista_contratos.text
+    contrato_listado = next(c for c in lista_contratos.json() if c["id"] == cid)
+    assert contrato_listado["titulo_multa"]["id"] == titulo_multa["id"]
+
+    multas = _titulos(client, h_fin, tipo="multa")
+    assert len(multas) == 1
+    multa = multas[0]
+    assert multa["id"] == titulo_multa["id"]
+    assert multa["contrato_id"] == cid
+    assert multa["fatura_id"] is None  # título avulso, como o de implantação
+    assert multa["tipo"] == "multa"
+    assert multa["competencia"] == comp
+
+    resumo = client.get(
+        "/v1/faturamento/a-receber/resumo", headers=h_fin, params={"tipo": "multa"}
+    )
+    assert resumo.status_code == 200, resumo.text
+    assert resumo.json()["quantidade_titulos"] == 1
+
+    csv = client.get(
+        "/v1/faturamento/titulos/export.csv", headers=h_fin, params={"tipo": "multa"}
+    )
+    assert csv.status_code == 200, csv.text
+    linhas = csv.content.decode("utf-8-sig").splitlines()
+    assert linhas[0].split(";")[0] == "Tipo"
+    assert linhas[1].split(";")[0] == "multa"
+    assert linhas[1].split(";")[4] == str(cid)
+
+    # O filtro de tipo não perde o "melhor esforço": tipo desconhecido continua 400.
+    assert client.get("/v1/faturamento/titulos", headers=h_fin, params={"tipo": "x"}).status_code == 400
+
+
+def test_rescisao_reprocessada_nao_duplica_nem_cancela_multa(client, auth_headers, seed_base):
+    """#1386: chamar a rescisão de novo (reprocesso) mantém 1 multa em aberto."""
+    from app.database import SessionLocal
+    from app.models.comercial_contrato import CONTRATO_ASSINADO, Contrato
+    from app.models.faturamento import TITULO_ABERTO, TITULO_TIPO_MULTA, TituloReceber
+
+    h = auth_headers["comercial"]
+    contrato = _assinar_com_multa(client, h)
+    cid = contrato["id"]
+    assert client.post(f"/v1/comercial/contratos/{cid}/cancelar", headers=h).status_code == 200
+
+    def _multas() -> list[TituloReceber]:
+        db = SessionLocal()
+        try:
+            return (
+                db.query(TituloReceber)
+                .filter(TituloReceber.contrato_id == cid, TituloReceber.tipo == TITULO_TIPO_MULTA)
+                .all()
+            )
+        finally:
+            db.close()
+
+    assert len(_multas()) == 1
+    mid = _multas()[0].id
+
+    db = SessionLocal()
+    try:
+        row = db.query(Contrato).filter(Contrato.id == cid).one()
+        row.status = CONTRATO_ASSINADO  # simula reprocessamento/correção manual
+        db.commit()
+    finally:
+        db.close()
+
+    de_novo = client.post(f"/v1/comercial/contratos/{cid}/cancelar", headers=h)
+    assert de_novo.status_code == 200, de_novo.text
+    assert de_novo.json()["status"] == "cancelado"
+    assert de_novo.json()["titulo_multa"]["id"] == mid
+
+    multas = _multas()
+    assert len(multas) == 1
+    assert multas[0].status == TITULO_ABERTO  # cancelar_pendencias não apaga a multa
+
+
+def test_rescisao_sem_multa_aplicavel_nao_cria_titulo(client, auth_headers, seed_base):
+    """#1386: teto 0 (isento) ou fora da fidelidade não criam título de multa."""
+    from datetime import datetime, timedelta
+    from zoneinfo import ZoneInfo
+
+    from app.database import SessionLocal
+    from app.models.comercial_contrato import Contrato
+
+    h = auth_headers["comercial"]
+    h_fin = auth_headers["a2"]
+
+    sem_teto = _assinar_com_multa(client, h, multa_max=0)
+    assert sem_teto["multa_rescisao"]["aplicavel"] is False
+    r = client.post(f"/v1/comercial/contratos/{sem_teto['id']}/cancelar", headers=h)
+    assert r.status_code == 200, r.text
+    assert r.json()["titulo_multa"] is None
+    assert _titulos(client, h_fin, tipo="multa") == []
+
+    fora = _assinar_com_multa(client, h)
+    assert fora["multa_rescisao"]["aplicavel"] is True
+    hoje_sp = datetime.now(ZoneInfo("America/Sao_Paulo")).date()
+    db = SessionLocal()
+    try:
+        row = db.query(Contrato).filter(Contrato.id == fora["id"]).one()
+        row.data_fim_fidelidade = hoje_sp - timedelta(days=1)
+        db.commit()
+    finally:
+        db.close()
+    r = client.post(f"/v1/comercial/contratos/{fora['id']}/cancelar", headers=h)
+    assert r.status_code == 200, r.text
+    assert r.json()["titulo_multa"] is None
+    assert _titulos(client, h_fin, tipo="multa") == []
+
+
+def test_titulo_multa_cancelar_e_estornar(client, auth_headers, seed_base):
+    """#1386: a multa usa as rotas de baixa/estorno/cancelamento existentes."""
+    h = auth_headers["comercial"]
+    h_fin = auth_headers["a2"]
+    contrato = _assinar_com_multa(client, h)
+    cid = contrato["id"]
+    assert client.post(f"/v1/comercial/contratos/{cid}/cancelar", headers=h).status_code == 200
+    tid = _titulos(client, h_fin, tipo="multa")[0]["id"]
+
+    baixa = client.post(
+        f"/v1/faturamento/titulos/{tid}/baixar",
+        headers=h_fin,
+        json={"observacao": "PIX multa"},
+    )
+    assert baixa.status_code == 200, baixa.text
+    assert baixa.json()["status"] == "pago"
+    assert baixa.json()["tem_boleto"] is False
+
+    estorno = client.post(
+        f"/v1/faturamento/titulos/{tid}/estornar",
+        headers=h_fin,
+        json={"motivo": "PIX devolvido"},
+    )
+    assert estorno.status_code == 200, estorno.text
+    assert estorno.json()["status"] in {"aberto", "vencido"}
+
+    cancela = client.post(
+        f"/v1/faturamento/titulos/{tid}/cancelar",
+        headers=h_fin,
+        json={"motivo": "Acordo com o cliente"},
+    )
+    assert cancela.status_code == 200, cancela.text
+    assert cancela.json()["status"] == "cancelado"
+
+
 def test_versao_do_modelo_fica_gravada_no_contrato(client, auth_headers, seed_base):
     h_admin = auth_headers["admin"]
     h = auth_headers["comercial"]
@@ -931,3 +1128,40 @@ def test_empresa_da_linha_serve_ao_contrato_e_pdf_fica_congelado(client, auth_he
     assert ass.json()["empresa_id"] == linha["empresa_id"]
     assert _total_empresas(client, h_admin) == antes_ass
 
+
+
+def test_assinado_move_funil_sem_opt_in_e_marca_vigente(client, auth_headers, seed_base):
+    h = auth_headers["comercial"]
+    neg_id, linha = _negociacao_com_linha(client, h)
+    c1 = client.post("/v1/comercial/contratos", headers=h, json={"linha_id": linha["id"]})
+    assert c1.status_code == 201, c1.text
+    cid1 = c1.json()["id"]
+    _anexar_pdf_assinado(client, h, cid1)
+
+    # Sem avancar_funil: assinar já move o funil e registra o envio derivado (#1322)
+    ass1 = client.post(f"/v1/comercial/contratos/{cid1}/marcar-assinado", headers=h, json={})
+    assert ass1.status_code == 200, ass1.text
+    assert ass1.json()["status"] == "assinado"
+    assert ass1.json()["enviado_em"]
+    neg = client.get(f"/v1/crm/negociacoes/{neg_id}", headers=h).json()
+    assert neg["estagio_slug"] == "contrato_assinado"
+
+    # Segundo contrato na mesma linha (aditivo): o assinado mais recente é o vigente
+    c2 = client.post("/v1/comercial/contratos", headers=h, json={"linha_id": linha["id"]})
+    assert c2.status_code == 201, c2.text
+    cid2 = c2.json()["id"]
+    assert cid2 != cid1
+
+    lista = client.get("/v1/comercial/contratos", headers=h, params={"negociacao_id": neg_id}).json()
+    por_id = {c["id"]: c for c in lista}
+    assert por_id[cid1]["vigente"] is True
+    assert por_id[cid2]["vigente"] is False
+
+    _anexar_pdf_assinado(client, h, cid2, referencia="aditivo-1")
+    ass2 = client.post(f"/v1/comercial/contratos/{cid2}/marcar-assinado", headers=h, json={})
+    assert ass2.status_code == 200, ass2.text
+
+    lista2 = client.get("/v1/comercial/contratos", headers=h, params={"negociacao_id": neg_id}).json()
+    por_id2 = {c["id"]: c for c in lista2}
+    assert por_id2[cid2]["vigente"] is True
+    assert por_id2[cid1]["vigente"] is False

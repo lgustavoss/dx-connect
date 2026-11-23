@@ -159,6 +159,21 @@ export const CONFIG_GROUPS: ConfigNavGroup[] = [
     ],
   },
   {
+    id: 'financeiro',
+    pathPrefix: 'financeiro',
+    label: 'Financeiro',
+    description: 'Regras de faturamento da instância.',
+    icon: 'auditoria',
+    items: [
+      {
+        slug: 'faturamento',
+        label: 'Faturamento',
+        hint: 'Dia de vencimento, gatilho de início da mensalidade e primeira fatura proporcional.',
+        keywords: ['faturamento', 'vencimento', 'mensalidade', 'proporcional', 'setup'],
+      },
+    ],
+  },
+  {
     id: 'empresa',
     pathPrefix: 'empresa',
     label: 'Empresa',
@@ -230,6 +245,7 @@ export const PERMISSAO_CONFIG: Record<string, string> = {
   contratos: 'contratos.modelos',
   custos: 'custos.ver',
   implantacao: 'implantacao.editar',
+  faturamento: 'faturamento.politica',
   empresa: 'instalacao.ver',
   pdv: 'pdv.ver',
   auditoria: 'auditoria.ver',

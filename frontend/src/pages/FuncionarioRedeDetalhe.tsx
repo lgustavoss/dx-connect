@@ -120,7 +120,9 @@ export function FuncionarioRedeDetalhe() {
   const [reloadTicketsSeq, setReloadTicketsSeq] = useState(0)
   const skipLocationReloadRef = useRef(true)
   const abaRef = useRef(aba)
-  abaRef.current = aba
+  useEffect(() => {
+    abaRef.current = aba
+  }, [aba])
 
   const { total: ticketsAbertos, reload: reloadTicketsAbertos } = useTicketsAbertosContato(
     Number.isNaN(funcionarioId) ? null : funcionarioId,
@@ -287,7 +289,12 @@ export function FuncionarioRedeDetalhe() {
       : null
   const telefoneFmt = formatTelefoneBrExibicao(f.telefone) || null
   const vinculoExtra = buildVinculoExtra(f, (empresaId) => destinoEmpresa(user, empresaId))
-  const redeNome = f.rede_nome?.trim() || null
+  // #1407: todas as redes do contato; rede_id/rede_nome ficam como fallback legado.
+  const redes = f.redes?.length
+    ? f.redes
+    : f.rede_id != null && f.rede_nome
+      ? [{ id: f.rede_id, nome: f.rede_nome }]
+      : []
 
   const tabBtn = (key: Aba, label: string) => (
     <button
@@ -355,19 +362,33 @@ export function FuncionarioRedeDetalhe() {
             <dl>
               <DetailRow label="Telefone" value={telefoneFmt} />
               <div className="grid grid-cols-1 gap-0.5 border-b border-slate-100 py-3 sm:grid-cols-[minmax(0,10rem)_1fr] sm:gap-6 sm:py-3.5 dark:border-slate-800">
-                <dt className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">Rede</dt>
+                <dt className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                  Redes
+                </dt>
                 <dd className="text-sm">
-                  {f.rede_id != null && redeNome ? (
-                    podeVerRede ? (
-                      <Link
-                        to={`/redes/${f.rede_id}`}
-                        className="font-medium text-slate-800 underline decoration-slate-300 underline-offset-2 transition-colors hover:text-slate-950 hover:decoration-slate-500 dark:text-slate-100 dark:decoration-slate-700 dark:hover:decoration-slate-500"
-                      >
-                        {redeNome}
-                      </Link>
-                    ) : (
-                      <span className="text-slate-800 dark:text-slate-100">{redeNome}</span>
-                    )
+                  {redes.length > 0 ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {redes.map((r) =>
+                        podeVerRede ? (
+                          <Link
+                            key={r.id}
+                            to={`/redes/${r.id}`}
+                            title={r.nome}
+                            className="inline-flex max-w-[14rem] truncate rounded-md bg-violet-50 px-1.5 py-0.5 text-xs font-medium text-violet-800 ring-1 ring-violet-600/15 transition-colors hover:bg-violet-100 dark:bg-violet-950/40 dark:text-violet-200 dark:ring-violet-500/20 dark:hover:bg-violet-950/60"
+                          >
+                            {r.nome}
+                          </Link>
+                        ) : (
+                          <span
+                            key={r.id}
+                            title={r.nome}
+                            className="inline-flex max-w-[14rem] truncate rounded-md bg-violet-50 px-1.5 py-0.5 text-xs font-medium text-violet-800 ring-1 ring-violet-600/15 dark:bg-violet-950/40 dark:text-violet-200 dark:ring-violet-500/20"
+                          >
+                            {r.nome}
+                          </span>
+                        ),
+                      )}
+                    </div>
                   ) : (
                     <span className="text-slate-800 dark:text-slate-100">—</span>
                   )}

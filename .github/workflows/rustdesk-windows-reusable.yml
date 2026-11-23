@@ -8,7 +8,7 @@ on:
   workflow_call:
     inputs:
       profile:
-        description: "posto | controle"
+        description: "cliente | atendente"
         type: string
         required: true
       rustdesk_ref:
@@ -51,12 +51,12 @@ jobs:
 
     steps:
       - name: Checkout DX Connect (branding + scripts)
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           path: dx-connect
 
       - name: Checkout RustDesk
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           repository: rustdesk/rustdesk
           ref: ${{ inputs.rustdesk_ref }}
@@ -155,7 +155,7 @@ jobs:
           mkdir -p ../dist
           CLIENT_VER="${CLIENT_VERSION:?}"
           RD_VER="${VERSION:-1.5.0}"
-          if [ "${PROFILE}" = "controle" ]; then
+          if [ "${PROFILE}" = "atendente" ]; then
             OUT="DeskRudder-AcessoRemoto-Controle-${CLIENT_VER}.exe"
           else
             OUT="DeskRudder-AcessoRemoto-${CLIENT_VER}.exe"
@@ -165,7 +165,7 @@ jobs:
           ls -lh ../dist/
 
       - name: Upload instalador (artifact)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: DeskRudder-AcessoRemoto-${{ inputs.profile }}-windows
           path: dist/DeskRudder-AcessoRemoto*.exe
@@ -181,7 +181,7 @@ jobs:
           CLIENT_VER="${CLIENT_VERSION:?}"
           RD_VER="${VERSION:-1.5.0}"
           PROFILE="${PROFILE:?}"
-          if [ "$PROFILE" = "controle" ]; then
+          if [ "$PROFILE" = "atendente" ]; then
             TAG="acesso-remoto-controle-windows"
             SRC="dist/DeskRudder-AcessoRemoto-Controle-${CLIENT_VER}.exe"
             STABLE="dist/DeskRudder-AcessoRemoto-Controle.exe"

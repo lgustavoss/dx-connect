@@ -415,6 +415,8 @@ def marcar_enviada(db: Session, row: Proposta, data: PropostaMarcarEnviadaIn, at
             texto=f"Proposta #{row.id} marcada como enviada ({row.canal}).",
         )
     )
+    # A sessão não tem autoflush: o guard do funil precisa ver o status já gravado (#1321).
+    db.flush()
     if data.avancar_funil:
         neg = crm_svc.obter_negociacao(db, row.negociacao_id)
         atual = crm_svc.obter_estagio(db, estagio_id=neg.estagio_id)

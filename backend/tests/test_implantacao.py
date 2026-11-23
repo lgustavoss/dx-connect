@@ -180,7 +180,9 @@ def test_checklist_rbac_e_fechar_bloqueado(client, auth_headers, seed_base, db_s
     chk2 = client.get(f"/v1/tickets/{tid}/checklist", headers=h_admin).json()
     assert chk2["itens_obrigatorios_pendentes"] == 0
     assert "cadastrar_pdvs" in {i.get("chave") for i in chk2["itens"]}
-    assert chk2["pdvs_ativos"] == 0
+    # A abertura do ticket cria os stubs de PDV da linha do contrato (#1323).
+    assert chk2["pdvs_necessarios"] == 1
+    assert chk2["pdvs_ativos"] == 1
 
     nat = TicketNatureza(nome="Implantação", slug="implantacao_test", ordem=80, ativo=True)
     db_session.add(nat)
@@ -215,3 +217,89 @@ def test_checklist_rbac_e_fechar_bloqueado(client, auth_headers, seed_base, db_s
     assert admin_patch.status_code == 200, admin_patch.text
     marcado = next(i for i in admin_patch.json()["itens"] if i["id"] == item_id)
     assert marcado["observacao"] == "ajuste admin"
+
+
+def test_abertura_cria_stubs_pdv_e_move_funil(client, auth_headers):
+    h_com = auth_headers["comercial"]
+    h_a1 = auth_headers["a1"]
+    h_admin = auth_headers["admin"]
+    body = _assinar_contrato(client, h_com)
+    tid = body["implantacao_ticket_id"]
+    emp_id = body["empresa_id"]
+
+    chk = client.get(f"/v1/tickets/{tid}/checklist", headers=h_a1)
+    assert chk.status_code == 200, chk.text
+    assert chk.json()["pdvs_necessarios"] == 1
+    assert chk.json()["pdvs_ativos"] == 1
+
+    pdvs = client.get(f"/v1/empresas/{emp_id}/pdvs", headers=h_admin)
+    assert pdvs.status_code == 200, pdvs.text
+    assert "PDV-1" in {p["codigo"] for p in pdvs.json()["items"]}
+
+    neg = client.get(f"/v1/crm/negociacoes/{body['negociacao_id']}", headers=h_com)
+    assert neg.status_code == 200
+    assert neg.json()["estagio_slug"] == "implantacao"
+
+
+def test_item_cadastrar_pdvs_exige_cadastro_ou_desvio(client, auth_headers):
+    h_com = auth_headers["comercial"]
+    h_a1 = auth_headers["a1"]
+
+    neg_id, linha = _negociacao_com_linha(client, h_com)
+    c = client.post("/v1/comercial/contratos", headers=h_com, json={"linha_id": linha["id"]})
+    assert c.status_code == 201, c.text
+    cid = c.json()["id"]
+    _anexar_pdf_assinado(client, h_com, cid)
+    ass = client.post(
+        f"/v1/comercial/contratos/{cid}/marcar-assinado",
+        headers=h_com,
+        json={"abrir_ticket_implantacao": True},
+    )
+    assert ass.status_code == 200, ass.text
+    tid = ass.json()["implantacao_ticket_id"]
+
+    # A implantação descobre que o cliente tem 2 PDVs: a linha passa a exigir 2.
+    up = client.patch(
+        f"/v1/crm/negociacoes/{neg_id}/linhas/{linha['id']}",
+        headers=h_com,
+        json={"quantidade_pdvs": 2},
+    )
+    assert up.status_code == 200, up.text
+
+    chk = client.get(f"/v1/tickets/{tid}/checklist", headers=h_a1).json()
+    assert chk["pdvs_necessarios"] == 2
+    assert chk["pdvs_ativos"] == 1
+    item = next(i for i in chk["itens"] if i.get("chave") == "cadastrar_pdvs")
+
+    sem_desvio = client.patch(
+        f"/v1/tickets/{tid}/checklist/itens/{item['id']}",
+        headers=h_a1,
+        json={"concluido": True},
+    )
+    assert sem_desvio.status_code == 400, sem_desvio.text
+    assert "PDV" in sem_desvio.json()["detail"]
+
+    com_desvio = client.patch(
+        f"/v1/tickets/{tid}/checklist/itens/{item['id']}",
+        headers=h_a1,
+        json={"concluido": True, "observacao": "Cliente tem 1 PDV; o 2º entra no próximo mês."},
+    )
+    assert com_desvio.status_code == 200, com_desvio.text
+
+
+def test_portal_nao_ve_ticket_de_implantacao(client, db_session, seed_base, auth_headers):
+    from tests.test_portal_cliente import _criar_funcionario, _portal_headers
+
+    h_com = auth_headers["comercial"]
+    body = _assinar_contrato(client, h_com)
+    tid = body["implantacao_ticket_id"]
+
+    supervisor = _criar_funcionario(db_session, seed_base, tipo="supervisor", email="impl.sup@example.com")
+    socio = _criar_funcionario(db_session, seed_base, tipo="socio", email="impl.so@example.com")
+
+    ids_sup = {
+        x["id"] for x in client.get("/v1/portal/tickets", headers=_portal_headers(supervisor)).json()["items"]
+    }
+    assert tid not in ids_sup
+    assert client.get(f"/v1/portal/tickets/{tid}", headers=_portal_headers(supervisor)).status_code == 404
+    assert client.get(f"/v1/portal/tickets/{tid}", headers=_portal_headers(socio)).status_code == 404

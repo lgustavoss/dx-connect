@@ -7,7 +7,8 @@ SLUG="${2:-}"
 
 usage() {
   echo "Uso: $0 <comando> <slug|admin-center> [args...]"
-  echo "Comandos: migrate | up | down | logs | seed | health | exec | run"
+  echo "Comandos: migrate | backup | up | down | logs | seed | health | exec | run"
+  echo "Backup pré-migração: $0 backup admin-center  (grava em backups/ e mantém as 5 últimas)"
   echo "Painel ops: $0 migrate admin-center"
   echo "Exec no backend (stack já no ar): $0 exec admin-center python scripts/foo.py"
   exit 1
@@ -49,6 +50,24 @@ dc() {
 }
 
 case "$CMD" in
+  backup)
+    load_env
+    # Backup lógico antes de migrations, dentro do próprio Postgres do stack
+    # (mesma versão do servidor) e copiado para o host. Falha = deploy para.
+    BACKUP_DIR="${BACKUP_DIR:-$ROOT/backups}"
+    mkdir -p "$BACKUP_DIR"
+    TS="$(date -u +%Y%m%dT%H%M%SZ)"
+    OUT="$BACKUP_DIR/pre-deploy-${SLUG}-${TS}.dump"
+    TMP="/tmp/pre-deploy-${SLUG}-${TS}.dump"
+    dc exec -T db sh -c "pg_dump -U \"\$POSTGRES_USER\" -d \"\$POSTGRES_DB\" --format=custom --file='${TMP}'"
+    dc exec -T db sh -c "pg_restore --list '${TMP}' > /dev/null"
+    CID="$(dc ps -q db)"
+    docker cp "${CID}:${TMP}" "$OUT"
+    dc exec -T db rm -f "$TMP"
+    test -s "$OUT"
+    ls -1t "$BACKUP_DIR"/pre-deploy-"${SLUG}"-*.dump 2>/dev/null | tail -n +6 | xargs -r rm -f
+    echo "==> Backup pré-deploy OK: $OUT ($(du -h "$OUT" | cut -f1))"
+    ;;
   migrate)
     load_env
     # -T + stdin fechado: em SSH/`bash -s` o attach do compose consumiria o resto do script
