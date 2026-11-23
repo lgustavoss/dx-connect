@@ -41,7 +41,7 @@ Opcionais:
 | `DEPLOY_SSH_PORT` | Porta SSH se não for 22 |
 | `DEPLOY_GIT_REF` | Override da branch no VPS (evitar em produção normal) |
 
-O workflow **recusa** trocar as URLs (comercial em `VITE_API_URL` ou DuplexSoft em `VITE_API_URL_ADMIN`).
+O workflow **recusa** trocar as URLs (comercial em `VITE_API_URL` ou DuplexSoft em `VITE_API_URL_ADMIN`) e **recusa** host legado `*.duplexsoft.com.br` nas duas. O painel em `{slug}.deskrudder.com.br` fala com `https://api-{slug}.deskrudder.com.br` mesmo que o build antigo tenha gravado outro host.
 
 ### Environment `production` (opcional)
 

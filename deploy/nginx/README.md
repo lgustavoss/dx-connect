@@ -14,6 +14,6 @@ Exemplos: [`deskrudder-landing.conf.example`](deskrudder-landing.conf.example), 
 
 ### Domínios legados (`*.duplexsoft.com.br`)
 
-[`connect-duplexsoft-redirect.conf.example`](connect-duplexsoft-redirect.conf.example) — `301` de `connect.` / `api.connect.` para os hosts DeskRudder do cliente piloto.
+[`connect-duplexsoft-redirect.conf.example`](connect-duplexsoft-redirect.conf.example) — `301` opcional, só enquanto o DNS antigo ainda existir. O painel e a API **não** chamam esses hosts; o runtime é `{slug}.deskrudder.com.br` e `api-{slug}.deskrudder.com.br`.
 
 ## Requisitos no VPS
