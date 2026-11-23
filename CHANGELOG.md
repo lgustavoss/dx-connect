@@ -5,6 +5,18 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ## [Unreleased]
 
+### DeskRudder
+
+#### Melhorias
+
+- Login do painel: a conexão com o servidor usa o endereço DeskRudder da empresa (painel e API no mesmo domínio do produto).
+
+### SaaS Control Plane
+
+#### Interno
+
+- Deploy: o build e o webhook da API recusam endereço fora do domínio DeskRudder; no painel de cada conta a API segue `api-{conta}.deskrudder.com.br`
+
 ## [26.11.005] - 2026-11-17
 
 ### DeskRudder

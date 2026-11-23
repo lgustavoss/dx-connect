@@ -114,10 +114,18 @@ jobs:
               echo "::error::VITE_API_URL não pode ser a API comercial — use VITE_API_URL_ADMIN para isso."
               exit 1
               ;;
+            *duplexsoft.com.br*)
+              echo "::error::VITE_API_URL não pode usar host legado duplexsoft.com.br. Use https://api-<slug>.deskrudder.com.br."
+              exit 1
+              ;;
           esac
           case "${VITE_API_URL_ADMIN}" in
             *api-duplexsoft*)
               echo "::error::VITE_API_URL_ADMIN não pode ser a API DuplexSoft."
+              exit 1
+              ;;
+            *duplexsoft.com.br*)
+              echo "::error::VITE_API_URL_ADMIN não pode usar host legado duplexsoft.com.br."
               exit 1
               ;;
           esac

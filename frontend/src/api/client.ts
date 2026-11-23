@@ -1,19 +1,21 @@
 import { mensagemErroApi } from './errorMessage'
 import { isCapacitorNative } from '../lib/capacitorNative'
-import { clientApiOrigin, readRememberedAccount } from '../lib/marketingHost'
+import { apiOriginFromPanelHost, clientApiOrigin, readRememberedAccount } from '../lib/marketingHost'
+import { sanitizeBakedApiUrl } from '../lib/panelApiOrigin'
 import { isMultiTenantMode, resolveTenantIdFromHostname } from '../lib/tenant'
 import { limparSessaoDeskRemote, salvarSessaoDeskRemote } from '../lib/deskrudderDesktop'
 
 function bakedApiUrl(): string | undefined {
   const url = import.meta.env.VITE_API_URL as string | undefined
-  return url?.trim() || undefined
+  return sanitizeBakedApiUrl(url)
 }
 
 function apiBaseUrl(): string {
   if (isCapacitorNative()) {
     // APK debug com VITE_API_URL (emulador/LAN) fala com essa API; o slug só escolhe a instância no APK de loja.
+    // URL legada (*.duplexsoft.com.br) é descartada — o slug aponta para api-{conta}.deskrudder.com.br.
     const baked = bakedApiUrl()
-    if (baked) return baked.replace(/\/+$/, '')
+    if (baked) return baked
     const slug = readRememberedAccount()
     if (slug) {
       try {
@@ -26,11 +28,17 @@ function apiBaseUrl(): string {
     return ''
   }
   if (import.meta.env.DEV) return '/api'
+  if (typeof window !== 'undefined') {
+    const derived = apiOriginFromPanelHost(window.location.hostname)
+    if (derived) return derived
+  }
   const url = bakedApiUrl()
   if (!url) {
-    throw new Error('VITE_API_URL não definido — o build de produção deveria ter falhado no vite.config.')
+    throw new Error(
+      'URL da API indisponível. Abra o painel em https://<conta>.deskrudder.com.br.',
+    )
   }
-  return url.replace(/\/+$/, '')
+  return url
 }
 
 /** Capacitor: há alvo de API (slug gravado ou VITE_API_URL de debug). */
