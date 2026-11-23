@@ -5,22 +5,27 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ## [Unreleased]
 
+### DeskRudder
+
+#### Melhorias
+
+- Login do painel: a conexão com o servidor usa o endereço DeskRudder da empresa (painel e API no mesmo domínio do produto).
+
+### SaaS Control Plane
+
+#### Interno
+
+- Deploy: o build e o webhook da API recusam endereço fora do domínio DeskRudder; no painel de cada conta a API segue `api-{conta}.deskrudder.com.br`
+
 ## [26.11.005] - 2026-11-17
 
 ### DeskRudder
 
 #### Melhorias
 
-- Login do painel: a conexão com o servidor usa o endereço DeskRudder da empresa (painel e API no mesmo domínio do produto).
 - Acesso remoto → frota: em computadores **Desatualizados** que sincronizaram recentemente, dá para pedir **Atualizar** pelo painel — o DeskRemote Cliente baixa e aplica no próximo sync (#1436)
 - Acesso remoto: o link de download do DeskRemote Cliente deixa de apontar para o instalador antigo (que ficava em 2.1.1) e passa a servir a versão atual do Release
 - Acesso remoto → frota: computador com DeskRemote sincronizando com o painel passa a aparecer **Online** mesmo quando o servidor não viu o sinal UDP — mesmo critério do selo no PDV
-
-### SaaS Control Plane
-
-#### Interno / Infra
-
-- Deploy: o build e o webhook da API recusam endereço fora do domínio DeskRudder; no painel de cada conta a API segue `api-{conta}.deskrudder.com.br`
 
 ## [26.11.004] - 2026-11-17
 
