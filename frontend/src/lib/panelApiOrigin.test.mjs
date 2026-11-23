@@ -5,7 +5,7 @@ import {
   clientApiOrigin,
   isLegacyRuntimeHost,
   sanitizeBakedApiUrl,
-} from './panelApiOrigin.ts'
+} from './panelApiOrigin.mjs'
 
 describe('apiOriginFromPanelHost', () => {
   it('deriva a API do tenant a partir do painel DeskRudder', () => {

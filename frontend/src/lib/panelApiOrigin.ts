@@ -1,7 +1,7 @@
 /**
  * Origem da API a partir do host do painel.
  * `{slug}.deskrudder.com.br` → `https://api-{slug}.deskrudder.com.br`.
- * Hosts `*.duplexsoft.com.br` não são alvo de runtime.
+ * Hosts fora do apex DeskRudder (legado) não são alvo de runtime.
  */
 
 const RESERVED_SLUGS = new Set([
