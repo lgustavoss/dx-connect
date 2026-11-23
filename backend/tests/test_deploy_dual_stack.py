@@ -33,6 +33,14 @@ def test_stack_client_migrate_fecha_stdin():
     assert "dc run --rm -T backend alembic upgrade head </dev/null" in text
 
 
+def test_deploy_recusa_host_legado_duplexsoft():
+    assert "*duplexsoft.com.br*" in WF
+    assert "reject_legacy_api_url" in SCRIPT
+    evo = (ROOT / "deploy" / "scripts" / "ensure-evolution-env.sh").read_text(encoding="utf-8")
+    assert "legacy_runtime_url" in evo
+    assert "DX_CONNECT_WEBHOOK_BASE_URL legado substituído" in evo
+
+
 def test_docs_listam_secrets_novos():
     assert "VITE_API_URL_ADMIN" in DOCS
     assert "DEPLOY_FRONTEND_DIST_ADMIN" in DOCS
