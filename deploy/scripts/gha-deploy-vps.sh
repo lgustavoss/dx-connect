@@ -17,6 +17,19 @@ cd "$ROOT"
 : "${VITE_API_URL:?}"
 : "${VITE_API_URL_ADMIN:?}"
 
+reject_legacy_api_url() {
+  local name="$1"
+  local value="$2"
+  case "$value" in
+    *duplexsoft.com.br*)
+      echo "::error::${name} não pode usar host legado duplexsoft.com.br. Use um host *.deskrudder.com.br."
+      exit 1
+      ;;
+  esac
+}
+reject_legacy_api_url VITE_API_URL "$VITE_API_URL"
+reject_legacy_api_url VITE_API_URL_ADMIN "$VITE_API_URL_ADMIN"
+
 SSH_PORT="${SSH_PORT:-22}"
 mkdir -p "${HOME}/.ssh"
 DEPLOY_KEY_PATH="${HOME}/.ssh/deploy_key"

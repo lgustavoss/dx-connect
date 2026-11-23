@@ -3,7 +3,7 @@ Webhook Resend ``email.received`` → ticket.
 
 Configurar na Resend: evento ``email.received``, URL
 ``POST /v1/webhooks/resend-inbound``, segredo em ``RESEND_WEBHOOK_SECRET``.
-Requer ``INBOUND_EMAIL_DOMAIN`` (ex.: ``notify.duplexsoft.com.br``) com **Receiving** activo na Resend.
+Requer ``INBOUND_EMAIL_DOMAIN`` (ex.: ``notify.deskrudder.com.br``) com **Receiving** activo na Resend.
 """
 
 from __future__ import annotations

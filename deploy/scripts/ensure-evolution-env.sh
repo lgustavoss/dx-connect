@@ -33,6 +33,39 @@ append_if_missing "EVOLUTION_POSTGRES_PASSWORD" "$(rand_hex 16)"
 append_if_missing "EVOLUTION_GLOBAL_API_KEY" "$(rand_hex 24)"
 append_if_missing "EVOLUTION_SERVER_URL" "http://127.0.0.1:8080"
 
+legacy_runtime_url() {
+  case "$1" in
+    *duplexsoft.com.br*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 if [ -n "$WEBHOOK_BASE_URL" ]; then
-  append_if_missing "DX_CONNECT_WEBHOOK_BASE_URL" "${WEBHOOK_BASE_URL%/}"
+  value="${WEBHOOK_BASE_URL%/}"
+  if legacy_runtime_url "$value"; then
+    echo "::error::DX_CONNECT_WEBHOOK_BASE_URL legado recusado (${value}). Use https://api-<slug>.deskrudder.com.br."
+    exit 1
+  fi
+  if grep -qE '^DX_CONNECT_WEBHOOK_BASE_URL=' "$ENV_FILE" 2>/dev/null; then
+    current="$(grep -E '^DX_CONNECT_WEBHOOK_BASE_URL=' "$ENV_FILE" | tail -n 1 | cut -d= -f2- | tr -d '\r')"
+    if legacy_runtime_url "$current"; then
+      tmp="$(mktemp)"
+      awk -v value="$value" '
+        BEGIN { done = 0 }
+        /^DX_CONNECT_WEBHOOK_BASE_URL=/ {
+          if (!done) {
+            print "DX_CONNECT_WEBHOOK_BASE_URL=" value
+            done = 1
+          }
+          next
+        }
+        { print }
+      ' "$ENV_FILE" >"$tmp"
+      mv "$tmp" "$ENV_FILE"
+      echo "==> DX_CONNECT_WEBHOOK_BASE_URL legado substituído em ${ENV_FILE}"
+    fi
+  else
+    echo "DX_CONNECT_WEBHOOK_BASE_URL=${value}" >>"$ENV_FILE"
+    echo "==> DX_CONNECT_WEBHOOK_BASE_URL adicionado em ${ENV_FILE}"
+  fi
 fi

@@ -1,20 +1,13 @@
 import { MARKETING_SITE_URL } from '../brand/tokens'
 import { mensagemErroApi } from '../api/errorMessage'
+import {
+  apiOriginFromPanelHost as apiOriginFromPanelHostForApex,
+  clientApiOrigin as clientApiOriginForApex,
+  clientAppOrigin as clientAppOriginForApex,
+  normalizeClientSlug,
+} from './panelApiOrigin'
 
-const RESERVED_SLUGS = new Set([
-  'www',
-  'api',
-  'mail',
-  'ftp',
-  'cdn',
-  'static',
-  'app',
-  'admin',
-  'status',
-  'portal',
-])
-
-const SLUG_RE = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/
+export { normalizeClientSlug }
 
 export const LOGIN_ACCOUNT_STORAGE_KEY = 'deskrudder-login-account'
 
@@ -49,29 +42,19 @@ export function marketingHomeHref(
   return { mode: 'external', href: `${MARKETING_SITE_URL}/` }
 }
 
-/** Normaliza e valida slug da conta (subdomínio). Retorna null se inválido. */
-export function normalizeClientSlug(raw: string): string | null {
-  const slug = raw.trim().toLowerCase()
-  if (!slug || !SLUG_RE.test(slug) || RESERVED_SLUGS.has(slug)) return null
-  return slug
-}
-
 /** Origem HTTPS do painel do cliente: https://{slug}.deskrudder.com.br */
 export function clientAppOrigin(slug: string): string {
-  const normalized = normalizeClientSlug(slug)
-  if (!normalized) {
-    throw new Error('Conta inválida')
-  }
-  return `https://${normalized}.${marketingApexHost()}`
+  return clientAppOriginForApex(slug, marketingApexHost())
 }
 
 /** API da instância: https://api-{slug}.deskrudder.com.br */
 export function clientApiOrigin(slug: string): string {
-  const normalized = normalizeClientSlug(slug)
-  if (!normalized) {
-    throw new Error('Conta inválida')
-  }
-  return `https://api-${normalized}.${marketingApexHost()}`
+  return clientApiOriginForApex(slug, marketingApexHost())
+}
+
+/** No painel `{slug}.deskrudder.com.br`, a API é `api-{slug}` — ignora URL legada do build. */
+export function apiOriginFromPanelHost(hostname: string): string | null {
+  return apiOriginFromPanelHostForApex(hostname, marketingApexHost())
 }
 
 export type ClientLoginTokens = {
