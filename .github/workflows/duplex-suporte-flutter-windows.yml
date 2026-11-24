@@ -281,7 +281,7 @@ jobs:
               "rustdesk_base": "${RD_VER}",
               "profile": "duplexsuporte",
               "ui": "flutter",
-              "portable": true,
+              "portable": True,
               "uac": "requireAdministrator",
               "download_url": "${DOWNLOAD_URL}",
           }, indent=2) + "\n", encoding="utf-8")
