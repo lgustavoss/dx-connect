@@ -3148,7 +3148,12 @@ def patch_disable_installation(config_rs: Path) -> None:
 
 
 def patch_uac_require_administrator(*manifest_paths: Path) -> None:
-    """Pede elevacao UAC na abertura (portable packer + runner Flutter)."""
+    """UAC no portable packer (`res/manifest.xml`).
+
+    Nao patchar `runner.exe.manifest`: o linker do Flutter/MSVC ja gera
+    asInvoker e o merge com requireAdministrator no XML causa LNK1327/mt.exe.
+    Elevacao do exe interno Flutter: `patch_flutter_uac_cmake`.
+    """
     trust = (
         '  <trustInfo xmlns="urn:schemas-microsoft-com:asm.v3">\n'
         "    <security>\n"
@@ -3161,6 +3166,13 @@ def patch_uac_require_administrator(*manifest_paths: Path) -> None:
     for path in manifest_paths:
         if not path.is_file():
             continue
+        # Runner Flutter: deixar o CMakeLists cuidar do UAC (evita LNK1327).
+        if path.name == "runner.exe.manifest":
+            print(
+                f"  UAC: ignorando {path.name} (usar LINK_FLAGS no CMakeLists)",
+                flush=True,
+            )
+            continue
         text = path.read_text(encoding="utf-8")
         if "requireAdministrator" in text:
             print(f"  UAC requireAdministrator ja em {path.name}", flush=True)
@@ -3169,6 +3181,77 @@ def patch_uac_require_administrator(*manifest_paths: Path) -> None:
             raise SystemExit(f"manifest sem </assembly>: {path}")
         path.write_text(text.replace("</assembly>", trust + "</assembly>", 1), encoding="utf-8")
         print(f"  UAC requireAdministrator -> {path.name}", flush=True)
+
+
+_FLUTTER_UAC_CMAKE_MARKER = "Duplex Suporte: UAC requireAdministrator via LINK_FLAGS"
+_FLUTTER_UAC_CMAKE_SNIPPET = (
+    f"\n# {_FLUTTER_UAC_CMAKE_MARKER}\n"
+    "set_target_properties(${BINARY_NAME} PROPERTIES LINK_FLAGS\n"
+    '  "/MANIFESTUAC:\\"level=\'requireAdministrator\' uiAccess=\'false\'\\" '
+    '/SUBSYSTEM:WINDOWS")\n'
+)
+
+
+def patch_flutter_uac_cmake(cmake_path: Path) -> None:
+    """Eleva o runner Flutter sem tocar no runner.exe.manifest (evita LNK1327)."""
+    if not cmake_path.is_file():
+        return
+    text = cmake_path.read_text(encoding="utf-8")
+    if _FLUTTER_UAC_CMAKE_MARKER in text:
+        print("  flutter CMakeLists: UAC LINK_FLAGS ja presente", flush=True)
+        return
+    if "add_executable(${BINARY_NAME}" not in text:
+        raise SystemExit(f"add_executable BINARY_NAME nao encontrado em {cmake_path}")
+    cmake_path.write_text(text.rstrip() + _FLUTTER_UAC_CMAKE_SNIPPET, encoding="utf-8")
+    print("  flutter CMakeLists: UAC requireAdministrator via LINK_FLAGS", flush=True)
+
+
+def _selftest_uac_patches() -> None:
+    """Garante que o packer recebe trustInfo e o runner.xml nao e alterado."""
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        res_man = root / "manifest.xml"
+        runner_man = root / "runner.exe.manifest"
+        cmake = root / "CMakeLists.txt"
+        res_man.write_text(
+            '<?xml version="1.0" encoding="UTF-8"?>\n'
+            '<assembly xmlns="urn:schemas-microsoft-com:asm.v1" '
+            'manifestVersion="1.0">\n</assembly>\n',
+            encoding="utf-8",
+        )
+        runner_orig = (
+            '<?xml version="1.0" encoding="UTF-8"?>\n'
+            '<assembly xmlns="urn:schemas-microsoft-com:asm.v1" '
+            'manifestVersion="1.0">\n'
+            "  <compatibility/>\n"
+            "</assembly>\n"
+        )
+        runner_man.write_text(runner_orig, encoding="utf-8")
+        cmake.write_text(
+            "cmake_minimum_required(VERSION 3.14)\n"
+            "add_executable(${BINARY_NAME} WIN32\n"
+            '  "main.cpp"\n'
+            '  "runner.exe.manifest"\n'
+            ")\n",
+            encoding="utf-8",
+        )
+        patch_uac_require_administrator(res_man, runner_man)
+        patch_flutter_uac_cmake(cmake)
+        if "requireAdministrator" not in res_man.read_text(encoding="utf-8"):
+            raise SystemExit("selftest UAC: res/manifest.xml sem requireAdministrator")
+        if runner_man.read_text(encoding="utf-8") != runner_orig:
+            raise SystemExit("selftest UAC: runner.exe.manifest nao deveria mudar")
+        cmake_body = cmake.read_text(encoding="utf-8")
+        if _FLUTTER_UAC_CMAKE_MARKER not in cmake_body:
+            raise SystemExit("selftest UAC: CMakeLists sem marcador LINK_FLAGS")
+        if "requireAdministrator" not in cmake_body:
+            raise SystemExit("selftest UAC: CMakeLists sem requireAdministrator")
+        patch_uac_require_administrator(res_man, runner_man)
+        patch_flutter_uac_cmake(cmake)
+        if cmake.read_text(encoding="utf-8") != cmake_body:
+            raise SystemExit("selftest UAC: CMakeLists nao e idempotente")
 
 
 def patch_appdata_duplex_suporte(config_rs: Path) -> None:
@@ -5110,6 +5193,7 @@ def main() -> int:
     _selftest_sciter_copy()
     _selftest_flutter_home_footer()
     _selftest_client_version_linhas()
+    _selftest_uac_patches()
     src = args.rustdesk_src.resolve()
     if not (src / ".git").exists() and not (src / "Cargo.toml").is_file():
         print(f"Nao parece um clone rustdesk: {src}", file=sys.stderr)
@@ -5192,9 +5276,13 @@ def main() -> int:
     if profile == "duplexsuporte":
         patch_disable_installation(cfg_rs)
         patch_appdata_duplex_suporte(cfg_rs)
+        # Packer (exe que o usuario abre) + CMake do runner (evita LNK1327/mt.exe).
         patch_uac_require_administrator(
             src / "res" / "manifest.xml",
             src / "flutter" / "windows" / "runner" / "runner.exe.manifest",
+        )
+        patch_flutter_uac_cmake(
+            src / "flutter" / "windows" / "runner" / "CMakeLists.txt"
         )
     index_tis = src / "src" / "ui" / "index.tis"
     install_tis = src / "src" / "ui" / "install.tis"
@@ -5257,16 +5345,33 @@ def main() -> int:
             if 'RwLock::new("DeskRudder"' in body or 'RwLock::new("DeskRudder"' in body:
                 print("Verificacao falhou: APP_NAME ainda DeskRudder no duplexsuporte.", file=sys.stderr)
                 return 1
-        uac_ok = False
-        for man in (
-            src / "res" / "manifest.xml",
-            src / "flutter" / "windows" / "runner" / "runner.exe.manifest",
+        res_man = src / "res" / "manifest.xml"
+        cmake_uac = src / "flutter" / "windows" / "runner" / "CMakeLists.txt"
+        runner_man = src / "flutter" / "windows" / "runner" / "runner.exe.manifest"
+        if not res_man.is_file() or "requireAdministrator" not in res_man.read_text(
+            encoding="utf-8"
         ):
-            if man.is_file() and "requireAdministrator" in man.read_text(encoding="utf-8"):
-                uac_ok = True
-                break
-        if not uac_ok:
-            print("Verificacao falhou: UAC requireAdministrator ausente.", file=sys.stderr)
+            print(
+                "Verificacao falhou: UAC requireAdministrator ausente em res/manifest.xml.",
+                file=sys.stderr,
+            )
+            return 1
+        if not cmake_uac.is_file() or _FLUTTER_UAC_CMAKE_MARKER not in cmake_uac.read_text(
+            encoding="utf-8"
+        ):
+            print(
+                "Verificacao falhou: UAC LINK_FLAGS ausente no CMakeLists do runner.",
+                file=sys.stderr,
+            )
+            return 1
+        if runner_man.is_file() and "requireAdministrator" in runner_man.read_text(
+            encoding="utf-8"
+        ):
+            print(
+                "Verificacao falhou: runner.exe.manifest nao deve ter trustInfo "
+                "(causa LNK1327 no mt.exe).",
+                file=sys.stderr,
+            )
             return 1
     elif ui == "flutter":
         if HOST_FLUTTER_CLIENTE_PENDENTE not in body or KEY_FLUTTER_CLIENTE_PENDENTE not in body:
