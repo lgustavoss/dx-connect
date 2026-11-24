@@ -7,6 +7,11 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ### DeskRudder
 
+#### Correções
+
+- App no celular: ao acompanhar o WhatsApp de outro atendente, dá para mandar **comentário interno** (a equipe vê; o cliente não) (#S202611-0006)
+- App no celular: **áudio e vídeo** do WhatsApp voltam a tocar na conversa (#S202611-0007)
+
 #### Melhorias
 
 - Login do painel: a conexão com o servidor usa o endereço DeskRudder da empresa (painel e API no mesmo domínio do produto).

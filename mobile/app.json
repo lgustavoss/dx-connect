@@ -44,7 +44,9 @@
           "defaultChannel": "deskrudder"
         }
       ],
-      "expo-font"
+      "expo-font",
+      "expo-audio",
+      "expo-video"
     ]
   }
 }

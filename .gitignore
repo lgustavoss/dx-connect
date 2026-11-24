@@ -29,6 +29,9 @@ mobile/.expo
 mobile/dist
 mobile/web-build
 
+# Rascunhos locais do agente / smoke (não versionar)
+.tmp/
+
 # Python
 **/__pycache__/
 
