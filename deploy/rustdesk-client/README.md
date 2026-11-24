@@ -30,4 +30,4 @@ Docs: [`docs/RUSTDESK_CLIENT_WINDOWS.md`](../../docs/RUSTDESK_CLIENT_WINDOWS.md)
 | `scripts/encode_config.py` | Debug da string `--config` |
 | `windows/Install-DeskRudderRemote.ps1` | Legado / emergência (oficial + config) — **não** é o fluxo principal |
 
-Cliente e atendente usam a mesma pasta `branding/`. O **Duplex Suporte** (épico #1453) é produto separado: portable com UAC, hbbs embutido e AppData em `%APPDATA%\DuplexSoft\Duplex Suporte` — não mistura com a frota DeskRemote. Depois de atualizar a arte: regenerar com `render_remote_icons.py`, subir a versão do canal e rodar o workflow correspondente.
+Cliente e atendente usam a mesma pasta `branding/`. O **Duplex Suporte** (épico #1453) usa `branding-duplex-suporte/` (D na barra, logo DuplexSoft no topo), portable com UAC/hbbs e AppData isolado. Arte nova: `python scripts/render_duplex_suporte_icons.py`, bump de versão e workflow **Duplex Suporte**.

@@ -7,7 +7,7 @@
 #
 # Portable + UAC requireAdministrator + hbbs embutido (server.config.json).
 # AppData isolado: %APPDATA%\DuplexSoft\Duplex Suporte
-# Branding placeholder: reusa deploy/rustdesk-client/branding (arte final no #1456).
+# Branding DuplexSoft: deploy/rustdesk-client/branding-duplex-suporte (#1456).
 # Duração típica: 40–90 min.
 
 name: Duplex Suporte
@@ -141,7 +141,7 @@ jobs:
           echo "client_version=${CLIENT_VER}" >> "$GITHUB_OUTPUT"
           python3 dx-connect/deploy/rustdesk-client/scripts/apply_branding.py rustdesk \
             --config dx-connect/deploy/rustdesk-client/server.config.json \
-            --branding dx-connect/deploy/rustdesk-client/branding \
+            --branding dx-connect/deploy/rustdesk-client/branding-duplex-suporte \
             --client-version dx-connect/deploy/rustdesk-client/CLIENT_VERSION_FLUTTER_DUPLEX_SUPORTE \
             --profile duplexsuporte \
             --ui flutter
