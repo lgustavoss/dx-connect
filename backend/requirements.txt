@@ -3,7 +3,7 @@ python-multipart==0.0.33
 fastapi==0.162.4
 starlette==1.10.0
 uvicorn[standard]==0.54.0
-gunicorn==27.0.0
+gunicorn==27.0.1
 # 2.1 trata postgresql:// como psycopg 3; produção já rodava 2.0.54 (engine ainda força psycopg2).
 sqlalchemy==2.1.8
 psycopg2-binary==2.9.13
