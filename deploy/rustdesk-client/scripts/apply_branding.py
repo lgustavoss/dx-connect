@@ -2104,6 +2104,8 @@ _DUPLEX_COPY_ALL_MARKER = "Duplex Suporte: copiar ID + senha de uma vez"
 _DUPLEX_HIDE_QUIT_MARKER = "Duplex Suporte: sem botao Sair"
 _DUPLEX_TIP_WIDTH_MARKER = "Duplex Suporte: tip em largura total"
 _DUPLEX_COMPACT_LAYOUT_MARKER = "Duplex Suporte: layout compacto (sem vao morto)"
+_DUPLEX_ID_MENU_MARKER = "Duplex Suporte: menu ID so copiar"
+_DUPLEX_SETTINGS_MIN_MARKER = "Duplex Suporte: settings so Sobre"
 
 
 def apply_flutter_logo_size_duplex_text(text: str) -> str:
@@ -2300,6 +2302,126 @@ def apply_flutter_hide_quit_duplex_text(text: str) -> str:
     return text.replace(old, new, 1)
 
 
+_FLUTTER_ID_POPUP_MENU = """  Widget buildPopupMenu(BuildContext context) {
+    final textColor = Theme.of(context).textTheme.titleLarge?.color;
+    RxBool hover = false.obs;
+    return InkWell(
+      onTap: DesktopTabPage.onAddSetting,
+      child: Tooltip(
+        message: translate('Settings'),
+        child: Obx(
+          () => CircleAvatar(
+            radius: 15,
+            backgroundColor: hover.value
+                ? Theme.of(context).scaffoldBackgroundColor
+                : Theme.of(context).colorScheme.background,
+            child: Icon(
+              Icons.more_vert_outlined,
+              size: 20,
+              color: hover.value ? textColor : textColor?.withOpacity(0.5),
+            ),
+          ),
+        ),
+      ),
+      onHover: (value) => hover.value = value,
+    );
+  }
+"""
+
+
+def apply_flutter_id_menu_duplex_text(text: str) -> str:
+    """Troca Configuracoes do ⋮ por menu minimo: Copiar ID / Copiar ID e senha."""
+    if _DUPLEX_ID_MENU_MARKER in text:
+        return text
+    if _FLUTTER_ID_POPUP_MENU not in text:
+        raise SystemExit("flutter home: buildPopupMenu (Settings) nao encontrado")
+    new = f"""  Widget buildPopupMenu(BuildContext context) {{
+    // {_DUPLEX_ID_MENU_MARKER}
+    final textColor = Theme.of(context).textTheme.titleLarge?.color;
+    RxBool hover = false.obs;
+    final model = gFFI.serverModel;
+    return MouseRegion(
+      onEnter: (_) => hover.value = true,
+      onExit: (_) => hover.value = false,
+      child: PopupMenuButton<String>(
+        tooltip: 'Copiar',
+        padding: EdgeInsets.zero,
+        onSelected: (value) {{
+          final id = model.serverId.text.trim();
+          final pw = model.serverPasswd.text.trim();
+          if (value == 'id') {{
+            if (id.isEmpty) return;
+            Clipboard.setData(ClipboardData(text: id));
+            showToast(translate('Copied'));
+          }} else if (value == 'id_pw') {{
+            final parts = <String>[];
+            if (id.isNotEmpty) parts.add(id);
+            if (pw.isNotEmpty) parts.add(pw);
+            if (parts.isEmpty) return;
+            Clipboard.setData(ClipboardData(text: parts.join('\\n')));
+            showToast(translate('Copied'));
+          }}
+        }},
+        itemBuilder: (context) => const [
+          PopupMenuItem(value: 'id', child: Text('Copiar ID')),
+          PopupMenuItem(value: 'id_pw', child: Text('Copiar ID e senha')),
+        ],
+        child: Obx(
+          () => CircleAvatar(
+            radius: 15,
+            backgroundColor: hover.value
+                ? Theme.of(context).scaffoldBackgroundColor
+                : Theme.of(context).colorScheme.background,
+            child: Icon(
+              Icons.more_vert_outlined,
+              size: 20,
+              color: hover.value ? textColor : textColor?.withOpacity(0.5),
+            ),
+          ),
+        ),
+      ),
+    );
+  }}
+"""
+    return text.replace(_FLUTTER_ID_POPUP_MENU, new, 1)
+
+
+_FLUTTER_SETTINGS_TABKEYS = """  static final List<SettingsTabKey> tabKeys = [
+    if (bind.mainGetBuildinOption(key: kOptionHideGeneralSetting) != 'Y')
+      SettingsTabKey.general,
+    if (!isWeb &&
+        !bind.isOutgoingOnly() &&
+        !bind.isDisableSettings() &&
+        bind.mainGetBuildinOption(key: kOptionHideSecuritySetting) != 'Y')
+      SettingsTabKey.safety,
+    if (!bind.isDisableSettings() &&
+        bind.mainGetBuildinOption(key: kOptionHideNetworkSetting) != 'Y')
+      SettingsTabKey.network,
+    if (!bind.isIncomingOnly()) SettingsTabKey.display,
+    if (!bind.isDisableAccount()) SettingsTabKey.account,
+    if (isWindows &&
+        !bind.isDisableSettings() &&
+        bind.mainGetBuildinOption(key: kOptionHideRemotePrinterSetting) != 'Y')
+      SettingsTabKey.printer,
+    SettingsTabKey.about,
+  ];
+"""
+
+
+def apply_flutter_settings_minimal_duplex_text(text: str) -> str:
+    """Settings do Duplex Suporte: so a aba Sobre (sem Geral/Seguranca/Rede)."""
+    if _DUPLEX_SETTINGS_MIN_MARKER in text:
+        return text
+    if _FLUTTER_SETTINGS_TABKEYS not in text:
+        raise SystemExit("flutter settings: lista tabKeys nao encontrada")
+    new = f"""  static final List<SettingsTabKey> tabKeys = [
+    // {_DUPLEX_SETTINGS_MIN_MARKER}
+    SettingsTabKey.about,
+  ];
+"""
+    return text.replace(_FLUTTER_SETTINGS_TABKEYS, new, 1)
+
+
 def _selftest_duplex_qs_ui() -> None:
     """Patches QuickSupport do Duplex Suporte (logo, tip, copiar, Sair)."""
     configurar_identidade("duplexsuporte")
@@ -2414,6 +2536,22 @@ def _selftest_duplex_qs_ui() -> None:
         raise SystemExit("selftest duplex: Sair ainda visivel")
     if apply_flutter_hide_quit_duplex_text(quit) != quit:
         raise SystemExit("selftest duplex: hide Quit nao e idempotente")
+
+    menu = apply_flutter_id_menu_duplex_text(_FLUTTER_ID_POPUP_MENU)
+    if _DUPLEX_ID_MENU_MARKER not in menu or "Copiar ID" not in menu:
+        raise SystemExit("selftest duplex: menu ID minimo ausente")
+    if "DesktopTabPage.onAddSetting" in menu:
+        raise SystemExit("selftest duplex: menu ID ainda abre Configuracoes")
+    if apply_flutter_id_menu_duplex_text(menu) != menu:
+        raise SystemExit("selftest duplex: menu ID nao e idempotente")
+
+    settings = apply_flutter_settings_minimal_duplex_text(_FLUTTER_SETTINGS_TABKEYS)
+    if _DUPLEX_SETTINGS_MIN_MARKER not in settings:
+        raise SystemExit("selftest duplex: settings minimo ausente")
+    if "SettingsTabKey.general" in settings.split("tabKeys = [", 1)[-1].split("];", 1)[0]:
+        raise SystemExit("selftest duplex: settings ainda tem Geral")
+    if apply_flutter_settings_minimal_duplex_text(settings) != settings:
+        raise SystemExit("selftest duplex: settings minimo nao e idempotente")
     configurar_identidade("cliente")
 
 
@@ -2821,6 +2959,7 @@ def patch_flutter_deskremote_ui(
                 "copiar ID + senha",
             )
             _apply(home, apply_flutter_hide_quit_duplex_text, "sem botao Sair")
+            _apply(home, apply_flutter_id_menu_duplex_text, "menu ID so copiar")
             _apply(
                 home,
                 apply_flutter_compact_layout_duplex_text,
@@ -2833,6 +2972,12 @@ def patch_flutter_deskremote_ui(
                 apply_flutter_hide_password_edit_text,
                 "sem lapis de senha (QuickSupport)",
             )
+    if profile == "duplexsuporte" and settings.is_file():
+        _apply(
+            settings,
+            apply_flutter_settings_minimal_duplex_text,
+            "settings so Sobre",
+        )
     if not is_host:
         if tabs.is_file():
             _apply(tabs, apply_flutter_recent_tabs_text, "abas Recentes e Vinculados")
@@ -6098,6 +6243,12 @@ def main() -> int:
             if _DUPLEX_COMPACT_LAYOUT_MARKER not in home_body:
                 print("Verificacao falhou: layout compacto Duplex ausente.", file=sys.stderr)
                 return 1
+            if _DUPLEX_ID_MENU_MARKER not in home_body:
+                print("Verificacao falhou: menu ID do Duplex ainda abre Configuracoes.", file=sys.stderr)
+                return 1
+            if "DesktopTabPage.onAddSetting" in home_body:
+                print("Verificacao falhou: ⋮ do ID ainda chama onAddSetting.", file=sys.stderr)
+                return 1
             if home_body.find("OnlineStatusWidget(") > home_body.find(
                 _FLUTTER_INCOMING_STATUS_MARKER
             ):
@@ -6106,6 +6257,17 @@ def main() -> int:
                     file=sys.stderr,
                 )
                 return 1
+            settings_qs_path = (
+                src / "flutter" / "lib" / "desktop" / "pages" / "desktop_setting_page.dart"
+            )
+            if settings_qs_path.is_file():
+                settings_qs = settings_qs_path.read_text(encoding="utf-8")
+                if _DUPLEX_SETTINGS_MIN_MARKER not in settings_qs:
+                    print(
+                        "Verificacao falhou: settings Duplex nao restrito ao Sobre.",
+                        file=sys.stderr,
+                    )
+                    return 1
         elif "DeskRemote: logo 160 + nome" not in home_body:
             print("Verificacao falhou: painel esquerdo Flutter ainda 200px.", file=sys.stderr)
             return 1
