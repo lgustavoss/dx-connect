@@ -9,6 +9,7 @@
 | **DeskRudder Painel v1** | Electron (+ baixa o Atendente v2) | `desktop-windows` |
 | **DeskRemote Atendente v2** | Flutter x64 — artefato `deskremote-atendente.exe` | `acesso-remoto-controle-flutter-windows` |
 | **DeskRemote Cliente v2** | Flutter x64 — artefato `deskremote-cliente.exe` | `acesso-remoto-windows-flutter` |
+| **Duplex Suporte** | `duplexsuporte` Flutter portable + UAC — artefato `duplex-suporte.exe` | `duplex-suporte-windows-flutter` |
 
 Atalho **DeskRemote**; pasta `DeskRudder\Acesso Remoto` (compatibilidade).  
 Docs: [`docs/RUSTDESK_CLIENT_WINDOWS.md`](../../docs/RUSTDESK_CLIENT_WINDOWS.md), Setup: [`docs/DESKTOP_ELECTRON.md`](../../docs/DESKTOP_ELECTRON.md).
@@ -24,8 +25,9 @@ Docs: [`docs/RUSTDESK_CLIENT_WINDOWS.md`](../../docs/RUSTDESK_CLIENT_WINDOWS.md)
 | `CLIENT_VERSION` | Sciter **congelado** em **1.0.14** (hotfix 32-bit) |
 | `CLIENT_VERSION_FLUTTER` | Flutter do atendente — linha **2.x.x** (2.3.0+ puxa o servidor da conta) |
 | `CLIENT_VERSION_FLUTTER_CLIENTE` | Flutter do cliente — linha **2.x.x** (canal separado) |
-| `scripts/apply_branding.py` | Patch no RustDesk antes do build (`--profile cliente\|atendente`; `--ui sciter\|flutter`) |
+| `CLIENT_VERSION_FLUTTER_DUPLEX_SUPORTE` | Flutter Duplex Suporte — linha **2.x.x** (canal `duplex-suporte-windows-flutter`) |
+| `scripts/apply_branding.py` | Patch no RustDesk antes do build (`--profile cliente\|atendente\|duplexsuporte`; `--ui sciter\|flutter`) |
 | `scripts/encode_config.py` | Debug da string `--config` |
 | `windows/Install-DeskRudderRemote.ps1` | Legado / emergência (oficial + config) — **não** é o fluxo principal |
 
-Cliente e atendente usam a mesma pasta `branding/`. Depois de atualizar a arte: regenerar com `render_remote_icons.py`, subir a versão do canal (`CLIENT_VERSION` no Sciter, `CLIENT_VERSION_FLUTTER` no Flutter do atendente, `CLIENT_VERSION_FLUTTER_CLIENTE` no Flutter do cliente) e rodar o workflow correspondente.
+Cliente e atendente usam a mesma pasta `branding/`. O **Duplex Suporte** (épico #1453) é produto separado: portable com UAC, hbbs embutido e AppData em `%APPDATA%\DuplexSoft\Duplex Suporte` — não mistura com a frota DeskRemote. Depois de atualizar a arte: regenerar com `render_remote_icons.py`, subir a versão do canal e rodar o workflow correspondente.

@@ -1,21 +1,23 @@
 #!/usr/bin/env python3
-"""Aplica marca DeskRudder + servidor (Sciter/Duplex; Flutter puxa da instância) num clone do rustdesk.
+"""Aplica marca DeskRudder / Duplex Suporte + servidor num clone do rustdesk.
 
 Nao renomeia o crate `rustdesk` no Cargo (evita quebrar scripts de build).
-O CI deve renomear o binario para DeskRudder.exe apos o cargo build — o
+O CI deve renomear o binario para `{APP_NAME}.exe` apos o cargo build — o
 instalador/is_installed() procura `{APP_NAME}.exe`.
 
 Altera: APP_NAME, icones, RENDEZVOUS_SERVERS, PROD_RENDEZVOUS_SERVER, RS_PUB_KEY,
 nome do atalho Windows, canal de update (version.json).
 
 Profiles (--profile):
-  cliente   — incoming-only + UI host (PC acessado)
-  atendente — outgoing-only (controla outros, sem ID na frota)
+  cliente        — incoming-only + UI host (PC acessado); Flutter puxa hbbs da instancia
+  atendente      — outgoing-only (controla outros, sem ID na frota)
+  duplexsuporte  — incoming-only portable + UAC + hbbs embutido (Duplex Suporte)
   posto / controle — aliases legados de cliente / atendente
 
 UI (--ui):
   sciter    — producao 1.x.x (CLIENT_VERSION)
-  flutter   — 2.x.x (atendente: CLIENT_VERSION_FLUTTER; cliente: CLIENT_VERSION_FLUTTER_CLIENTE)
+  flutter   — 2.x.x (atendente: CLIENT_VERSION_FLUTTER; cliente: CLIENT_VERSION_FLUTTER_CLIENTE;
+              duplexsuporte: CLIENT_VERSION_FLUTTER_DUPLEX_SUPORTE)
 """
 
 from __future__ import annotations
@@ -34,26 +36,36 @@ PROFILE_LEGADO = {
     "controle": "atendente",
 }
 
-# Nome do produto na UI / atalho (APP_NAME do exe continua DeskRudder para nao quebrar instalacao).
+# Nome do produto na UI / atalho (APP_NAME do exe continua DeskRudder nos perfis DeskRemote).
+# configurar_identidade() sobrescreve estes globals no perfil duplexsuporte.
 PRODUCT_DISPLAY_NAME = "DeskRemote"
 SHORTCUT_DISPLAY_NAME = PRODUCT_DISPLAY_NAME
+COMPANY_DISPLAY_NAME = "DeskRudder"
+# APP_NAME embutido em config.rs (pasta/pipes/exe). Duplex Suporte usa DuplexSuporte.
+EXE_APP_NAME = "DeskRudder"
 # Pasta sob Program Files (x86): DeskRudder\Acesso Remoto (outros instaladores irao ao lado).
 # Mantida por compatibilidade com is_installed() / update dos PCs ja implantados.
 INSTALL_DIR_RELATIVE = r"DeskRudder\Acesso Remoto"
 WEBSITE_URL = "https://deskrudder.com.br/"
 COPYRIGHT_LINE = "Copyright © 2026 DeskRudder"
+# AppData isolado do Duplex Suporte (nao reutiliza DeskRudder/DeskRemote).
+DUPLEX_SUPORTE_APPDATA_ORG = "DuplexSoft"
+DUPLEX_SUPORTE_APPDATA_APP = "Duplex Suporte"
 # Canais de atualizacao (Release GitHub).
 RELEASE_TAG_CLIENTE = "acesso-remoto-windows"
 RELEASE_TAG_ATENDENTE = "acesso-remoto-controle-windows"
 RELEASE_TAG_ATENDENTE_FLUTTER = "acesso-remoto-controle-flutter-windows"
 RELEASE_TAG_CLIENTE_FLUTTER = "acesso-remoto-windows-flutter"
+RELEASE_TAG_DUPLEX_SUPORTE_FLUTTER = "duplex-suporte-windows-flutter"
 INSTALLER_NAME_CLIENTE = "DeskRudder-AcessoRemoto.exe"
 INSTALLER_NAME_ATENDENTE = "DeskRudder-AcessoRemoto-Controle.exe"
 # Flutter v2: nomes curtos no download (Release tag GitHub continua acesso-remoto-*-flutter-windows).
 INSTALLER_NAME_ATENDENTE_FLUTTER = "deskremote-atendente.exe"
 INSTALLER_NAME_CLIENTE_FLUTTER = "deskremote-cliente.exe"
+INSTALLER_NAME_DUPLEX_SUPORTE_FLUTTER = "duplex-suporte.exe"
 # Flutter (cliente e atendente): sem hbbs da Duplex no binário. O app puxa
 # o servidor da instância (token no cliente; login no atendente).
+# duplexsuporte embute o hbbs de server.config.json (piloto).
 HOST_FLUTTER_CLIENTE_PENDENTE = "deskremote.invalid"
 KEY_FLUTTER_CLIENTE_PENDENTE = "pendente-token"
 
@@ -138,10 +150,33 @@ def _selftest_sciter_copy() -> None:
         raise SystemExit("selftest: string TIS do erro ainda tem UTF-8 literal")
 
 
+def configurar_identidade(profile: str) -> None:
+    """Nome de produto / empresa / exe conforme o profile."""
+    global PRODUCT_DISPLAY_NAME, SHORTCUT_DISPLAY_NAME, COMPANY_DISPLAY_NAME
+    global EXE_APP_NAME, WEBSITE_URL, COPYRIGHT_LINE
+    if profile == "duplexsuporte":
+        PRODUCT_DISPLAY_NAME = "Duplex Suporte"
+        SHORTCUT_DISPLAY_NAME = PRODUCT_DISPLAY_NAME
+        COMPANY_DISPLAY_NAME = "DuplexSoft"
+        EXE_APP_NAME = "DuplexSuporte"
+        WEBSITE_URL = "https://duplexsoft.com.br/"
+        COPYRIGHT_LINE = "Copyright © 2026 DuplexSoft"
+    else:
+        PRODUCT_DISPLAY_NAME = "DeskRemote"
+        SHORTCUT_DISPLAY_NAME = PRODUCT_DISPLAY_NAME
+        COMPANY_DISPLAY_NAME = "DeskRudder"
+        EXE_APP_NAME = "DeskRudder"
+        WEBSITE_URL = "https://deskrudder.com.br/"
+        COPYRIGHT_LINE = "Copyright © 2026 DeskRudder"
+
+
 def configurar_canal_update(profile: str, ui: str = "sciter") -> None:
-    """Define URLs de version.json / download conforme cliente/atendente e Sciter/Flutter."""
+    """Define URLs de version.json / download conforme profile e Sciter/Flutter."""
     global UPDATE_VERSION_JSON_URL, DOWNLOAD_INSTALLER_URL, UPDATE_RELEASE_TAG
-    if ui == "flutter" and profile == "cliente":
+    if ui == "flutter" and profile == "duplexsuporte":
+        tag = RELEASE_TAG_DUPLEX_SUPORTE_FLUTTER
+        nome = INSTALLER_NAME_DUPLEX_SUPORTE_FLUTTER
+    elif ui == "flutter" and profile == "cliente":
         tag = RELEASE_TAG_CLIENTE_FLUTTER
         nome = INSTALLER_NAME_CLIENTE_FLUTTER
     elif ui == "flutter":
@@ -216,6 +251,17 @@ def _selftest_client_version_linhas() -> None:
         raise SystemExit("selftest: canal Flutter cliente nao aponta para tag paralela")
     if INSTALLER_NAME_CLIENTE_FLUTTER not in DOWNLOAD_INSTALLER_URL:
         raise SystemExit("selftest: download Flutter cliente com nome errado")
+    configurar_canal_update("duplexsuporte", "flutter")
+    if UPDATE_RELEASE_TAG != RELEASE_TAG_DUPLEX_SUPORTE_FLUTTER:
+        raise SystemExit("selftest: canal Flutter duplexsuporte nao aponta para tag")
+    if INSTALLER_NAME_DUPLEX_SUPORTE_FLUTTER not in DOWNLOAD_INSTALLER_URL:
+        raise SystemExit("selftest: download Flutter duplexsuporte com nome errado")
+    configurar_identidade("duplexsuporte")
+    if PRODUCT_DISPLAY_NAME != "Duplex Suporte" or EXE_APP_NAME != "DuplexSuporte":
+        raise SystemExit("selftest: identidade duplexsuporte incorreta")
+    configurar_identidade("cliente")
+    if PRODUCT_DISPLAY_NAME != "DeskRemote" or EXE_APP_NAME != "DeskRudder":
+        raise SystemExit("selftest: identidade DeskRemote nao restaurada")
     configurar_canal_update("atendente", "sciter")
     if UPDATE_RELEASE_TAG != RELEASE_TAG_ATENDENTE:
         raise SystemExit("selftest: canal Sciter atendente invertido")
@@ -854,7 +900,8 @@ _FLUTTER_LOAD_LOGO_ALIGN = """      Align(
       ),
 """
 
-_FLUTTER_LOAD_LOGO_NAMED = """      Align(
+def _flutter_load_logo_named() -> str:
+    return f"""      Align(
         alignment: Alignment.center,
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -864,7 +911,7 @@ _FLUTTER_LOAD_LOGO_NAMED = """      Align(
             Padding(
               padding: const EdgeInsets.only(top: 6, bottom: 2),
               child: Text(
-                'DeskRemote',
+                '{PRODUCT_DISPLAY_NAME}',
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w700,
@@ -883,7 +930,7 @@ def apply_flutter_logo_app_name_text(text: str) -> str:
         return text
     if _FLUTTER_LOAD_LOGO_ALIGN not in text:
         raise SystemExit("flutter desktop_home_page: Align loadLogo nao encontrado")
-    return text.replace(_FLUTTER_LOAD_LOGO_ALIGN, _FLUTTER_LOAD_LOGO_NAMED, 1)
+    return text.replace(_FLUTTER_LOAD_LOGO_ALIGN, _flutter_load_logo_named(), 1)
 
 
 def apply_flutter_recent_tabs_text(text: str) -> str:
@@ -1226,9 +1273,11 @@ _FLUTTER_TABBAR_TITLE = """                            child: const Text(
                               style: TextStyle(fontSize: 13),
                             ).marginOnly(left: 2))"""
 
-_FLUTTER_TABBAR_TITLE_NEW = """                            child: Text(
+
+def _flutter_tabbar_title_new() -> str:
+    return f"""                            child: Text(
                               // DeskRemote: titulo da barra customizada.
-                              "DeskRemote",
+                              "{PRODUCT_DISPLAY_NAME}",
                               style: TextStyle(
                                 fontSize: 13,
                                 color: Theme.of(context).colorScheme.onSurface,
@@ -1241,7 +1290,7 @@ def apply_flutter_tabbar_text(text: str) -> str:
         return text
     if _FLUTTER_TABBAR_TITLE not in text:
         raise SystemExit("flutter tabbar_widget: titulo RustDesk nao encontrado")
-    return text.replace(_FLUTTER_TABBAR_TITLE, _FLUTTER_TABBAR_TITLE_NEW, 1)
+    return text.replace(_FLUTTER_TABBAR_TITLE, _flutter_tabbar_title_new(), 1)
 
 
 _FLUTTER_SERVER_FROM = """  /// from local options
@@ -1346,17 +1395,8 @@ def apply_flutter_network_text(text: str, host: str) -> str:
 
 
 _FLUTTER_ABOUT_TITLE = "        child: _Card(title: translate('About RustDesk'), children: ["
-_FLUTTER_ABOUT_TITLE_NEW = (
-    "        child: _Card(title: 'Sobre o DeskRemote', children: ["
-)
 _FLUTTER_ABOUT_VERSION = """              SelectionArea(
                   child: Text('${translate('Version')}: $version')
-                      .marginSymmetric(vertical: 4.0)),"""
-_FLUTTER_ABOUT_VERSION_NEW = """              SelectionArea(
-                  child: Text('${translate('Version')}: $version')
-                      .marginSymmetric(vertical: 4.0)),
-              SelectionArea(
-                  child: const Text('Desenvolvido pela DeskRudder')
                       .marginSymmetric(vertical: 4.0)),"""
 _FLUTTER_ABOUT_PRIVACY = """              InkWell(
                   onTap: () {
@@ -1372,21 +1412,40 @@ _FLUTTER_ABOUT_COPYRIGHT = (
     "'Copyright © ${DateTime.now().toString().substring(0, 4)} "
     "Purslane Tech Pte. Ltd.\\n$license'"
 )
-_FLUTTER_ABOUT_COPYRIGHT_NEW = (
-    "'Copyright © ${DateTime.now().toString().substring(0, 4)} DeskRudder\\n$license'"
-)
+
+
+def _flutter_about_title_new() -> str:
+    return f"        child: _Card(title: 'Sobre o {PRODUCT_DISPLAY_NAME}', children: ["
+
+
+def _flutter_about_version_new() -> str:
+    return f"""              SelectionArea(
+                  child: Text('${{translate('Version')}}: $version')
+                      .marginSymmetric(vertical: 4.0)),
+              SelectionArea(
+                  child: const Text('Desenvolvido pela {COMPANY_DISPLAY_NAME}')
+                      .marginSymmetric(vertical: 4.0)),"""
+
+
+def _flutter_about_copyright_new() -> str:
+    return (
+        "'Copyright © ${DateTime.now().toString().substring(0, 4)} "
+        f"{COMPANY_DISPLAY_NAME}\\n$license'"
+    )
 
 
 def apply_flutter_about_text(text: str) -> str:
-    if "Desenvolvido pela DeskRudder" in text and "Sobre o DeskRemote" in text:
+    sobre = f"Sobre o {PRODUCT_DISPLAY_NAME}"
+    desenvolvido = f"Desenvolvido pela {COMPANY_DISPLAY_NAME}"
+    if desenvolvido in text and sobre in text:
         if "rustdesk.com/privacy" not in text and "Purslane" not in text:
             return text
     if _FLUTTER_ABOUT_TITLE not in text:
         raise SystemExit("flutter settings: titulo About RustDesk nao encontrado")
-    text = text.replace(_FLUTTER_ABOUT_TITLE, _FLUTTER_ABOUT_TITLE_NEW, 1)
+    text = text.replace(_FLUTTER_ABOUT_TITLE, _flutter_about_title_new(), 1)
     if _FLUTTER_ABOUT_VERSION not in text:
         raise SystemExit("flutter settings: linha de versao do Sobre nao encontrada")
-    text = text.replace(_FLUTTER_ABOUT_VERSION, _FLUTTER_ABOUT_VERSION_NEW, 1)
+    text = text.replace(_FLUTTER_ABOUT_VERSION, _flutter_about_version_new(), 1)
     if _FLUTTER_ABOUT_PRIVACY not in text:
         raise SystemExit("flutter settings: Declaracao de privacidade nao encontrada")
     text = text.replace(_FLUTTER_ABOUT_PRIVACY, "", 1)
@@ -1396,7 +1455,7 @@ def apply_flutter_about_text(text: str) -> str:
     text = text.replace(_FLUTTER_ABOUT_SITE, f"                    launchUrlString('{url}');", 1)
     if _FLUTTER_ABOUT_COPYRIGHT not in text:
         raise SystemExit("flutter settings: copyright Purslane nao encontrado")
-    return text.replace(_FLUTTER_ABOUT_COPYRIGHT, _FLUTTER_ABOUT_COPYRIGHT_NEW, 1)
+    return text.replace(_FLUTTER_ABOUT_COPYRIGHT, _flutter_about_copyright_new(), 1)
 
 
 def patch_flutter_runner_rc(path: Path) -> None:
@@ -1407,16 +1466,19 @@ def patch_flutter_runner_rc(path: Path) -> None:
     orig = text
     text = text.replace(
         '"CompanyName", "Purslane Tech Pte. Ltd."',
-        '"CompanyName", "DeskRudder"',
+        f'"CompanyName", "{COMPANY_DISPLAY_NAME}"',
     )
     text = text.replace(
         '"FileDescription", "RustDesk Remote Desktop"',
         f'"FileDescription", "{PRODUCT_DISPLAY_NAME}"',
     )
-    text = text.replace('"InternalName", "rustdesk"', '"InternalName", "DeskRudder"')
+    text = text.replace(
+        '"InternalName", "rustdesk"',
+        f'"InternalName", "{EXE_APP_NAME}"',
+    )
     text = text.replace(
         '"OriginalFilename", "rustdesk.exe"',
-        '"OriginalFilename", "DeskRudder.exe"',
+        f'"OriginalFilename", "{EXE_APP_NAME}.exe"',
     )
     text = text.replace(
         '"ProductName", "RustDesk"',
@@ -1434,7 +1496,10 @@ def patch_flutter_runner_rc(path: Path) -> None:
     if n < 1:
         raise SystemExit(f"LegalCopyright nao encontrado em {path}")
     path.write_text(text, encoding="utf-8")
-    print("  flutter Runner.rc: produto/copyright DeskRudder", flush=True)
+    print(
+        f"  flutter Runner.rc: produto/copyright {COMPANY_DISPLAY_NAME}",
+        flush=True,
+    )
 
 
 def apply_flutter_common_vinculo_import_text(text: str) -> str:
@@ -2292,7 +2357,7 @@ def apply_flutter_remote_tab_title_text(text: str) -> str:
 def patch_flutter_deskremote_ui(
     src: Path, host: str = "", key: str = "", profile: str = "atendente"
 ) -> None:
-    """Logo, Recentes + Vinculados (atendente) ou token de instalacao (cliente)."""
+    """Logo + UI por profile (atendente/cliente/duplexsuporte)."""
     home = src / "flutter" / "lib" / "desktop" / "pages" / "desktop_home_page.dart"
     common = src / "flutter" / "lib" / "common.dart"
     tabs = src / "flutter" / "lib" / "models" / "peer_tab_model.dart"
@@ -2306,7 +2371,9 @@ def patch_flutter_deskremote_ui(
     core_main = src / "src" / "core_main.rs"
     if not common.is_file():
         return
-    copy_flutter_auth_overlay(src)
+    # Duplex Suporte: sem enroll/login DeskRemote (frota). UI QuickSupport vem no #1455.
+    if profile != "duplexsuporte":
+        copy_flutter_auth_overlay(src)
 
     def _apply(path: Path, fn, label: str) -> None:
         text = path.read_text(encoding="utf-8")
@@ -2318,11 +2385,12 @@ def patch_flutter_deskremote_ui(
             print(f"  flutter {label} (ja patchado)", flush=True)
 
     model_dart = src / "flutter" / "lib" / "models" / "model.dart"
+    is_host = profile in ("cliente", "duplexsuporte")
     _apply(common, apply_flutter_logo_size_text, "logo maior no painel")
     if profile == "cliente":
         _apply(common, apply_flutter_lock_password_text, "senha permanente so no painel")
     _apply(common, apply_flutter_load_icon_hq_text, "ico nitido na barra de titulo")
-    if profile != "cliente":
+    if not is_host:
         _apply(common, apply_flutter_common_vinculo_import_text, "import busca vinculo")
         _apply(common, apply_flutter_connect_title_text, "name=/--title -> alias")
         _apply(common, apply_flutter_inapp_alias_text, "alias no Conectar do Flutter")
@@ -2338,12 +2406,12 @@ def patch_flutter_deskremote_ui(
             raise SystemExit("flutter home: titulo Seu Computador nao encontrado")
 
         _apply(home, _home, "Seu Computador abaixo da logo")
-        _apply(home, apply_flutter_logo_app_name_text, "DeskRemote abaixo da logo")
+        _apply(home, apply_flutter_logo_app_name_text, f"{PRODUCT_DISPLAY_NAME} abaixo da logo")
         _apply(home, apply_flutter_pane_width_text, "painel esquerdo 224px")
         _apply(home, apply_flutter_update_card_text, "banner de atualizacao")
         if profile == "cliente":
             _apply(home, apply_flutter_hide_password_edit_text, "sem editar senha permanente")
-    if profile != "cliente":
+    if not is_host:
         if tabs.is_file():
             _apply(tabs, apply_flutter_recent_tabs_text, "abas Recentes e Vinculados")
             _apply(tabs, apply_flutter_tab_names_text, "rotulo aba Vinculados")
@@ -2357,10 +2425,10 @@ def patch_flutter_deskremote_ui(
             _apply(card, apply_flutter_peer_card_text, "cartao pelo nome do vinculo")
     consts_dart = src / "flutter" / "lib" / "consts.dart"
     if tabbar.is_file():
-        _apply(tabbar, apply_flutter_tabbar_text, "titulo DeskRemote na barra")
+        _apply(tabbar, apply_flutter_tabbar_text, f"titulo {PRODUCT_DISPLAY_NAME} na barra")
         _apply(tabbar, apply_flutter_show_title_text, "exibe nome na barra")
         _apply(tabbar, apply_flutter_titlebar_icon_size_text, "ico 24px na barra")
-        if profile != "cliente":
+        if not is_host:
             _apply(tabbar, apply_flutter_session_tab_getter_text, "aba reativa ao vinculo")
     if consts_dart.is_file():
         _apply(consts_dart, apply_flutter_tabbar_height_text, "barra 36px para o ico")
@@ -2368,9 +2436,10 @@ def patch_flutter_deskremote_ui(
         _apply(main_tab, apply_flutter_main_show_title_text, "home com nome na barra")
         if profile == "cliente":
             _apply(main_tab, apply_flutter_enroll_gate_text, "token de instalacao na home")
-        else:
+        elif profile == "atendente":
             _apply(main_tab, apply_flutter_auth_gate_text, "login DeskRudder na home")
-    if profile != "cliente":
+        # duplexsuporte: home nativa incoming-only (sem enroll/auth); UI QS no #1455
+    if not is_host:
         if multi_win.is_file():
             _apply(multi_win, apply_flutter_session_window_title_text, "title na janela da sessao")
         if remote_tab.is_file():
@@ -2379,7 +2448,7 @@ def patch_flutter_deskremote_ui(
             _apply(model_dart, apply_flutter_peer_info_tab_text, "peer_info atualiza aba")
     if settings.is_file():
         _apply(settings, apply_flutter_about_text, "tela Sobre")
-    if profile != "cliente" and core_main.is_file():
+    if not is_host and core_main.is_file():
         _apply(core_main, apply_flutter_core_main_title_text, "core_main --title")
         _apply(core_main, apply_flutter_core_main_password_text, "core_main senha posicional")
         _apply(core_main, apply_flutter_core_main_cold_start_text, "core_main uni-link no frio")
@@ -2888,15 +2957,16 @@ def patch_sciter_window_icon(ui_rs: Path, png_128: Path) -> None:
 
 
 def patch_powered_by(lang_dir: Path) -> None:
-    """Troca RustDesk por DeskRudder na chave powered_by_me (rodape da UI)."""
+    """Troca RustDesk pela empresa do profile na chave powered_by_me (rodape)."""
     if not lang_dir.is_dir():
         return
+    company = COMPANY_DISPLAY_NAME
     replacements = 0
     for path in sorted(lang_dir.glob("*.rs")):
         text = path.read_text(encoding="utf-8")
 
-        def _repl(m: re.Match[str]) -> str:
-            return f'{m.group(1)}{m.group(2).replace("RustDesk", "DeskRudder")}{m.group(3)}'
+        def _repl(m: re.Match[str], _company: str = company) -> str:
+            return f'{m.group(1)}{m.group(2).replace("RustDesk", _company)}{m.group(3)}'
 
         text2, n = re.subn(
             r'(\("powered_by_me",\s*")([^"]*)("\))',
@@ -2985,16 +3055,17 @@ def patch_window_display_name(ui_rs: Path) -> None:
 def patch_config_rs(path: Path, host: str, key: str) -> None:
     text = path.read_text(encoding="utf-8")
     orig = text
+    app = EXE_APP_NAME
 
     text, n1 = re.subn(
         r'RwLock::new\("RustDesk"\.to_owned\(\)\)',
-        'RwLock::new("DeskRudder".to_owned())',
+        f'RwLock::new("{app}".to_owned())',
         text,
         count=1,
     )
     text, n1b = re.subn(
         r'Arc::new\(RwLock::new\("RustDesk"\.to_owned\(\)\)\)',
-        'Arc::new(RwLock::new("DeskRudder".to_owned()))',
+        f'Arc::new(RwLock::new("{app}".to_owned()))',
         text,
         count=1,
     )
@@ -3044,13 +3115,103 @@ def patch_cargo_bundle_name(path: Path) -> None:
     text = path.read_text(encoding="utf-8")
     text2, n = re.subn(
         r'(?m)^name = "RustDesk"',
-        'name = "DeskRudder"',
+        f'name = "{EXE_APP_NAME}"',
         text,
         count=1,
     )
     if n:
         path.write_text(text2, encoding="utf-8")
-        print("  Cargo.toml bundle name -> DeskRudder", flush=True)
+        print(f"  Cargo.toml bundle name -> {EXE_APP_NAME}", flush=True)
+
+
+def patch_disable_installation(config_rs: Path) -> None:
+    """Portable: sem cartao Instalar / sem servico permanente."""
+    text = config_rs.read_text(encoding="utf-8")
+    old = (
+        "pub fn is_disable_installation() -> bool {\n"
+        '    is_some_hard_opton("disable-installation")\n'
+        "}"
+    )
+    new = (
+        "pub fn is_disable_installation() -> bool {\n"
+        "    // Duplex Suporte: portable sem Instalar em Program Files.\n"
+        "    true\n"
+        "}"
+    )
+    if new in text:
+        print("  config.rs: is_disable_installation() ja true", flush=True)
+        return
+    if old not in text:
+        raise SystemExit(f"is_disable_installation() nao encontrado em {config_rs}")
+    config_rs.write_text(text.replace(old, new, 1), encoding="utf-8")
+    print("  config.rs: is_disable_installation() -> true (portable)", flush=True)
+
+
+def patch_uac_require_administrator(*manifest_paths: Path) -> None:
+    """Pede elevacao UAC na abertura (portable packer + runner Flutter)."""
+    trust = (
+        '  <trustInfo xmlns="urn:schemas-microsoft-com:asm.v3">\n'
+        "    <security>\n"
+        "      <requestedPrivileges>\n"
+        '        <requestedExecutionLevel level="requireAdministrator" uiAccess="false" />\n'
+        "      </requestedPrivileges>\n"
+        "    </security>\n"
+        "  </trustInfo>\n"
+    )
+    for path in manifest_paths:
+        if not path.is_file():
+            continue
+        text = path.read_text(encoding="utf-8")
+        if "requireAdministrator" in text:
+            print(f"  UAC requireAdministrator ja em {path.name}", flush=True)
+            continue
+        if "</assembly>" not in text:
+            raise SystemExit(f"manifest sem </assembly>: {path}")
+        path.write_text(text.replace("</assembly>", trust + "</assembly>", 1), encoding="utf-8")
+        print(f"  UAC requireAdministrator -> {path.name}", flush=True)
+
+
+def patch_appdata_duplex_suporte(config_rs: Path) -> None:
+    """AppData isolado: %APPDATA%\\DuplexSoft\\Duplex Suporte (nao DeskRudder)."""
+    text = config_rs.read_text(encoding="utf-8")
+    marker = "Duplex Suporte: AppData isolado"
+    if marker in text:
+        print("  config.rs: AppData Duplex Suporte ja isolado", flush=True)
+        return
+    old = (
+        '            #[cfg(not(target_os = "macos"))]\n'
+        '            let org = "".to_owned();\n'
+        '            #[cfg(target_os = "macos")]\n'
+        "            let org = ORG.read().unwrap().clone();\n"
+        "            // /var/root for root\n"
+        "            if let Some(project) =\n"
+        '                directories_next::ProjectDirs::from("", &org, &APP_NAME.read().unwrap())\n'
+    )
+    new = (
+        '            #[cfg(not(target_os = "macos"))]\n'
+        f'            let org = "{DUPLEX_SUPORTE_APPDATA_ORG}".to_owned(); '
+        f"// {marker}\n"
+        '            #[cfg(target_os = "macos")]\n'
+        "            let org = ORG.read().unwrap().clone();\n"
+        "            // /var/root for root\n"
+        "            if let Some(project) =\n"
+        "                directories_next::ProjectDirs::from(\n"
+        '                    "",\n'
+        "                    &org,\n"
+        f'                    "{DUPLEX_SUPORTE_APPDATA_APP}",\n'
+        "                )\n"
+    )
+    if old not in text:
+        raise SystemExit(
+            f"bloco ProjectDirs (org vazio) nao encontrado em {config_rs} "
+            "— upstream mudou Config::path?"
+        )
+    config_rs.write_text(text.replace(old, new, 1), encoding="utf-8")
+    print(
+        f"  config.rs: AppData -> %APPDATA%\\{DUPLEX_SUPORTE_APPDATA_ORG}\\"
+        f"{DUPLEX_SUPORTE_APPDATA_APP}",
+        flush=True,
+    )
 
 
 def patch_incoming_only(config_rs: Path) -> None:
@@ -4935,15 +5096,15 @@ def main() -> int:
     )
     ap.add_argument(
         "--profile",
-        choices=("cliente", "atendente", "posto", "controle"),
+        choices=("cliente", "atendente", "duplexsuporte", "posto", "controle"),
         default="cliente",
-        help="cliente=so-recebe (PC acessado); atendente=pode iniciar sessao",
+        help="cliente/atendente=DeskRemote; duplexsuporte=portable elevado",
     )
     ap.add_argument(
         "--ui",
         choices=("sciter", "flutter"),
         default="sciter",
-        help="sciter=v1 congelado 1.x.x; flutter=2.x.x (atendente ou cliente)",
+        help="sciter=v1 congelado 1.x.x; flutter=2.x.x",
     )
     args = ap.parse_args()
     _selftest_sciter_copy()
@@ -4958,12 +5119,18 @@ def main() -> int:
     if args.profile in PROFILE_LEGADO:
         print(f"AVISO: --profile {args.profile} e legado; use --profile {profile}", flush=True)
     ui: str = args.ui
+    if profile == "duplexsuporte" and ui != "flutter":
+        print("duplexsuporte exige --ui flutter", file=sys.stderr)
+        return 1
+    configurar_identidade(profile)
     configurar_canal_update(profile, ui)
 
     host, key = load_server(args.config.resolve())
     brand = args.branding.resolve()
     if args.client_version:
         version_file = args.client_version
+    elif ui == "flutter" and profile == "duplexsuporte":
+        version_file = here / "CLIENT_VERSION_FLUTTER_DUPLEX_SUPORTE"
     elif ui == "flutter" and profile == "cliente":
         version_file = here / "CLIENT_VERSION_FLUTTER_CLIENTE"
     elif ui == "flutter":
@@ -4971,7 +5138,7 @@ def main() -> int:
     else:
         version_file = here / "CLIENT_VERSION"
     client_version = load_client_version(version_file.resolve(), ui)
-    print(f">> Branding DeskRudder em {src}")
+    print(f">> Branding {PRODUCT_DISPLAY_NAME} em {src}")
     print(f"   profile={profile}")
     print(f"   ui={ui}")
     print(f"   host={host}")
@@ -5013,18 +5180,27 @@ def main() -> int:
         print(f"Falta {cfg_rs} (submodule hbb_common?).", file=sys.stderr)
         return 1
     cfg_host, cfg_key = (host, key)
-    if ui == "flutter":
+    # DeskRemote Flutter (cliente/atendente): placeholder; puxa hbbs da instancia.
+    # Duplex Suporte: embute o hbbs do server.config.json (piloto).
+    if ui == "flutter" and profile != "duplexsuporte":
         cfg_host, cfg_key = HOST_FLUTTER_CLIENTE_PENDENTE, KEY_FLUTTER_CLIENTE_PENDENTE
     patch_config_rs(cfg_rs, cfg_host, cfg_key)
-    if profile == "cliente":
+    if profile in ("cliente", "duplexsuporte"):
         patch_incoming_only(cfg_rs)
     elif profile == "atendente":
         patch_outgoing_only(cfg_rs)
+    if profile == "duplexsuporte":
+        patch_disable_installation(cfg_rs)
+        patch_appdata_duplex_suporte(cfg_rs)
+        patch_uac_require_administrator(
+            src / "res" / "manifest.xml",
+            src / "flutter" / "windows" / "runner" / "runner.exe.manifest",
+        )
     index_tis = src / "src" / "ui" / "index.tis"
     install_tis = src / "src" / "ui" / "install.tis"
     windows_rs = src / "src" / "platform" / "windows.rs"
     ui_rs = src / "src" / "ui.rs"
-    if profile == "cliente":
+    if profile in ("cliente", "duplexsuporte"):
         patch_host_only_ui(index_tis, brand)
     patch_shortcut_display_name(windows_rs)
     patch_uninstall_completo(windows_rs)
@@ -5056,10 +5232,43 @@ def main() -> int:
 
     # Sanity: chave, host e servidor de produto presentes
     body = cfg_rs.read_text(encoding="utf-8")
-    if "DeskRudder" not in body:
-        print("Verificacao falhou apos patch.", file=sys.stderr)
+    if EXE_APP_NAME not in body:
+        print(f"Verificacao falhou: APP_NAME {EXE_APP_NAME} ausente.", file=sys.stderr)
         return 1
-    if ui == "flutter":
+    if profile == "duplexsuporte":
+        # Flutter + hbbs embutido (piloto) — nao usa placeholder deskremote.invalid.
+        if host not in body or key not in body:
+            print("Verificacao falhou: duplexsuporte sem hbbs embutido.", file=sys.stderr)
+            return 1
+        if f'RwLock::new("{host}".to_owned())' not in body:
+            print("Verificacao falhou: PROD_RENDEZVOUS_SERVER sem host (duplexsuporte).", file=sys.stderr)
+            return 1
+        if HOST_FLUTTER_CLIENTE_PENDENTE in body:
+            print("Verificacao falhou: duplexsuporte nao deve usar placeholder.", file=sys.stderr)
+            return 1
+        if "Duplex Suporte: portable sem Instalar" not in body:
+            print("Verificacao falhou: is_disable_installation nao patchado.", file=sys.stderr)
+            return 1
+        if "Duplex Suporte: AppData isolado" not in body:
+            print("Verificacao falhou: AppData Duplex Suporte nao isolado.", file=sys.stderr)
+            return 1
+        if "DeskRudder" in body and EXE_APP_NAME != "DeskRudder":
+            # APP_NAME nao deve continuar DeskRudder neste profile.
+            if 'RwLock::new("DeskRudder"' in body or 'RwLock::new("DeskRudder"' in body:
+                print("Verificacao falhou: APP_NAME ainda DeskRudder no duplexsuporte.", file=sys.stderr)
+                return 1
+        uac_ok = False
+        for man in (
+            src / "res" / "manifest.xml",
+            src / "flutter" / "windows" / "runner" / "runner.exe.manifest",
+        ):
+            if man.is_file() and "requireAdministrator" in man.read_text(encoding="utf-8"):
+                uac_ok = True
+                break
+        if not uac_ok:
+            print("Verificacao falhou: UAC requireAdministrator ausente.", file=sys.stderr)
+            return 1
+    elif ui == "flutter":
         if HOST_FLUTTER_CLIENTE_PENDENTE not in body or KEY_FLUTTER_CLIENTE_PENDENTE not in body:
             print("Verificacao falhou: Flutter sem placeholder de servidor.", file=sys.stderr)
             return 1
@@ -5073,12 +5282,12 @@ def main() -> int:
         if f'RwLock::new("{host}".to_owned())' not in body:
             print("Verificacao falhou: PROD_RENDEZVOUS_SERVER sem host.", file=sys.stderr)
             return 1
-    if profile == "cliente":
+    if profile in ("cliente", "duplexsuporte"):
         if "DeskRemote: build so para ser acessado" not in body:
             print("Verificacao falhou: is_incoming_only nao patchado.", file=sys.stderr)
             return 1
         if "DeskRemote: build so para controlar" in body:
-            print("Verificacao falhou: profile cliente nao deve forcar outgoing_only.", file=sys.stderr)
+            print("Verificacao falhou: profile host nao deve forcar outgoing_only.", file=sys.stderr)
             return 1
     elif profile == "atendente":
         if "DeskRemote: build so para controlar" not in body:
@@ -5149,12 +5358,12 @@ def main() -> int:
         return 1
 
     index_body = index_tis.read_text(encoding="utf-8")
-    if profile == "cliente":
+    if profile in ("cliente", "duplexsuporte"):
         if (
             f">{PRODUCT_DISPLAY_NAME}</div>" not in index_body
             or "deskrudder_host_logo" not in index_body
         ):
-            print("Verificacao falhou: UI host-only sem logo/DeskRemote.", file=sys.stderr)
+            print("Verificacao falhou: UI host-only sem logo/produto.", file=sys.stderr)
             return 1
         if "data:image/png;base64," not in index_body:
             print("Verificacao falhou: logo host sem data URI.", file=sys.stderr)
@@ -5177,8 +5386,9 @@ def main() -> int:
     if "set_titlebar_dark" not in index_body:
         print("Verificacao falhou: titlebar dark nao ligado na UI.", file=sys.stderr)
         return 1
-    if "deskrudder.com.br" not in index_body:
-        print("Verificacao falhou: website DeskRudder ausente.", file=sys.stderr)
+    site_host = WEBSITE_URL.rstrip("/").split("//", 1)[-1]
+    if site_host not in index_body:
+        print(f"Verificacao falhou: website {site_host} ausente.", file=sys.stderr)
         return 1
     if sciter_html(COPY_BANNER_TITULO) not in index_body:
         print("Verificacao falhou: banner de atualização ausente.", file=sys.stderr)
@@ -5362,7 +5572,7 @@ def main() -> int:
         if "DeskRemote: ico com borda branca nítida na barra de título" not in common_dart:
             print("Verificacao falhou: loadIcon da barra sem nitidez.", file=sys.stderr)
             return 1
-        if profile != "cliente":
+        if profile == "atendente":
             if "deskremote/sessao.dart" not in common_dart:
                 print("Verificacao falhou: common.dart sem import da busca de vinculo.", file=sys.stderr)
                 return 1
@@ -5393,7 +5603,7 @@ def main() -> int:
             print("Verificacao falhou: flutter/assets/icon.svg RustDesk ainda presente.", file=sys.stderr)
             return 1
     flutter_tabs = src / "flutter" / "lib" / "models" / "peer_tab_model.dart"
-    if profile != "cliente" and flutter_tabs.is_file():
+    if profile == "atendente" and flutter_tabs.is_file():
         tabs_body = flutter_tabs.read_text(encoding="utf-8")
         if "DeskRemote: Recentes e Vinculados" not in tabs_body:
             print("Verificacao falhou: Flutter ainda nao mostra Recentes+Vinculados.", file=sys.stderr)
@@ -5402,7 +5612,7 @@ def main() -> int:
             print("Verificacao falhou: rotulo Vinculados ausente nas abas.", file=sys.stderr)
             return 1
     flutter_peer_tab = src / "flutter" / "lib" / "common" / "widgets" / "peer_tab_page.dart"
-    if profile != "cliente" and flutter_peer_tab.is_file():
+    if profile == "atendente" and flutter_peer_tab.is_file():
         peer_tab_body = flutter_peer_tab.read_text(encoding="utf-8")
         if "DeskRemoteVinculadosView" not in peer_tab_body:
             print("Verificacao falhou: aba Vinculados nao substitui Favoritos.", file=sys.stderr)
@@ -5411,13 +5621,13 @@ def main() -> int:
             print("Verificacao falhou: busca do RustDesk ainda aparece em Vinculados.", file=sys.stderr)
             return 1
     flutter_peers = src / "flutter" / "lib" / "common" / "widgets" / "peers_view.dart"
-    if profile != "cliente" and flutter_peers.is_file():
+    if profile == "atendente" and flutter_peers.is_file():
         peers_body = flutter_peers.read_text(encoding="utf-8")
         if "DeskRemote: 10 ultimas sessoes recentes" not in peers_body:
             print("Verificacao falhou: limite de 10 sessoes Flutter ausente.", file=sys.stderr)
             return 1
     flutter_card = src / "flutter" / "lib" / "common" / "widgets" / "peer_card.dart"
-    if profile != "cliente" and flutter_card.is_file():
+    if profile == "atendente" and flutter_card.is_file():
         card_body = flutter_card.read_text(encoding="utf-8")
         if "DeskRemote: nome do vinculo" not in card_body:
             print("Verificacao falhou: cartao Flutter ainda mostra ID.", file=sys.stderr)
@@ -5440,7 +5650,7 @@ def main() -> int:
         if "DeskRemote: ico 24px + nome na barra" not in consts_body:
             print("Verificacao falhou: altura da barra Flutter ainda 28px.", file=sys.stderr)
             return 1
-        if profile != "cliente" and "DeskRemote: aba reage a alias" not in tabbar_body:
+        if profile == "atendente" and "DeskRemote: aba reage a alias" not in tabbar_body:
             print("Verificacao falhou: tablabelGetter Flutter nao reage ao vinculo.", file=sys.stderr)
             return 1
     flutter_main_tab = src / "flutter" / "lib" / "desktop" / "pages" / "desktop_tab_page.dart"
@@ -5449,7 +5659,14 @@ def main() -> int:
         if "showTitle: true" not in main_tab_body:
             print("Verificacao falhou: home Flutter sem nome na barra.", file=sys.stderr)
             return 1
-        if profile == "cliente":
+        if profile == "duplexsuporte":
+            if "DeskRemote: cliente so abre depois do token de instalacao" in main_tab_body:
+                print("Verificacao falhou: duplexsuporte nao deve ter enroll gate.", file=sys.stderr)
+                return 1
+            if "DeskRemote: Recentes/Conectar exigem login DeskRudder" in main_tab_body:
+                print("Verificacao falhou: duplexsuporte nao deve ter auth gate.", file=sys.stderr)
+                return 1
+        elif profile == "cliente":
             if "DeskRemote: cliente so abre depois do token de instalacao" not in main_tab_body:
                 print("Verificacao falhou: token de instalacao ausente na home Flutter.", file=sys.stderr)
                 return 1
@@ -5522,19 +5739,19 @@ def main() -> int:
                     print("Verificacao falhou: overlay sem caminho da identidade (#1406).", file=sys.stderr)
                     return 1
     flutter_multi = src / "flutter" / "lib" / "utils" / "multi_window_manager.dart"
-    if profile != "cliente" and flutter_multi.is_file():
+    if profile == "atendente" and flutter_multi.is_file():
         multi_body = flutter_multi.read_text(encoding="utf-8")
         if "DeskRemote: title na janela da sessao" not in multi_body:
             print("Verificacao falhou: newSession sem title do vinculo.", file=sys.stderr)
             return 1
     flutter_remote = src / "flutter" / "lib" / "desktop" / "pages" / "remote_tab_page.dart"
-    if profile != "cliente" and flutter_remote.is_file():
+    if profile == "atendente" and flutter_remote.is_file():
         remote_body = flutter_remote.read_text(encoding="utf-8")
         if "DeskRemote: titulo do vinculo na aba" not in remote_body:
             print("Verificacao falhou: aba remota sem titulo do vinculo.", file=sys.stderr)
             return 1
     flutter_model = src / "flutter" / "lib" / "models" / "model.dart"
-    if profile != "cliente" and flutter_model.is_file():
+    if profile == "atendente" and flutter_model.is_file():
         model_body = flutter_model.read_text(encoding="utf-8")
         if "DeskRemote: atualiza a aba quando chega usuario/host" not in model_body:
             print("Verificacao falhou: peer_info Flutter nao atualiza a aba.", file=sys.stderr)
@@ -5544,11 +5761,17 @@ def main() -> int:
     )
     if flutter_settings.is_file():
         settings_body = flutter_settings.read_text(encoding="utf-8")
-        if "Sobre o DeskRemote" not in settings_body:
-            print("Verificacao falhou: Sobre o DeskRemote ausente.", file=sys.stderr)
+        if f"Sobre o {PRODUCT_DISPLAY_NAME}" not in settings_body:
+            print(
+                f"Verificacao falhou: Sobre o {PRODUCT_DISPLAY_NAME} ausente.",
+                file=sys.stderr,
+            )
             return 1
-        if "Desenvolvido pela DeskRudder" not in settings_body:
-            print("Verificacao falhou: desenvolvido pela DeskRudder ausente no Sobre.", file=sys.stderr)
+        if f"Desenvolvido pela {COMPANY_DISPLAY_NAME}" not in settings_body:
+            print(
+                f"Verificacao falhou: desenvolvido pela {COMPANY_DISPLAY_NAME} ausente no Sobre.",
+                file=sys.stderr,
+            )
             return 1
         if "privacy.html" in settings_body:
             print("Verificacao falhou: Sobre ainda linka privacidade do RustDesk.", file=sys.stderr)
@@ -5557,7 +5780,10 @@ def main() -> int:
             print("Verificacao falhou: copyright Purslane ainda no Sobre.", file=sys.stderr)
             return 1
         if WEBSITE_URL.rstrip("/") not in settings_body:
-            print("Verificacao falhou: website do Sobre sem deskrudder.com.br.", file=sys.stderr)
+            print(
+                f"Verificacao falhou: website do Sobre sem {WEBSITE_URL.rstrip('/')}.",
+                file=sys.stderr,
+            )
             return 1
         if "DeskRemote: host Duplex na Rede" in settings_body:
             print("Verificacao falhou: Flutter ainda mostra o host da Duplex em Rede.", file=sys.stderr)
@@ -5566,11 +5792,14 @@ def main() -> int:
     if flutter_rc.is_file():
         rc_body = flutter_rc.read_text(encoding="utf-8")
         if COPYRIGHT_LINE not in rc_body or "Purslane" in rc_body:
-            print("Verificacao falhou: Runner.rc sem copyright DeskRudder.", file=sys.stderr)
+            print(
+                f"Verificacao falhou: Runner.rc sem copyright {COMPANY_DISPLAY_NAME}.",
+                file=sys.stderr,
+            )
             return 1
     core_main_body_path = src / "src" / "core_main.rs"
     if (
-        profile != "cliente"
+        profile == "atendente"
         and core_main_body_path.is_file()
         and (src / "flutter" / "lib" / "common.dart").is_file()
     ):
