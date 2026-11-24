@@ -8,10 +8,8 @@ import { escutarAberturaNotificacao, instalarHandlerNotificacao } from '../lib/p
 import { RealtimeProvider } from '../lib/realtime'
 import { TemaProvider, useTema } from '../lib/tema'
 
-// A mídia do chat é baixada com `response.blob()`. O fetch do Expo avisa em
-// __DEV__ que, sem o pacote nativo `expo-blob`, esse caminho copia os bytes em
-// base64. O aviso não muda o comportamento do app e vai para o DevTools; aqui
-// escondemos só a tarja "Open debugger to view warnings" que cobria a tela.
+// Mídia do chat usa `response.arrayBuffer()` (sem blob: no nativo). Ainda
+// escondemos a tarja "Open debugger to view warnings" do DevTools no Expo.
 LogBox.ignoreLogs(['Open debugger to view warnings.'])
 
 instalarHandlerNotificacao()

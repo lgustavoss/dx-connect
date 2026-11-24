@@ -154,7 +154,10 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
   return body as T
 }
 
-export async function apiBlob(path: string): Promise<Blob> {
+/** Bytes da mídia sem `response.blob()` — evita "Cannot create URL for blob!" no nativo. */
+export async function apiBytes(
+  path: string,
+): Promise<{ bytes: ArrayBuffer; contentType: string | null }> {
   const res = await authorizedFetch(path, { headers: { Accept: '*/*' } })
   if (!res.ok) {
     const text = await res.text()
@@ -166,7 +169,9 @@ export async function apiBlob(path: string): Promise<Blob> {
     }
     throw new ApiError(mensagemDeErro(body, `Erro HTTP ${res.status}`), res.status, body)
   }
-  return res.blob()
+  const contentType = res.headers.get('content-type')
+  const bytes = await res.arrayBuffer()
+  return { bytes, contentType }
 }
 
 export async function loginNaInstancia(
@@ -293,9 +298,14 @@ export const whatsapp = {
       method: 'POST',
       body: JSON.stringify({ texto }),
     }),
+  comentarInterno: (id: number, texto: string) =>
+    api<WhatsappMensagem>(`/whatsapp/chats/${id}/comentarios-internos`, {
+      method: 'POST',
+      body: JSON.stringify({ texto }),
+    }),
   marcarVisto: (id: number) => api<void>(`/whatsapp/chats/${id}/visto`, { method: 'POST' }),
-  midiaBlob: (chatId: number, mensagemId: number) =>
-    apiBlob(`/whatsapp/chats/${chatId}/mensagens/${mensagemId}/midia`),
+  midiaBytes: (chatId: number, mensagemId: number) =>
+    apiBytes(`/whatsapp/chats/${chatId}/mensagens/${mensagemId}/midia`),
   enviarMidia: (id: number, file: { uri: string; name: string; type: string }, caption?: string) => {
     const form = new FormData()
     const nome = file.name.toLowerCase()

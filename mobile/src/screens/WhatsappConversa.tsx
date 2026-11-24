@@ -170,11 +170,18 @@ export function WhatsappConversa() {
   const acompanhando =
     chat?.estado === 'em_atendimento' && !souResponsavel && Boolean(chat?.atendente_id)
   const possoEnviar = chat?.estado === 'em_atendimento' && souResponsavel
+  const possoComentarInterno = acompanhando
   const ticketIds = chat?.ticket_ids || []
   const ticketAberto = ticketIds[0]
   const empresasOpcoes = chat?.empresas_opcoes || []
   const podeRegistrarDemanda = Boolean(chat) && chat?.estado === 'em_atendimento'
-  const mensagensVisiveis = useMemo(() => mensagens.filter((m) => !m.evento_sistema), [mensagens])
+  const mensagensVisiveis = useMemo(
+    () =>
+      mensagens.filter(
+        (m) => !m.evento_sistema || m.evento_sistema === 'comentario_interno',
+      ),
+    [mensagens],
+  )
 
   useEffect(() => {
     let cancelado = false
@@ -312,7 +319,22 @@ export function WhatsappConversa() {
 
   async function enviar() {
     const corpo = texto.trim()
-    if (!corpo || !possoEnviar) return
+    if (!corpo) return
+    if (possoComentarInterno) {
+      setAEnviar(true)
+      try {
+        const msg = await whatsapp.comentarInterno(chatId, corpo)
+        setMensagens((prev) => [...prev.filter((m) => m.id !== msg.id), msg])
+        setTexto('')
+        setErro(null)
+      } catch (e) {
+        setErro(e instanceof ApiError ? e.message : 'Não foi possível registrar o comentário.')
+      } finally {
+        setAEnviar(false)
+      }
+      return
+    }
+    if (!possoEnviar) return
     setAEnviar(true)
     try {
       const msg = await whatsapp.enviar(chatId, corpo)
@@ -526,8 +548,8 @@ export function WhatsappConversa() {
           <View style={{ flex: 1 }}>
             <Text style={styles.barraFilaTitulo}>Acompanhando</Text>
             <Text style={styles.barraFilaTxt}>
-              Chat com {chat?.atendente_nome || 'outro atendente'}. Você pode ler, mas não enviar ao
-              cliente.
+              Chat com {chat?.atendente_nome || 'outro atendente'}. Use o comentário interno — o
+              cliente não recebe.
             </Text>
           </View>
         </View>
@@ -612,20 +634,30 @@ export function WhatsappConversa() {
           </Pressable>
         </View>
       ) : null}
-      {possoEnviar ? (
-        <View style={styles.composer}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Anexar"
-            style={styles.anexo}
-            onPress={pedirAnexo}
-            disabled={aEnviar}
-          >
-            <Icon name="attach" size={22} color={cores.navyMid} />
-          </Pressable>
+      {possoEnviar || possoComentarInterno ? (
+        <View style={[styles.composer, possoComentarInterno && styles.composerInterno]}>
+          {possoEnviar ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Anexar"
+              style={styles.anexo}
+              onPress={pedirAnexo}
+              disabled={aEnviar}
+            >
+              <Icon name="attach" size={22} color={cores.navyMid} />
+            </Pressable>
+          ) : (
+            <View style={styles.anexoInterno}>
+              <Icon name="lock-closed" size={18} color={cores.warning} />
+            </View>
+          )}
           <TextInput
             style={styles.input}
-            placeholder="Mensagem"
+            placeholder={
+              possoComentarInterno
+                ? 'Comentário interno (não enviado ao cliente)…'
+                : 'Mensagem'
+            }
             placeholderTextColor={cores.muted}
             value={texto}
             onChangeText={setTexto}
@@ -635,8 +667,12 @@ export function WhatsappConversa() {
           />
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Enviar"
-            style={[styles.enviar, (!texto.trim() || aEnviar) && styles.enviarOff]}
+            accessibilityLabel={possoComentarInterno ? 'Enviar comentário interno' : 'Enviar'}
+            style={[
+              styles.enviar,
+              possoComentarInterno && styles.enviarInterno,
+              (!texto.trim() || aEnviar) && styles.enviarOff,
+            ]}
             onPress={() => void enviar()}
             disabled={!texto.trim() || aEnviar}
           >
@@ -647,9 +683,7 @@ export function WhatsappConversa() {
         <Text style={styles.avisoComposer}>
           {naFila
             ? 'Assuma o chat para responder.'
-            : acompanhando
-              ? `Este chat está com ${chat?.atendente_nome || 'outro atendente'}.`
-              : 'Só o atendente responsável pode enviar.'}
+            : 'Só o atendente responsável pode enviar.'}
         </Text>
       )}
     </TelaTeclado>
@@ -932,12 +966,27 @@ export function WhatsappConversa() {
 
 function Bolha({ chatId, msg }: { chatId: number; msg: WhatsappMensagem }) {
   const styles = usarEstilos()
-  const outbound = msg.direcao === 'outbound'
-  const midia = temArquivoMidia(msg.tipo_midia)
-  const corpo = msg.apagada ? 'Mensagem apagada' : midia ? msg.corpo : msg.corpo
+  const interno = msg.evento_sistema === 'comentario_interno'
+  const outbound = !interno && msg.direcao === 'outbound'
+  const midia = !interno && temArquivoMidia(msg.tipo_midia)
+  const corpo = msg.apagada ? 'Mensagem apagada' : msg.corpo
   return (
-    <View style={[styles.bolhaWrap, outbound ? styles.bolhaWrapOut : styles.bolhaWrapIn]}>
-      <View style={[styles.bolha, outbound ? styles.bolhaOut : styles.bolhaIn]}>
+    <View
+      style={[
+        styles.bolhaWrap,
+        interno ? styles.bolhaWrapInterno : outbound ? styles.bolhaWrapOut : styles.bolhaWrapIn,
+      ]}
+    >
+      {interno ? <Text style={styles.seloInterno}>Interno</Text> : null}
+      {interno && msg.atendente_nome ? (
+        <Text style={styles.autorInterno}>{msg.atendente_nome}</Text>
+      ) : null}
+      <View
+        style={[
+          styles.bolha,
+          interno ? styles.bolhaInterno : outbound ? styles.bolhaOut : styles.bolhaIn,
+        ]}
+      >
         {midia && !msg.apagada ? (
           <WhatsappMidia
             chatId={chatId}
@@ -949,9 +998,23 @@ function Bolha({ chatId, msg }: { chatId: number; msg: WhatsappMensagem }) {
             outbound={outbound}
           />
         ) : (
-          <Text style={[styles.corpo, outbound ? styles.corpoOut : styles.corpoIn]}>{corpo}</Text>
+          <Text
+            style={[
+              styles.corpo,
+              interno ? styles.corpoInterno : outbound ? styles.corpoOut : styles.corpoIn,
+            ]}
+          >
+            {corpo}
+          </Text>
         )}
-        <Text style={[styles.horaBolha, outbound ? styles.horaOut : styles.horaIn]}>{horaCurta(msg.created_at)}</Text>
+        <Text
+          style={[
+            styles.horaBolha,
+            interno ? styles.horaInterno : outbound ? styles.horaOut : styles.horaIn,
+          ]}
+        >
+          {horaCurta(msg.created_at)}
+        </Text>
       </View>
     </View>
   )
@@ -1336,15 +1399,39 @@ function criarEstilos(cores: Cores) {
     bolhaWrap: { marginBottom: 6, maxWidth: '82%' },
     bolhaWrapIn: { alignSelf: 'flex-start' },
     bolhaWrapOut: { alignSelf: 'flex-end' },
+    bolhaWrapInterno: { alignSelf: 'center', maxWidth: '90%' },
     bolha: { borderRadius: 16, paddingHorizontal: 12, paddingVertical: 8 },
     bolhaIn: { backgroundColor: cores.bolhaIn, borderBottomLeftRadius: 4 },
     bolhaOut: { backgroundColor: cores.teal, borderBottomRightRadius: 4 },
+    bolhaInterno: {
+      backgroundColor: cores.warningBg,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: cores.warning,
+    },
+    seloInterno: {
+      fontSize: 10,
+      fontWeight: '700',
+      letterSpacing: 0.4,
+      textTransform: 'uppercase',
+      color: cores.warning,
+      marginBottom: 2,
+      textAlign: 'center',
+    },
+    autorInterno: {
+      fontSize: 11,
+      fontWeight: '600',
+      color: cores.avisoTexto,
+      marginBottom: 4,
+      textAlign: 'center',
+    },
     corpo: { fontSize: 16, lineHeight: 22 },
     corpoIn: { color: cores.text },
     corpoOut: { color: cores.sobre },
+    corpoInterno: { color: cores.avisoTexto },
     horaBolha: { fontSize: 11, marginTop: 4, alignSelf: 'flex-end' },
     horaIn: { color: cores.muted },
     horaOut: { color: cores.sobre, opacity: 0.85 },
+    horaInterno: { color: cores.avisoTexto, opacity: 0.75 },
     composer: {
       flexDirection: 'row',
       alignItems: 'flex-end',
@@ -1355,11 +1442,20 @@ function criarEstilos(cores: Cores) {
       borderTopWidth: StyleSheet.hairlineWidth,
       borderTopColor: cores.border,
     },
+    composerInterno: { backgroundColor: cores.warningBg },
     anexo: {
       width: 40,
       height: 40,
       borderRadius: 20,
       backgroundColor: cores.deck,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    anexoInterno: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: cores.white,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -1383,6 +1479,7 @@ function criarEstilos(cores: Cores) {
       alignItems: 'center',
       justifyContent: 'center',
     },
+    enviarInterno: { backgroundColor: cores.warning },
     enviarOff: { opacity: 0.4 },
     avisoComposer: {
       textAlign: 'center',
