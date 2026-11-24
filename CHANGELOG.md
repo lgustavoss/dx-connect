@@ -9,9 +9,6 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Melhorias
 
-- **Duplex Suporte**: pipeline do app portátil (elevação de administrador + servidor embutido), separado do DeskRemote da frota — download público e tela de ID/senha nos próximos lotes (#1454)
-- **Duplex Suporte**: marca DuplexSoft (D na barra de título, logo D+DuplexSoft maior no topo), texto de ajuda em largura total, botão para **copiar ID e senha de uma vez**, menu ⋮ só com copiar (sem Configurações avançadas), crédito **Desenvolvido por DeskRudder** abaixo do Pronto (#1455, #1456)
-
 - Login do painel: a conexão com o servidor usa o endereço DeskRudder da empresa (painel e API no mesmo domínio do produto).
 - Acesso remoto → frota: em computadores **Desatualizados** que sincronizaram recentemente, dá para pedir **Atualizar** pelo painel — o DeskRemote Cliente baixa e aplica no próximo sync (#1436)
 - Acesso remoto: o link de download do DeskRemote Cliente deixa de apontar para o instalador antigo (que ficava em 2.1.1) e passa a servir a versão atual do Release
