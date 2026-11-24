@@ -41,6 +41,9 @@ PROFILE_LEGADO = {
 PRODUCT_DISPLAY_NAME = "DeskRemote"
 SHORTCUT_DISPLAY_NAME = PRODUCT_DISPLAY_NAME
 COMPANY_DISPLAY_NAME = "DeskRudder"
+# Credito «Desenvolvido por» (pode diferir da empresa do produto, ex. Duplex Soft).
+POWERED_BY_DISPLAY_NAME = "DeskRudder"
+POWERED_BY_URL = "https://deskrudder.com.br/"
 # APP_NAME embutido em config.rs (pasta/pipes/exe). Duplex Suporte usa DuplexSuporte.
 EXE_APP_NAME = "DeskRudder"
 # Pasta sob Program Files (x86): DeskRudder\Acesso Remoto (outros instaladores irao ao lado).
@@ -154,6 +157,7 @@ def configurar_identidade(profile: str) -> None:
     """Nome de produto / empresa / exe conforme o profile."""
     global PRODUCT_DISPLAY_NAME, SHORTCUT_DISPLAY_NAME, COMPANY_DISPLAY_NAME
     global EXE_APP_NAME, WEBSITE_URL, COPYRIGHT_LINE
+    global POWERED_BY_DISPLAY_NAME, POWERED_BY_URL
     if profile == "duplexsuporte":
         PRODUCT_DISPLAY_NAME = "Duplex Suporte"
         SHORTCUT_DISPLAY_NAME = PRODUCT_DISPLAY_NAME
@@ -161,6 +165,9 @@ def configurar_identidade(profile: str) -> None:
         EXE_APP_NAME = "DuplexSuporte"
         WEBSITE_URL = "https://duplexsoft.com.br/"
         COPYRIGHT_LINE = "Copyright © 2026 DuplexSoft"
+        # Credito no rodape aponta para o DeskRudder (painel), nao o site DuplexSoft.
+        POWERED_BY_DISPLAY_NAME = "DeskRudder"
+        POWERED_BY_URL = "https://deskrudder.com.br/"
     else:
         PRODUCT_DISPLAY_NAME = "DeskRemote"
         SHORTCUT_DISPLAY_NAME = PRODUCT_DISPLAY_NAME
@@ -168,6 +175,8 @@ def configurar_identidade(profile: str) -> None:
         EXE_APP_NAME = "DeskRudder"
         WEBSITE_URL = "https://deskrudder.com.br/"
         COPYRIGHT_LINE = "Copyright © 2026 DeskRudder"
+        POWERED_BY_DISPLAY_NAME = "DeskRudder"
+        POWERED_BY_URL = WEBSITE_URL
 
 
 def configurar_canal_update(profile: str, ui: str = "sciter") -> None:
@@ -259,6 +268,8 @@ def _selftest_client_version_linhas() -> None:
     configurar_identidade("duplexsuporte")
     if PRODUCT_DISPLAY_NAME != "Duplex Suporte" or EXE_APP_NAME != "DuplexSuporte":
         raise SystemExit("selftest: identidade duplexsuporte incorreta")
+    if POWERED_BY_DISPLAY_NAME != "DeskRudder" or "deskrudder.com.br" not in POWERED_BY_URL:
+        raise SystemExit("selftest: credito DeskRudder ausente no duplexsuporte")
     configurar_identidade("cliente")
     if PRODUCT_DISPLAY_NAME != "DeskRemote" or EXE_APP_NAME != "DeskRudder":
         raise SystemExit("selftest: identidade DeskRemote nao restaurada")
@@ -346,8 +357,10 @@ def copy_flutter_icons(brand: Path, src: Path) -> None:
 
     assets = src / "flutter" / "assets"
     if assets.is_dir():
-        # Painel esquerdo: 512 LANCZOS (1024 no Flutter 96px virava quadradinho).
-        logo = kit / "05_ui_logo" / "ui-logo-512.png"
+        # Painel esquerdo: preferir lockup largo (D+nome); senao logo quadrada.
+        logo = brand / "ui-logo-wide-512.png"
+        if not logo.is_file():
+            logo = kit / "05_ui_logo" / "ui-logo-512.png"
         if not logo.is_file():
             logo = brand / "ui-logo-512.png"
         if not logo.is_file():
@@ -356,6 +369,14 @@ def copy_flutter_icons(brand: Path, src: Path) -> None:
             for name in ("logo.png", "logo_dark.png", "logo_light.png"):
                 shutil.copy2(logo, assets / name)
             print(f"  flutter assets/logo.png ({logo.name})", flush=True)
+
+        # Rodape Duplex Soft (D + nome) — so quando a arte existe no branding.
+        powered = brand / "powered-duplexsoft-512.png"
+        if not powered.is_file():
+            powered = brand / "powered-duplexsoft-256.png"
+        if powered.is_file():
+            shutil.copy2(powered, assets / "powered.png")
+            print(f"  flutter assets/powered.png ({powered.name})", flush=True)
 
         # Barra de título: ico com borda branca (128 → loadIcon(24) com FilterQuality.high).
         mark = kit / "06_ui_icon" / "ui-icon-128.png"
@@ -421,7 +442,7 @@ _FLUTTER_HOME_SETTINGS = """            if (isOutgoingOnly)
 """
 
 _FLUTTER_HOME_FOOTER_MARKER = "// DeskRemote: marca e versao no rodape do painel esquerdo."
-_FLUTTER_INCOMING_STATUS_MARKER = "// DeskRemote: marca acima do status da rede."
+_FLUTTER_INCOMING_STATUS_MARKER = "// DeskRemote: marca abaixo do status (Pronto)."
 
 # loadPowered no rodape + versao (get_version / CLIENT_VERSION) + engrenagem.
 # Só no atendente (outgoing): no cliente o status da rede fica no fluxo do painel.
@@ -522,44 +543,51 @@ _FLUTTER_INCOMING_STATUS_RE = re.compile(
     re.DOTALL,
 )
 
+# Versao + Pronto + «Desenvolvido por» centralizados no rodape incoming.
 _FLUTTER_INCOMING_STATUS_NEW = (
+    "        Align(\n"
+    "          alignment: Alignment.center,\n"
+    "          child: FutureBuilder<String>(\n"
+    "            future: bind.mainGetVersion(),\n"
+    "            builder: (context, snap) {\n"
+    "              final v = (snap.data ?? '').trim();\n"
+    "              if (v.isEmpty) {\n"
+    "                return const SizedBox.shrink();\n"
+    "              }\n"
+    "              return Opacity(\n"
+    "                opacity: 0.5,\n"
+    "                child: Text(\n"
+    "                  '${translate(\"Version\")} $v',\n"
+    "                  overflow: TextOverflow.ellipsis,\n"
+    "                  style: Theme.of(context)\n"
+    "                      .textTheme\n"
+    "                      .bodySmall\n"
+    "                      ?.copyWith(fontSize: 10),\n"
+    "                ),\n"
+    "              ).marginOnly(top: 2, bottom: 8);\n"
+    "            },\n"
+    "          ),\n"
+    "        ),\n"
+    "        Align(\n"
+    "          alignment: Alignment.center,\n"
+    "          child: OnlineStatusWidget(\n"
+    "            onSvcStatusChanged: () {\n"
+    "              if (isInHomePage()) {\n"
+    "                Future.delayed(Duration(milliseconds: 300), () {\n"
+    "                  _updateWindowSize();\n"
+    "                });\n"
+    "              }\n"
+    "            },\n"
+    "          ).marginOnly(bottom: 2, top: 4),\n"
+    "        ),\n"
     "        "
     + _FLUTTER_INCOMING_STATUS_MARKER
-    + """
-        if (bind.isCustomClient())
-          Align(
-            alignment: Alignment.center,
-            child: loadPowered(context),
-          ),
-        FutureBuilder<String>(
-          future: bind.mainGetVersion(),
-          builder: (context, snap) {
-            final v = (snap.data ?? '').trim();
-            if (v.isEmpty) {
-              return const SizedBox.shrink();
-            }
-            return Opacity(
-              opacity: 0.5,
-              child: Text(
-                '${translate("Version")} $v',
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context)
-                    .textTheme
-                    .bodySmall
-                    ?.copyWith(fontSize: 10),
-              ),
-            ).marginOnly(top: 2, bottom: 8);
-          },
-        ),
-        OnlineStatusWidget(
-          onSvcStatusChanged: () {
-            if (isInHomePage()) {
-              Future.delayed(Duration(milliseconds: 300), () {
-                _updateWindowSize();
-              });
-            }
-          },
-        ).marginOnly(bottom: 6, right: 6, top: 4)"""
+    + "\n"
+    "        if (bind.isCustomClient())\n"
+    "          Align(\n"
+    "            alignment: Alignment.center,\n"
+    "            child: loadPowered(context),\n"
+    "          ).marginOnly(bottom: 6),\n"
 )
 
 
@@ -615,14 +643,14 @@ def patch_flutter_home_footer(home_dart: Path) -> None:
 
 
 def patch_flutter_powered_url(common_dart: Path) -> None:
-    """Link do 'Desenvolvido por' no Flutter -> site DeskRudder."""
+    """Link do 'Desenvolvido por' no Flutter -> painel/site (POWERED_BY_URL)."""
     if not common_dart.is_file():
         return
     text = common_dart.read_text(encoding="utf-8")
     old = "launchUrl(Uri.parse('https://rustdesk.com'));"
-    url = WEBSITE_URL.rstrip("/")
+    url = POWERED_BY_URL.rstrip("/")
     new = f"launchUrl(Uri.parse('{url}'));"
-    if new in text:
+    if f"Uri.parse('{url}')" in text and old not in text:
         print("  flutter loadPowered URL ja patchado", flush=True)
         return
     if old not in text:
@@ -655,7 +683,7 @@ def _selftest_flutter_home_footer() -> None:
     if _FLUTTER_HOME_FOOTER_MARKER not in out:
         raise SystemExit("selftest flutter: marcador do rodape ausente")
     if _FLUTTER_INCOMING_STATUS_MARKER not in out:
-        raise SystemExit("selftest flutter: marca acima do status da rede ausente")
+        raise SystemExit("selftest flutter: marca abaixo do Pronto ausente")
     if "if (isOutgoingOnly)" not in out:
         raise SystemExit("selftest flutter: rodape overlay deve ser so do atendente")
     if "mainGetVersion()" not in out:
@@ -665,9 +693,9 @@ def _selftest_flutter_home_footer() -> None:
     if out.count("loadPowered(context)") != 2:
         raise SystemExit("selftest flutter: loadPowered no atendente e no cliente")
     if _FLUTTER_INCOMING_STATUS_MARKER not in out or "OnlineStatusWidget(" not in out:
-        raise SystemExit("selftest flutter: status da rede deve ficar abaixo da marca")
-    if out.find(_FLUTTER_INCOMING_STATUS_MARKER) > out.find("OnlineStatusWidget("):
-        raise SystemExit("selftest flutter: Desenvolvido por deve vir antes de Conectando")
+        raise SystemExit("selftest flutter: status da rede e marca devem coexistir")
+    if out.find("OnlineStatusWidget(") > out.find(_FLUTTER_INCOMING_STATUS_MARKER):
+        raise SystemExit("selftest flutter: Desenvolvido por deve vir abaixo do Pronto")
     if "EdgeInsets.only(bottom: 64)" not in out:
         raise SystemExit("selftest flutter: padding do scroll ausente")
     out2 = apply_flutter_home_footer_text(out)
@@ -684,7 +712,9 @@ def _selftest_flutter_home_footer() -> None:
         raise SystemExit("selftest flutter: regex nao reconhece OnlineStatusWidget com outro indent")
     via_re = _aplicar_status_incoming(variante)
     if _FLUTTER_INCOMING_STATUS_MARKER not in via_re:
-        raise SystemExit("selftest flutter: fallback regex nao inseriu a marca acima do status")
+        raise SystemExit("selftest flutter: fallback regex nao inseriu a marca abaixo do status")
+    if via_re.find("OnlineStatusWidget(") > via_re.find(_FLUTTER_INCOMING_STATUS_MARKER):
+        raise SystemExit("selftest flutter: fallback regex deve por marca abaixo do Pronto")
     _selftest_flutter_recent_ui()
 
 
@@ -2054,7 +2084,7 @@ def apply_flutter_lock_password_text(text: str) -> str:
 
 
 def apply_flutter_hide_password_edit_text(text: str) -> str:
-    """Remove o lapis de senha na home do cliente."""
+    """Remove o lapis de senha na home (cliente frota / Duplex Suporte)."""
     if "DeskRemote: senha permanente so no painel" in text:
         return text
     new_text, n = re.subn(
@@ -2066,6 +2096,504 @@ def apply_flutter_hide_password_edit_text(text: str) -> str:
     if n < 1:
         raise SystemExit("flutter home: lapis Change Password nao encontrado")
     return new_text
+
+
+_DUPLEX_LOGO_SIZE_MARKER = "Duplex Suporte: lockup largo no topo"
+_DUPLEX_PANE_WIDTH_MARKER = "Duplex Suporte: tip + lockup"  # painel incoming ~340px
+_DUPLEX_COPY_ALL_MARKER = "Duplex Suporte: copiar ID + senha de uma vez"
+_DUPLEX_HIDE_QUIT_MARKER = "Duplex Suporte: sem botao Sair"
+_DUPLEX_TIP_WIDTH_MARKER = "Duplex Suporte: tip em largura total"
+_DUPLEX_COMPACT_LAYOUT_MARKER = "Duplex Suporte: layout compacto (sem vao morto)"
+_DUPLEX_ID_MENU_MARKER = "Duplex Suporte: menu ID so copiar"
+_DUPLEX_SETTINGS_MIN_MARKER = "Duplex Suporte: settings so Sobre"
+
+
+def apply_flutter_logo_size_duplex_text(text: str) -> str:
+    """Lockup D+DuplexSoft mais largo no topo (incoming-only)."""
+    if _DUPLEX_LOGO_SIZE_MARKER in text:
+        return text
+    old = """          return Container(
+            // DeskRemote: logo do painel esquerdo.
+            constraints: BoxConstraints(maxWidth: 160, maxHeight: 160),
+            child: image,
+          ).marginOnly(left: 16, right: 16, top: 16);"""
+    new = f"""          return Container(
+            // DeskRemote: logo do painel esquerdo.
+            // {_DUPLEX_LOGO_SIZE_MARKER}
+            constraints: BoxConstraints(maxWidth: 280, maxHeight: 64),
+            child: image,
+          ).marginOnly(left: 16, right: 16, top: 28);"""
+    if old not in text:
+        raise SystemExit("flutter common.dart: logo DeskRemote 160 nao encontrada (duplex)")
+    text = text.replace(old, new, 1)
+    if "cacheWidth: 320" in text:
+        text = text.replace("cacheWidth: 320,", "cacheWidth: 640, // Duplex Suporte: lockup", 1)
+    return text
+
+
+def apply_flutter_pane_width_duplex_text(text: str) -> str:
+    """Painel incoming mais largo para tip e lockup caberem sem wrap precoce."""
+    if _DUPLEX_PANE_WIDTH_MARKER in text:
+        return text
+    old = _FLUTTER_PANE_WIDTH_NEW
+    new = f"        width: isIncomingOnly ? 340.0 : 224.0, // {_DUPLEX_PANE_WIDTH_MARKER}\n"
+    if old not in text:
+        # Ainda no valor upstream (antes do patch DeskRemote).
+        if _FLUTTER_PANE_WIDTH in text:
+            text = text.replace(_FLUTTER_PANE_WIDTH, new, 1)
+            return text
+        raise SystemExit("flutter home: largura do painel nao encontrada (duplex)")
+    return text.replace(old, new, 1)
+
+
+def apply_flutter_incoming_window_size_duplex_text(text: str) -> str:
+    """Janela incoming mais baixa: cabe o conteudo sem faixa vazia."""
+    marker = "Duplex Suporte: janela incoming compacta"
+    if marker in text:
+        return text
+    old = "var imcomingOnlyHomeSize = Size(280, 300);"
+    # Largura 340; altura acompanha o conteudo (sem faixa vazia do Expanded).
+    new = f"var imcomingOnlyHomeSize = Size(340, 400); // {marker}"
+    if old not in text:
+        # Ja patchado com valor antigo — atualiza.
+        text2, n = re.subn(
+            r"var imcomingOnlyHomeSize = Size\(380, \d+\);[^\n]*",
+            new,
+            text,
+            count=1,
+        )
+        if n:
+            return text2
+        text2, n = re.subn(
+            r"var imcomingOnlyHomeSize = Size\(340, \d+\);[^\n]*",
+            new,
+            text,
+            count=1,
+        )
+        if n and "janela incoming compacta" in text2:
+            return text2
+        raise SystemExit("flutter common.dart: imcomingOnlyHomeSize 280 nao encontrado")
+    return text.replace(old, new, 1)
+
+
+def apply_flutter_compact_layout_duplex_text(text: str) -> str:
+    """Remove o Expanded (vao cinza) e o padding inferior excessivo do scroll."""
+    if _DUPLEX_COMPACT_LAYOUT_MARKER in text:
+        return text
+    # Padding 64 era para o rodape overlay do atendente; no QS sobra faixa vazia.
+    old_pad = "padding: const EdgeInsets.only(bottom: 64),"
+    new_pad = (
+        f"// {_DUPLEX_COMPACT_LAYOUT_MARKER}\n"
+        "                  padding: const EdgeInsets.only(bottom: 10),"
+    )
+    if old_pad in text:
+        text = text.replace(old_pad, new_pad, 1)
+    elif "padding: const EdgeInsets.only(bottom: 10)," not in text:
+        raise SystemExit("flutter home: padding bottom do scroll nao encontrado")
+
+    old_exp = "                Expanded(child: Container())"
+    new_exp = (
+        f"                // {_DUPLEX_COMPACT_LAYOUT_MARKER}: sem Expanded\n"
+        "                if (!isIncomingOnly) Expanded(child: Container())"
+    )
+    if old_exp not in text:
+        if "if (!isIncomingOnly) Expanded(child: Container())" in text:
+            return text
+        raise SystemExit("flutter home: Expanded do painel nao encontrado")
+    return text.replace(old_exp, new_exp, 1)
+
+
+def apply_flutter_tip_full_width_duplex_text(text: str) -> str:
+    """desk_tip usa quase toda a largura do painel antes de quebrar linha."""
+    if _DUPLEX_TIP_WIDTH_MARKER in text:
+        return text
+    old = """      padding:
+          const EdgeInsets.only(left: 20.0, right: 16, top: 16.0, bottom: 5),"""
+    new = f"""      // {_DUPLEX_TIP_WIDTH_MARKER}
+      padding:
+          const EdgeInsets.only(left: 14.0, right: 12, top: 18.0, bottom: 8),"""
+    if old not in text:
+        raise SystemExit("flutter home: padding do buildTip nao encontrado")
+    return text.replace(old, new, 1)
+
+
+def apply_flutter_copy_id_password_duplex_text(text: str) -> str:
+    """Botao unico para copiar ID + senha (ao lado do refresh)."""
+    if _DUPLEX_COPY_ALL_MARKER in text:
+        return text
+    old_decl = "    RxBool refreshHover = false.obs;\n    RxBool editHover = false.obs;"
+    new_decl = (
+        "    RxBool refreshHover = false.obs;\n"
+        "    RxBool editHover = false.obs;\n"
+        "    RxBool copyAllHover = false.obs;"
+    )
+    if old_decl not in text:
+        raise SystemExit("flutter home: refreshHover/editHover nao encontrados")
+    text = text.replace(old_decl, new_decl, 1)
+
+    anchor = (
+        "                          onHover: (value) => refreshHover.value = value,\n"
+        "                        ).marginOnly(right: 8, top: 4),\n"
+        "                      if (!bind.isDisableSettings())"
+    )
+    insert = (
+        "                          onHover: (value) => refreshHover.value = value,\n"
+        "                        ).marginOnly(right: 8, top: 4),\n"
+        f"                      // {_DUPLEX_COPY_ALL_MARKER}\n"
+        "                      if (showOneTime)\n"
+        "                        InkWell(\n"
+        "                          child: Tooltip(\n"
+        "                            message: 'Copiar ID e senha',\n"
+        "                            child: Obx(\n"
+        "                              () => Icon(\n"
+        "                                Icons.copy_all,\n"
+        "                                color: copyAllHover.value\n"
+        "                                    ? textColor\n"
+        "                                    : Color(0xFFDDDDDD),\n"
+        "                                size: 22,\n"
+        "                              ).marginOnly(right: 8, top: 4),\n"
+        "                            ),\n"
+        "                          ),\n"
+        "                          onTap: () {\n"
+        "                            final id = model.serverId.text.trim();\n"
+        "                            final pw = model.serverPasswd.text.trim();\n"
+        "                            final parts = <String>[];\n"
+        "                            if (id.isNotEmpty) parts.add(id);\n"
+        "                            if (pw.isNotEmpty) parts.add(pw);\n"
+        "                            if (parts.isEmpty) return;\n"
+        "                            Clipboard.setData(\n"
+        "                                ClipboardData(text: parts.join('\\n')));\n"
+        "                            showToast(translate('Copied'));\n"
+        "                          },\n"
+        "                          onHover: (value) => copyAllHover.value = value,\n"
+        "                        ),\n"
+        "                      if (!bind.isDisableSettings())"
+    )
+    if anchor not in text:
+        raise SystemExit("flutter home: ancora do refresh de senha nao encontrada")
+    return text.replace(anchor, insert, 1)
+
+
+def apply_flutter_hide_quit_duplex_text(text: str) -> str:
+    """Remove o botao Sair (Quit) do rodape incoming-only."""
+    if _DUPLEX_HIDE_QUIT_MARKER in text:
+        return text
+    old = """    if (bind.isIncomingOnly()) {
+      return Align(
+        alignment: Alignment.centerRight,
+        child: OutlinedButton(
+          onPressed: () {
+            SystemNavigator.pop(); // Close the application
+            // https://github.com/flutter/flutter/issues/66631
+            if (isWindows) {
+              exit(0);
+            }
+          },
+          child: Text(translate('Quit')),
+        ),
+      ).marginAll(14);
+    }"""
+    new = f"""    if (bind.isIncomingOnly()) {{
+      // {_DUPLEX_HIDE_QUIT_MARKER} (fecha pelo X da janela).
+      return const SizedBox.shrink();
+    }}"""
+    if old not in text:
+        raise SystemExit("flutter home: botao Quit incoming-only nao encontrado")
+    return text.replace(old, new, 1)
+
+
+_FLUTTER_ID_POPUP_MENU = """  Widget buildPopupMenu(BuildContext context) {
+    final textColor = Theme.of(context).textTheme.titleLarge?.color;
+    RxBool hover = false.obs;
+    return InkWell(
+      onTap: DesktopTabPage.onAddSetting,
+      child: Tooltip(
+        message: translate('Settings'),
+        child: Obx(
+          () => CircleAvatar(
+            radius: 15,
+            backgroundColor: hover.value
+                ? Theme.of(context).scaffoldBackgroundColor
+                : Theme.of(context).colorScheme.background,
+            child: Icon(
+              Icons.more_vert_outlined,
+              size: 20,
+              color: hover.value ? textColor : textColor?.withOpacity(0.5),
+            ),
+          ),
+        ),
+      ),
+      onHover: (value) => hover.value = value,
+    );
+  }
+"""
+
+
+def apply_flutter_id_menu_duplex_text(text: str) -> str:
+    """Troca Configuracoes do ⋮ por menu minimo: Copiar ID / Copiar ID e senha."""
+    if _DUPLEX_ID_MENU_MARKER in text:
+        return text
+    if _FLUTTER_ID_POPUP_MENU not in text:
+        raise SystemExit("flutter home: buildPopupMenu (Settings) nao encontrado")
+    new = f"""  Widget buildPopupMenu(BuildContext context) {{
+    // {_DUPLEX_ID_MENU_MARKER}
+    final textColor = Theme.of(context).textTheme.titleLarge?.color;
+    RxBool hover = false.obs;
+    final model = gFFI.serverModel;
+    return MouseRegion(
+      onEnter: (_) => hover.value = true,
+      onExit: (_) => hover.value = false,
+      child: PopupMenuButton<String>(
+        tooltip: 'Copiar',
+        padding: EdgeInsets.zero,
+        onSelected: (value) {{
+          final id = model.serverId.text.trim();
+          final pw = model.serverPasswd.text.trim();
+          if (value == 'id') {{
+            if (id.isEmpty) return;
+            Clipboard.setData(ClipboardData(text: id));
+            showToast(translate('Copied'));
+          }} else if (value == 'id_pw') {{
+            final parts = <String>[];
+            if (id.isNotEmpty) parts.add(id);
+            if (pw.isNotEmpty) parts.add(pw);
+            if (parts.isEmpty) return;
+            Clipboard.setData(ClipboardData(text: parts.join('\\n')));
+            showToast(translate('Copied'));
+          }}
+        }},
+        itemBuilder: (context) => const [
+          PopupMenuItem(value: 'id', child: Text('Copiar ID')),
+          PopupMenuItem(value: 'id_pw', child: Text('Copiar ID e senha')),
+        ],
+        child: Obx(
+          () => CircleAvatar(
+            radius: 15,
+            backgroundColor: hover.value
+                ? Theme.of(context).scaffoldBackgroundColor
+                : Theme.of(context).colorScheme.background,
+            child: Icon(
+              Icons.more_vert_outlined,
+              size: 20,
+              color: hover.value ? textColor : textColor?.withOpacity(0.5),
+            ),
+          ),
+        ),
+      ),
+    );
+  }}
+"""
+    return text.replace(_FLUTTER_ID_POPUP_MENU, new, 1)
+
+
+_FLUTTER_SETTINGS_TABKEYS = """  static final List<SettingsTabKey> tabKeys = [
+    if (bind.mainGetBuildinOption(key: kOptionHideGeneralSetting) != 'Y')
+      SettingsTabKey.general,
+    if (!isWeb &&
+        !bind.isOutgoingOnly() &&
+        !bind.isDisableSettings() &&
+        bind.mainGetBuildinOption(key: kOptionHideSecuritySetting) != 'Y')
+      SettingsTabKey.safety,
+    if (!bind.isDisableSettings() &&
+        bind.mainGetBuildinOption(key: kOptionHideNetworkSetting) != 'Y')
+      SettingsTabKey.network,
+    if (!bind.isIncomingOnly()) SettingsTabKey.display,
+    if (!bind.isDisableAccount()) SettingsTabKey.account,
+    if (isWindows &&
+        !bind.isDisableSettings() &&
+        bind.mainGetBuildinOption(key: kOptionHideRemotePrinterSetting) != 'Y')
+      SettingsTabKey.printer,
+    SettingsTabKey.about,
+  ];
+"""
+
+
+def apply_flutter_settings_minimal_duplex_text(text: str) -> str:
+    """Settings do Duplex Suporte: so a aba Sobre (sem Geral/Seguranca/Rede)."""
+    if _DUPLEX_SETTINGS_MIN_MARKER in text:
+        return text
+    if _FLUTTER_SETTINGS_TABKEYS not in text:
+        raise SystemExit("flutter settings: lista tabKeys nao encontrada")
+    new = f"""  static final List<SettingsTabKey> tabKeys = [
+    // {_DUPLEX_SETTINGS_MIN_MARKER}
+    SettingsTabKey.about,
+  ];
+"""
+    return text.replace(_FLUTTER_SETTINGS_TABKEYS, new, 1)
+
+
+def _selftest_duplex_qs_ui() -> None:
+    """Patches QuickSupport do Duplex Suporte (logo, tip, copiar, Sair)."""
+    configurar_identidade("duplexsuporte")
+    common = apply_flutter_logo_size_text(
+        "          return Container(\n"
+        "            constraints: BoxConstraints(maxWidth: 300, maxHeight: 60),\n"
+        "            child: image,\n"
+        "          ).marginOnly(left: 12, right: 12, top: 12);\n"
+        + _FLUTTER_LOGO_IMAGE
+    )
+    common = apply_flutter_logo_size_duplex_text(common)
+    if _DUPLEX_LOGO_SIZE_MARKER not in common or "maxHeight: 64" not in common:
+        raise SystemExit("selftest duplex: lockup largo ausente")
+    if "cacheWidth: 640" not in common:
+        raise SystemExit("selftest duplex: cacheWidth 640 ausente")
+    if apply_flutter_logo_size_duplex_text(common) != common:
+        raise SystemExit("selftest duplex: logo nao e idempotente")
+    common = apply_flutter_incoming_window_size_duplex_text(
+        "var imcomingOnlyHomeSize = Size(280, 300);\n"
+    )
+    if "Size(340, 400)" not in common:
+        raise SystemExit("selftest duplex: janela compacta ausente")
+
+    home = apply_flutter_pane_width_text(_FLUTTER_PANE_WIDTH)
+    home = apply_flutter_pane_width_duplex_text(home)
+    if _DUPLEX_PANE_WIDTH_MARKER not in home or "340.0" not in home:
+        raise SystemExit("selftest duplex: painel 340 ausente")
+    compact_src = (
+        "                SingleChildScrollView(\n"
+        "                  controller: _leftPaneScrollController,\n"
+        "                  padding: const EdgeInsets.only(bottom: 64),\n"
+        "                  child: Column(\n"
+        "                    key: _childKey,\n"
+        "                    children: children,\n"
+        "                  ),\n"
+        "                ),\n"
+        "                Expanded(child: Container())\n"
+    )
+    compact = apply_flutter_compact_layout_duplex_text(compact_src)
+    if _DUPLEX_COMPACT_LAYOUT_MARKER not in compact:
+        raise SystemExit("selftest duplex: layout compacto ausente")
+    if "if (!isIncomingOnly) Expanded" not in compact:
+        raise SystemExit("selftest duplex: Expanded ainda engole o espaco")
+    if "bottom: 10" not in compact:
+        raise SystemExit("selftest duplex: padding inferior ainda 64")
+    if apply_flutter_compact_layout_duplex_text(compact) != compact:
+        raise SystemExit("selftest duplex: layout compacto nao e idempotente")
+    tip_src = (
+        "  buildTip(BuildContext context) {\n"
+        "    return Padding(\n"
+        "      padding:\n"
+        "          const EdgeInsets.only(left: 20.0, right: 16, top: 16.0, bottom: 5),\n"
+        "      child: Column(),\n"
+        "    );\n"
+        "  }\n"
+    )
+    tip = apply_flutter_tip_full_width_duplex_text(tip_src)
+    if _DUPLEX_TIP_WIDTH_MARKER not in tip:
+        raise SystemExit("selftest duplex: tip largura total ausente")
+
+    pwd = (
+        "  buildPasswordBoard2(BuildContext context, ServerModel model) {\n"
+        "    RxBool refreshHover = false.obs;\n"
+        "    RxBool editHover = false.obs;\n"
+        "    final showOneTime = true;\n"
+        "                      if (showOneTime)\n"
+        "                        AnimatedRotationWidget(\n"
+        "                          onPressed: () => bind.mainUpdateTemporaryPassword(),\n"
+        "                          child: Tooltip(\n"
+        "                            message: translate('Refresh Password'),\n"
+        "                            child: Obx(() => RotatedBox(\n"
+        "                                quarterTurns: 2,\n"
+        "                                child: Icon(\n"
+        "                                  Icons.refresh,\n"
+        "                                  color: refreshHover.value\n"
+        "                                      ? textColor\n"
+        "                                      : Color(0xFFDDDDDD),\n"
+        "                                  size: 22,\n"
+        "                                ))),\n"
+        "                          ),\n"
+        "                          onHover: (value) => refreshHover.value = value,\n"
+        "                        ).marginOnly(right: 8, top: 4),\n"
+        "                      if (!bind.isDisableSettings())\n"
+        "                        InkWell(child: Icon(Icons.edit)),\n"
+        "  }\n"
+    )
+    pwd2 = apply_flutter_copy_id_password_duplex_text(pwd)
+    if _DUPLEX_COPY_ALL_MARKER not in pwd2 or "Icons.copy_all" not in pwd2:
+        raise SystemExit("selftest duplex: copiar ID+senha ausente")
+    if apply_flutter_copy_id_password_duplex_text(pwd2) != pwd2:
+        raise SystemExit("selftest duplex: copiar ID+senha nao e idempotente")
+
+    quit_src = (
+        "    if (bind.isIncomingOnly()) {\n"
+        "      return Align(\n"
+        "        alignment: Alignment.centerRight,\n"
+        "        child: OutlinedButton(\n"
+        "          onPressed: () {\n"
+        "            SystemNavigator.pop(); // Close the application\n"
+        "            // https://github.com/flutter/flutter/issues/66631\n"
+        "            if (isWindows) {\n"
+        "              exit(0);\n"
+        "            }\n"
+        "          },\n"
+        "          child: Text(translate('Quit')),\n"
+        "        ),\n"
+        "      ).marginAll(14);\n"
+        "    }\n"
+    )
+    quit = apply_flutter_hide_quit_duplex_text(quit_src)
+    if _DUPLEX_HIDE_QUIT_MARKER not in quit or "SizedBox.shrink()" not in quit:
+        raise SystemExit("selftest duplex: Sair ainda visivel")
+    if apply_flutter_hide_quit_duplex_text(quit) != quit:
+        raise SystemExit("selftest duplex: hide Quit nao e idempotente")
+
+    menu = apply_flutter_id_menu_duplex_text(_FLUTTER_ID_POPUP_MENU)
+    if _DUPLEX_ID_MENU_MARKER not in menu or "Copiar ID" not in menu:
+        raise SystemExit("selftest duplex: menu ID minimo ausente")
+    if "DesktopTabPage.onAddSetting" in menu:
+        raise SystemExit("selftest duplex: menu ID ainda abre Configuracoes")
+    if apply_flutter_id_menu_duplex_text(menu) != menu:
+        raise SystemExit("selftest duplex: menu ID nao e idempotente")
+
+    settings = apply_flutter_settings_minimal_duplex_text(_FLUTTER_SETTINGS_TABKEYS)
+    if _DUPLEX_SETTINGS_MIN_MARKER not in settings:
+        raise SystemExit("selftest duplex: settings minimo ausente")
+    if "SettingsTabKey.general" in settings.split("tabKeys = [", 1)[-1].split("];", 1)[0]:
+        raise SystemExit("selftest duplex: settings ainda tem Geral")
+    if apply_flutter_settings_minimal_duplex_text(settings) != settings:
+        raise SystemExit("selftest duplex: settings minimo nao e idempotente")
+    configurar_identidade("cliente")
+
+
+_FLUTTER_POWERED_TEXT_CHILD = """      child: Opacity(
+          opacity: 0.5,
+          child: Text(
+            translate("powered_by_me"),
+            overflow: TextOverflow.clip,
+            style: Theme.of(context)
+                .textTheme
+                .bodySmall
+                ?.copyWith(fontSize: 9, decoration: TextDecoration.underline),
+          )),"""
+
+_FLUTTER_POWERED_LOGO_MARKER = "Duplex Suporte: logo DuplexSoft no rodape"
+
+
+def apply_flutter_powered_logo_image_text(text: str) -> str:
+    """Troca o texto «Desenvolvido por» pela logo D+DuplexSoft no rodape."""
+    if _FLUTTER_POWERED_LOGO_MARKER in text:
+        return text
+    if _FLUTTER_POWERED_TEXT_CHILD not in text:
+        raise SystemExit("flutter common.dart: child Text do loadPowered nao encontrado")
+    new_child = (
+        f"      // {_FLUTTER_POWERED_LOGO_MARKER}\n"
+        "      child: Opacity(\n"
+        "          opacity: 0.9,\n"
+        "          child: Image.asset(\n"
+        "            'assets/powered.png',\n"
+        "            height: 22,\n"
+        "            fit: BoxFit.contain,\n"
+        "            errorBuilder: (c, e, s) => Text(\n"
+        '              translate("powered_by_me"),\n'
+        "              overflow: TextOverflow.clip,\n"
+        "              style: Theme.of(context)\n"
+        "                  .textTheme\n"
+        "                  .bodySmall\n"
+        "                  ?.copyWith(fontSize: 9, decoration: TextDecoration.underline),\n"
+        "            ),\n"
+        "          )),"
+    )
+    return text.replace(_FLUTTER_POWERED_TEXT_CHILD, new_child, 1)
 
 
 _FLUTTER_UPDATE_CARD_OLD = """    if (!bind.isCustomClient() &&
@@ -2387,8 +2915,16 @@ def patch_flutter_deskremote_ui(
     model_dart = src / "flutter" / "lib" / "models" / "model.dart"
     is_host = profile in ("cliente", "duplexsuporte")
     _apply(common, apply_flutter_logo_size_text, "logo maior no painel")
+    if profile == "duplexsuporte":
+        _apply(common, apply_flutter_logo_size_duplex_text, "lockup DuplexSoft largo")
+        _apply(
+            common,
+            apply_flutter_incoming_window_size_duplex_text,
+            "janela incoming 380px",
+        )
     if profile == "cliente":
         _apply(common, apply_flutter_lock_password_text, "senha permanente so no painel")
+    # Rodape: texto «Desenvolvido por …» (logo completa fica no topo no duplex).
     _apply(common, apply_flutter_load_icon_hq_text, "ico nitido na barra de titulo")
     if not is_host:
         _apply(common, apply_flutter_common_vinculo_import_text, "import busca vinculo")
@@ -2406,11 +2942,42 @@ def patch_flutter_deskremote_ui(
             raise SystemExit("flutter home: titulo Seu Computador nao encontrado")
 
         _apply(home, _home, "Seu Computador abaixo da logo")
-        _apply(home, apply_flutter_logo_app_name_text, f"{PRODUCT_DISPLAY_NAME} abaixo da logo")
+        # Duplex Suporte: logo do topo ja e D+DuplexSoft — nao repetir nome abaixo.
+        if profile != "duplexsuporte":
+            _apply(
+                home,
+                apply_flutter_logo_app_name_text,
+                f"{PRODUCT_DISPLAY_NAME} abaixo da logo",
+            )
         _apply(home, apply_flutter_pane_width_text, "painel esquerdo 224px")
+        if profile == "duplexsuporte":
+            _apply(home, apply_flutter_pane_width_duplex_text, "painel incoming 340px")
+            _apply(home, apply_flutter_tip_full_width_duplex_text, "tip em largura total")
+            _apply(
+                home,
+                apply_flutter_copy_id_password_duplex_text,
+                "copiar ID + senha",
+            )
+            _apply(home, apply_flutter_hide_quit_duplex_text, "sem botao Sair")
+            _apply(home, apply_flutter_id_menu_duplex_text, "menu ID so copiar")
+            _apply(
+                home,
+                apply_flutter_compact_layout_duplex_text,
+                "layout compacto sem vao morto",
+            )
         _apply(home, apply_flutter_update_card_text, "banner de atualizacao")
-        if profile == "cliente":
-            _apply(home, apply_flutter_hide_password_edit_text, "sem editar senha permanente")
+        if profile in ("cliente", "duplexsuporte"):
+            _apply(
+                home,
+                apply_flutter_hide_password_edit_text,
+                "sem lapis de senha (QuickSupport)",
+            )
+    if profile == "duplexsuporte" and settings.is_file():
+        _apply(
+            settings,
+            apply_flutter_settings_minimal_duplex_text,
+            "settings so Sobre",
+        )
     if not is_host:
         if tabs.is_file():
             _apply(tabs, apply_flutter_recent_tabs_text, "abas Recentes e Vinculados")
@@ -2957,10 +3524,10 @@ def patch_sciter_window_icon(ui_rs: Path, png_128: Path) -> None:
 
 
 def patch_powered_by(lang_dir: Path) -> None:
-    """Troca RustDesk pela empresa do profile na chave powered_by_me (rodape)."""
+    """Troca RustDesk pelo credito POWERED_BY na chave powered_by_me (rodape)."""
     if not lang_dir.is_dir():
         return
-    company = COMPANY_DISPLAY_NAME
+    company = POWERED_BY_DISPLAY_NAME
     replacements = 0
     for path in sorted(lang_dir.glob("*.rs")):
         text = path.read_text(encoding="utf-8")
@@ -3204,6 +3771,25 @@ def patch_flutter_uac_cmake(cmake_path: Path) -> None:
         raise SystemExit(f"add_executable BINARY_NAME nao encontrado em {cmake_path}")
     cmake_path.write_text(text.rstrip() + _FLUTTER_UAC_CMAKE_SNIPPET, encoding="utf-8")
     print("  flutter CMakeLists: UAC requireAdministrator via LINK_FLAGS", flush=True)
+
+
+def _selftest_powered_logo_image() -> None:
+    sample = (
+        "Widget loadPowered(BuildContext context) {\n"
+        "  return MouseRegion(\n"
+        "    child: GestureDetector(\n"
+        + _FLUTTER_POWERED_TEXT_CHILD
+        + "\n    ),\n  );\n}\n"
+    )
+    out = apply_flutter_powered_logo_image_text(sample)
+    if _FLUTTER_POWERED_LOGO_MARKER not in out:
+        raise SystemExit("selftest: marcador logo DuplexSoft ausente")
+    if "assets/powered.png" not in out:
+        raise SystemExit("selftest: assets/powered.png ausente")
+    if 'translate("powered_by_me")' not in out:
+        raise SystemExit("selftest: fallback powered_by_me ausente")
+    if apply_flutter_powered_logo_image_text(out) != out:
+        raise SystemExit("selftest: logo DuplexSoft no rodape nao e idempotente")
 
 
 def _selftest_uac_patches() -> None:
@@ -5194,6 +5780,8 @@ def main() -> int:
     _selftest_flutter_home_footer()
     _selftest_client_version_linhas()
     _selftest_uac_patches()
+    _selftest_powered_logo_image()
+    _selftest_duplex_qs_ui()
     src = args.rustdesk_src.resolve()
     if not (src / ".git").exists() and not (src / "Cargo.toml").is_file():
         print(f"Nao parece um clone rustdesk: {src}", file=sys.stderr)
@@ -5211,6 +5799,15 @@ def main() -> int:
 
     host, key = load_server(args.config.resolve())
     brand = args.branding.resolve()
+    # Duplex Suporte: pasta propria (nao misturar arte DeskRemote).
+    duplex_brand = (here / "branding-duplex-suporte").resolve()
+    if (
+        profile == "duplexsuporte"
+        and brand == (here / "branding").resolve()
+        and duplex_brand.is_dir()
+    ):
+        brand = duplex_brand
+        print(f"   branding auto -> {brand}", flush=True)
     if args.client_version:
         version_file = args.client_version
     elif ui == "flutter" and profile == "duplexsuporte":
@@ -5627,10 +6224,51 @@ def main() -> int:
         if "mainGetVersion()" not in home_body:
             print("Verificacao falhou: versao Flutter ausente no rodape.", file=sys.stderr)
             return 1
-        if "DeskRemote: nome do app abaixo da logo" not in home_body:
+        if profile != "duplexsuporte" and "DeskRemote: nome do app abaixo da logo" not in home_body:
             print("Verificacao falhou: nome DeskRemote ausente abaixo da logo.", file=sys.stderr)
             return 1
-        if "DeskRemote: logo 160 + nome" not in home_body:
+        if profile == "duplexsuporte":
+            if _DUPLEX_PANE_WIDTH_MARKER not in home_body:
+                print("Verificacao falhou: painel Duplex Suporte ainda estreito.", file=sys.stderr)
+                return 1
+            if _DUPLEX_TIP_WIDTH_MARKER not in home_body:
+                print("Verificacao falhou: tip Duplex Suporte sem largura total.", file=sys.stderr)
+                return 1
+            if _DUPLEX_COPY_ALL_MARKER not in home_body or "Icons.copy_all" not in home_body:
+                print("Verificacao falhou: botao copiar ID+senha ausente.", file=sys.stderr)
+                return 1
+            if _DUPLEX_HIDE_QUIT_MARKER not in home_body:
+                print("Verificacao falhou: botao Sair ainda presente no Duplex Suporte.", file=sys.stderr)
+                return 1
+            if _DUPLEX_COMPACT_LAYOUT_MARKER not in home_body:
+                print("Verificacao falhou: layout compacto Duplex ausente.", file=sys.stderr)
+                return 1
+            if _DUPLEX_ID_MENU_MARKER not in home_body:
+                print("Verificacao falhou: menu ID do Duplex ainda abre Configuracoes.", file=sys.stderr)
+                return 1
+            if "DesktopTabPage.onAddSetting" in home_body:
+                print("Verificacao falhou: ⋮ do ID ainda chama onAddSetting.", file=sys.stderr)
+                return 1
+            if home_body.find("OnlineStatusWidget(") > home_body.find(
+                _FLUTTER_INCOMING_STATUS_MARKER
+            ):
+                print(
+                    "Verificacao falhou: Desenvolvido por deve ficar abaixo do Pronto.",
+                    file=sys.stderr,
+                )
+                return 1
+            settings_qs_path = (
+                src / "flutter" / "lib" / "desktop" / "pages" / "desktop_setting_page.dart"
+            )
+            if settings_qs_path.is_file():
+                settings_qs = settings_qs_path.read_text(encoding="utf-8")
+                if _DUPLEX_SETTINGS_MIN_MARKER not in settings_qs:
+                    print(
+                        "Verificacao falhou: settings Duplex nao restrito ao Sobre.",
+                        file=sys.stderr,
+                    )
+                    return 1
+        elif "DeskRemote: logo 160 + nome" not in home_body:
             print("Verificacao falhou: painel esquerdo Flutter ainda 200px.", file=sys.stderr)
             return 1
         if _FLUTTER_HOME_POWERED_TOP in home_body:
@@ -5656,9 +6294,10 @@ def main() -> int:
             return 1
     if flutter_common.is_file():
         common_dart = flutter_common.read_text(encoding="utf-8")
-        if WEBSITE_URL.rstrip("/") not in common_dart:
+        powered_url = POWERED_BY_URL.rstrip("/")
+        if powered_url not in common_dart:
             print(
-                "Verificacao falhou: loadPowered Flutter sem deskrudder.com.br.",
+                f"Verificacao falhou: loadPowered Flutter sem {powered_url}.",
                 file=sys.stderr,
             )
             return 1
@@ -5668,12 +6307,26 @@ def main() -> int:
         if "FilterQuality.high" not in common_dart:
             print("Verificacao falhou: logo Flutter sem FilterQuality.high.", file=sys.stderr)
             return 1
-        if "cacheWidth: 320" not in common_dart:
-            print("Verificacao falhou: logo Flutter sem cacheWidth 320.", file=sys.stderr)
-            return 1
-        if "maxHeight: 160" not in common_dart:
-            print("Verificacao falhou: logo Flutter ainda pequena no painel.", file=sys.stderr)
-            return 1
+        if profile == "duplexsuporte":
+            if _DUPLEX_LOGO_SIZE_MARKER not in common_dart:
+                print("Verificacao falhou: lockup DuplexSoft sem tamanho largo.", file=sys.stderr)
+                return 1
+            if "cacheWidth: 640" not in common_dart:
+                print("Verificacao falhou: lockup DuplexSoft sem cacheWidth 640.", file=sys.stderr)
+                return 1
+            if "maxHeight: 64" not in common_dart:
+                print("Verificacao falhou: lockup DuplexSoft ainda pequeno no topo.", file=sys.stderr)
+                return 1
+            if "Duplex Suporte: janela incoming compacta" not in common_dart:
+                print("Verificacao falhou: janela incoming Duplex nao compacta.", file=sys.stderr)
+                return 1
+        else:
+            if "cacheWidth: 320" not in common_dart:
+                print("Verificacao falhou: logo Flutter sem cacheWidth 320.", file=sys.stderr)
+                return 1
+            if "maxHeight: 160" not in common_dart:
+                print("Verificacao falhou: logo Flutter ainda pequena no painel.", file=sys.stderr)
+                return 1
         if "DeskRemote: ico com borda branca nítida na barra de título" not in common_dart:
             print("Verificacao falhou: loadIcon da barra sem nitidez.", file=sys.stderr)
             return 1
@@ -5770,6 +6423,24 @@ def main() -> int:
                 return 1
             if "DeskRemote: Recentes/Conectar exigem login DeskRudder" in main_tab_body:
                 print("Verificacao falhou: duplexsuporte nao deve ter auth gate.", file=sys.stderr)
+                return 1
+            home_qs = src / "flutter" / "lib" / "desktop" / "pages" / "desktop_home_page.dart"
+            if home_qs.is_file():
+                home_qs_body = home_qs.read_text(encoding="utf-8")
+                if "DeskRemote: senha permanente so no painel" not in home_qs_body:
+                    print(
+                        "Verificacao falhou: duplexsuporte ainda mostra lapis de senha.",
+                        file=sys.stderr,
+                    )
+                    return 1
+            # Logo D+DuplexSoft no topo (assets/logo.png); rodape fica texto+versao.
+            logo_asset = src / "flutter" / "assets" / "logo.png"
+            if not logo_asset.is_file():
+                print(
+                    "Verificacao falhou: flutter/assets/logo.png ausente "
+                    "(branding-duplex-suporte).",
+                    file=sys.stderr,
+                )
                 return 1
         elif profile == "cliente":
             if "DeskRemote: cliente so abre depois do token de instalacao" not in main_tab_body:
