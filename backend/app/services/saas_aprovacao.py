@@ -26,7 +26,7 @@ def aprovar(
     """Aprova a licença e, por omissão, enfileira a criação da base/instância."""
     row = obter(db, cliente_id)
     if row.aprovacao_status == "rejeitado":
-        raise SaasErro("Licença rejeitada — edite o registo ou crie nova licença")
+        raise SaasErro("Licença rejeitada — edite o registro ou crie nova licença")
 
     ja_aprovada = row.aprovacao_status == "aprovado"
     ja_provisionada = row.provisionamento_status in (
@@ -82,7 +82,7 @@ def rejeitar(db: Session, cliente_id: int, *, notas: str | None = None) -> Clien
 
     row.aprovacao_status = "rejeitado"
     row.aprovacao_em = _utcnow()
-    row.aprovacao_notas = (notas or "").strip() or "Rejeitado pela equipa ops"
+    row.aprovacao_notas = (notas or "").strip() or "Rejeitado pela equipe ops"
     row.status = "churn"
     # Cancela fila se ainda não provisionou com sucesso
     if row.provisionamento_status in ("pendente", "em_progresso", "aguardando_ops", "falha"):

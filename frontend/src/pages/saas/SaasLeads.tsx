@@ -137,7 +137,7 @@ export function SaasLeads() {
             <table className="w-full min-w-[640px] text-left text-sm">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50/60 dark:border-slate-800 dark:bg-slate-800/40">
-                  <th className="px-4 py-3 text-xs font-semibold uppercase text-slate-500 sm:px-6">Contacto</th>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase text-slate-500 sm:px-6">Contato</th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase text-slate-500 sm:px-6">Empresa</th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase text-slate-500 sm:px-6">Status</th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase text-slate-500 sm:px-6">Quando</th>

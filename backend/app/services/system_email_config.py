@@ -2,7 +2,7 @@
 Configuração de e-mail do sistema (singleton `email_settings`).
 
 Envio transaccional via **Resend API** (HTTP). Colunas SMTP/IMAP mantêm-se na BD por compatibilidade
-migratória, mas o fluxo activo de tickets usa apenas a configuração transaccional.
+migratória, mas o fluxo ativo de tickets usa apenas a configuração transaccional.
 """
 
 from __future__ import annotations

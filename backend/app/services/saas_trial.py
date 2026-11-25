@@ -76,7 +76,7 @@ def criar_trial_publico(db: Session, data: TrialSolicitacaoCreate) -> ClienteSaa
         body=(
             f"Empresa: {row.nome}\n"
             f"Slug: {row.slug}\n"
-            f"Contacto: {row.contato_nome} <{row.contato_email}>\n"
+            f"Contato: {row.contato_nome} <{row.contato_email}>\n"
             f"Trial até: {row.data_renovacao}\n"
             f"Aprovação: pendente — ao aprovar no painel, a base/instância é enfileirada.\n"
             f"Notas: {row.notas or '—'}\n"

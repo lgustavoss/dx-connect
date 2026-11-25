@@ -37,7 +37,7 @@ def registrar(db: Session, atendente_id: int, *, endpoint: str, p256dh: str, aut
         if existente.atendente_id != atendente_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Esta subscription pertence a outro utilizador.",
+                detail="Esta subscription pertence a outro usuário.",
             )
         existente.p256dh = p256dh.strip()
         existente.auth = auth.strip()
@@ -64,7 +64,7 @@ def remover(db: Session, atendente_id: int, subscription_id: int) -> None:
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subscription não encontrada")
     if row.atendente_id != atendente_id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Não pode remover a subscription de outro utilizador.")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Não pode remover a subscription de outro usuário.")
     db.delete(row)
     db.commit()
 

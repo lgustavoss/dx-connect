@@ -15,7 +15,7 @@ type Props = {
   onAudioGravado: (file: File) => void
   onInserirEmoji: (emoji: string) => void
   onEnviarFigurinha: (file: File) => void
-  /** Ctrl+V / colar ficheiro do clipboard (imagem, etc.) */
+  /** Ctrl+V / colar arquivo do clipboard (imagem, etc.) */
   onColarArquivo?: (file: File) => void
   /** Setor do chat para respostas prontas; omitir esconde o botão. */
   setorId?: number | null
@@ -37,7 +37,7 @@ const MENU_ANEXOS: MenuAnexo[] = [
   { tipo: 'documento', label: 'Documento' },
   { tipo: 'imagem', label: 'Fotos e imagens' },
   { tipo: 'video', label: 'Vídeo' },
-  { tipo: 'audio', label: 'Áudio (ficheiro)' },
+  { tipo: 'audio', label: 'Áudio (arquivo)' },
 ]
 
 export function WhatsappComposerBar({

@@ -680,7 +680,7 @@ export function TicketDetalhe({ ticketIdProp, onVoltar }: TicketDetalheProps = {
       const msg =
         err instanceof ApiError && err.status === 404
           ? err.message ||
-            'Anexo sem ficheiro no servidor (comum após atualização sem volume persistente). Peça reenvio do arquivo.'
+            'Anexo sem arquivo no servidor (comum após atualização sem volume persistente). Peça reenvio do arquivo.'
           : mensagemFalhaParaToast(err, 'Não foi possível baixar o anexo.')
       toast.showWarning(msg)
     }

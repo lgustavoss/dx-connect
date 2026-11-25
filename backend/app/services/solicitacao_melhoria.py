@@ -163,7 +163,7 @@ def _vincular_anexos(
         .all()
     )
     if len(encontrados) != len(uniq):
-        raise HTTPException(status_code=400, detail="Anexo inválido ou de outro utilizador")
+        raise HTTPException(status_code=400, detail="Anexo inválido ou de outro usuário")
     for a in encontrados:
         if a.solicitacao_id not in (None, row.id):
             raise HTTPException(status_code=400, detail="Anexo já associado a outro pedido")
@@ -251,7 +251,7 @@ def listar_minhas(db: Session, atendente: Atendente) -> list[SolicitacaoMelhoria
     org = organizacao_id_de(atendente)
     q = db.query(SolicitacaoMelhoria).filter(SolicitacaoMelhoria.organizacao_id == org)
     if not _is_admin(atendente):
-        # Utilizador “cliente”: vê as da organização (instância), foco nas próprias no UI.
+        # Usuário “cliente”: vê as da organização (instância), foco nas próprias no UI.
         pass
     return q.order_by(SolicitacaoMelhoria.created_at.desc()).limit(200).all()
 

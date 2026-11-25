@@ -120,7 +120,7 @@ export function CrmDadosFiscaisFields({ value, onChange, disabled, cnpj }: Props
           label="Telefone / WhatsApp"
           value={value.telefone || ''}
           onChange={(e) => onChange({ telefone: maskTelefoneBr(e.target.value) })}
-          hint="Usado para vincular um contacto na rede ao assinar."
+          hint="Usado para vincular um contato na rede ao assinar."
         />
       </div>
       <div className="grid gap-3 sm:grid-cols-2">

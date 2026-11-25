@@ -226,7 +226,7 @@ export function PortalTicketNovo() {
             onChange={(e) => setAnexos(Array.from(e.target.files || []))}
           />
           {anexos.length > 0 ? (
-            <p className="mt-1 text-xs text-slate-500">{anexos.length} ficheiro(s) selecionado(s)</p>
+            <p className="mt-1 text-xs text-slate-500">{anexos.length} arquivo(s) selecionado(s)</p>
           ) : null}
         </label>
 

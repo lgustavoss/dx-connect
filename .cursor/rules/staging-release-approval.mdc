@@ -15,8 +15,8 @@ alwaysApply: true
 1. **`gh pr merge`** de qualquer PR com base **`staging`**
 2. **`git push`** para `staging` / `HEAD:staging` / `origin staging`
 3. **`git merge` / `commit` / `reset`** em cima da branch local `staging` para “empurrar” release
-4. Merge automático após abrir PR **`main → staging`** — mesmo se o utilizador pediu “fazer o deploy”, “facilitar” ou “já está verde”
-5. Criar **segundo PR** paralelo e mergeá-lo no lugar do release sem o utilizador ter **aprovado explicitamente no GitHub** (botão Approve / merge por ele)
+4. Merge automático após abrir PR **`main → staging`** — mesmo se o usuário pediu “fazer o deploy”, “facilitar” ou “já está verde”
+5. Criar **segundo PR** paralelo e mergeá-lo no lugar do release sem o usuário ter **aprovado explicitamente no GitHub** (botão Approve / merge por ele)
 
 ## Obrigatório
 
@@ -26,7 +26,7 @@ alwaysApply: true
 4. Após merge humano: deploy/CalVer segue o workflow do repo (`docs/RELEASES.md`)
 5. **Pós-deploy:** o mesmo fluxo `/release-staging` inclui **Passo 5** — PR de sync do CHANGELOG e artefatos de release **`→ main`** (permitido merge automático com CI verde). Ver `.cursor/commands/release-staging.md`.
 
-## Se o utilizador pedir merge em staging
+## Se o usuário pedir merge em staging
 
 Não executar `gh pr merge`. Entregar o URL do PR e parar — sem repetir no chat/PR que “merge é só no GitHub”.
 

@@ -80,10 +80,10 @@ def servir_media(storage_key: str, db: Session = Depends(get_db)):
 
         row = obter_anexo_saas_por_storage(db, storage_key)
     if not row:
-        raise HTTPException(status_code=404, detail="Ficheiro não encontrado")
+        raise HTTPException(status_code=404, detail="Arquivo não encontrado")
     p = media.caminho_absoluto(row.storage_key)
     if not p:
-        raise HTTPException(status_code=404, detail="Ficheiro não encontrado no disco")
+        raise HTTPException(status_code=404, detail="Arquivo não encontrado no disco")
     return _file_response(p, row.nome_original, row.content_type)
 
 

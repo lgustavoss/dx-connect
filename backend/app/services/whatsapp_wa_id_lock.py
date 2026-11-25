@@ -25,9 +25,9 @@ def _thread_lock(wa_id: str) -> threading.Lock:
 
 def lock_wa_id_para_chat(db: Session, wa_id: str) -> None:
     """
-    Garante uma única criação de chat aberto por contacto.
+    Garante uma única criação de chat aberto por contato.
 
-    Usa forma canónica (DDI/nono dígito) para o mesmo contacto não passar
+    Usa forma canónica (DDI/nono dígito) para o mesmo contato não passar
     por locks diferentes. PostgreSQL: advisory lock transacional; SQLite: in-process.
     """
     wa = canonical_wa_id_para_lock(wa_id)

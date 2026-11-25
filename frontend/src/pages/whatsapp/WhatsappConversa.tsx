@@ -110,7 +110,7 @@ import { contatosNaMensagem } from '../../lib/contatoWhatsappMensagem'
 import { ChatIniciarConversaModal } from '../../components/chat/ChatIniciarConversaModal'
 
 const ROTULO_SEM_LEGENDA =
-  /^(?:\[\s*[^\]]+\s*\]:\s*)?\[(Imagem|Áudio|Vídeo|Documento|Figurinha|Contacto|Localização)(\s+enviad[oa])?\]$/i
+  /^(?:\[\s*[^\]]+\s*\]:\s*)?\[(Imagem|Áudio|Vídeo|Documento|Figurinha|Contacto|Contato|Localização)(\s+enviad[oa])?\]$/i
 
 /** Legenda real sob mídia; ignora placeholders tipo «[Imagem enviada]». */
 function legendaMidiaVisivel(corpo: string | null | undefined): string | null {
@@ -1855,7 +1855,7 @@ useEffect(() => {
     setArquivoPendente(files[0])
     setLegendaMidia('')
     if (files.length > 1) {
-      toast.showWarning('Só é possível anexar um ficheiro de cada vez. Foi usado o primeiro.')
+      toast.showWarning('Só é possível anexar um arquivo de cada vez. Foi usado o primeiro.')
     }
   }
 
@@ -1991,7 +1991,7 @@ useEffect(() => {
             aria-hidden
           >
             <p className="rounded-xl bg-white/95 px-4 py-2 text-sm font-semibold text-cyan-800 shadow-sm dark:bg-slate-900/95 dark:text-cyan-200">
-              Solte o ficheiro para anexar
+              Solte o arquivo para anexar
             </p>
           </div>
         )}

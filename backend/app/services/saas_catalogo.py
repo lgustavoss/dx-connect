@@ -322,7 +322,7 @@ def aplicar_plano_em_cliente(
 
 
 def sincronizar_snapshot_licenca(db: Session, row) -> None:
-    """Atualiza modulos_snapshot e limites a partir do plano_id actual (sem sobrescrever mix custom)."""
+    """Atualiza modulos_snapshot e limites a partir do plano_id atual (sem sobrescrever mix custom)."""
     from app.models.cliente_saas import ClienteSaaS
 
     if not isinstance(row, ClienteSaaS):

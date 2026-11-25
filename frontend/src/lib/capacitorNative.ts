@@ -20,7 +20,7 @@ export function bindCapacitorBackButton(): void {
 }
 
 /**
- * Estado activo do app nativo (APK) — espelha minimizar / trocar de app (#823).
+ * Estado ativo do app nativo (APK) — espelha minimizar / trocar de app (#823).
  * No browser devolve unsubscribe no-op e nunca chama o callback.
  */
 export function bindCapacitorAppState(onChange: (isActive: boolean) => void): () => void {

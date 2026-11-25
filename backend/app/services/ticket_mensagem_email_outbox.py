@@ -74,7 +74,7 @@ def validar_pode_agendar_email_cliente(db: Session, ticket_id: int) -> None:
     if not extrair_email_de_from_address(row.from_address):
         raise ValueError(
             "Não foi possível determinar o e-mail do cliente a partir do último remetente recebido. "
-            "Peça ao cliente um contacto válido ou use outro canal."
+            "Peça ao cliente um contato válido ou use outro canal."
         )
     if not (row.message_id_normalized or "").strip():
         raise ValueError("Message-ID da última mensagem recebida está em falta; não é possível encadear o e-mail.")

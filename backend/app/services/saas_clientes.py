@@ -115,7 +115,7 @@ def atualizar(db: Session, cliente_id: int, data: ClienteSaaSUpdate) -> ClienteS
         if usuarios_contratados is not None:
             payload["max_usuarios"] = usuarios_contratados
         elif "plano_id" in data.model_dump(exclude_unset=True) and max_u is not None:
-            # Troca de plano sem informar usuários — mantém o contratado actual se existir
+            # Troca de plano sem informar usuários — mantém o contratado atual se existir
             if getattr(row, "max_usuarios", None) is None:
                 payload["max_usuarios"] = max_u
     elif "plano" in payload and payload.get("plano"):
@@ -201,14 +201,14 @@ def confirmar_provisionamento(
 
 
 def reenviar_entrega(db: Session, cliente_id: int) -> ClienteSaaS:
-    """Reenvia e-mail de entrega ao contacto (pós-health)."""
+    """Reenvia e-mail de entrega ao contato (pós-health)."""
     from app.services.saas_notify import notificar_contacto_entrega
 
     row = obter(db, cliente_id)
     if row.provisionamento_status != "sucesso":
         raise SaasErro("Só é possível notificar entrega após provisionamento com sucesso")
     if not (row.contato_email or "").strip():
-        raise SaasErro("Licença sem e-mail de contacto")
+        raise SaasErro("Licença sem e-mail de contato")
     ok = notificar_contacto_entrega(db, row, forcar=True)
     if not ok:
         raise SaasErro("Não foi possível enviar o e-mail de entrega (verifique Resend / SMTP)")

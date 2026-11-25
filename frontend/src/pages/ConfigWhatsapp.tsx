@@ -255,7 +255,7 @@ export function ConfigWhatsapp({ embedded = false }: { embedded?: boolean }) {
       if (out.connect_erro) {
         toast.showWarning(`Provisionado; ao obter QR: ${out.connect_erro}. Use «Atualizar QR».`)
       } else {
-        toast.showSuccess('Instância criada. Escaneie o QR Code com o WhatsApp no telemóvel.')
+        toast.showSuccess('Instância criada. Escaneie o QR Code com o WhatsApp no celular.')
       }
       await carregar()
       await carregarEstado()
@@ -347,7 +347,7 @@ export function ConfigWhatsapp({ embedded = false }: { embedded?: boolean }) {
                 <div>
                   <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Conectar WhatsApp</h2>
                   <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-                    No telemóvel: WhatsApp → Aparelhos ligados → Ligar um aparelho → leia o QR.
+                    No celular: WhatsApp → Aparelhos ligados → Ligar um aparelho → leia o QR.
                   </p>
                 </div>
 

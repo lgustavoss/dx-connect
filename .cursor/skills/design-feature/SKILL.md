@@ -87,7 +87,7 @@ Agrupar em **lotes/PRs** conforme `main-pr-batch-delivery` (não micro-PR por is
 
 ## Fase 5 — Output do plano
 
-Entregar **no chat**. Após confirmação do utilizador → `gh issue comment` na issue/épico.
+Entregar **no chat**. Após confirmação do usuário → `gh issue comment` na issue/épico.
 
 ```markdown
 ## Resumo

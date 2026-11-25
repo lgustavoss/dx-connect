@@ -94,7 +94,7 @@ _STORAGE_KEY_RE = re.compile(
 def validar_storage_key(storage_key: str | None) -> str:
     s = (storage_key or "").strip()
     if not _STORAGE_KEY_RE.match(s):
-        raise ValueError("Chave de ficheiro inválida.")
+        raise ValueError("Chave de arquivo inválida.")
     return s
 
 

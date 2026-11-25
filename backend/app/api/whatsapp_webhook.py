@@ -99,7 +99,7 @@ def _baixar_midia_inbound(
         wa_id,
         wa_mid,
         tipo,
-        err or "sem ficheiro",
+        err or "sem arquivo",
     )
     return None
 

@@ -1,4 +1,4 @@
-"""Tenant actual e endereços de encaminhamento inbound."""
+"""Tenant atual e endereços de encaminhamento inbound."""
 
 from __future__ import annotations
 

@@ -614,7 +614,7 @@ export function Sidebar({
 
   const isLinkActive = (to: string, activePrefix?: string) => {
     if (location.pathname === to) return true
-    // Hub de Configurações — só activo na página índice (#833)
+    // Hub de Configurações — só ativo na página índice (#833)
     if (to === '/configuracoes') return false
     if (to === '/crm/leads' && location.pathname.startsWith('/crm/negociacoes')) return true
     if (activePrefix && location.pathname.startsWith(activePrefix)) return true

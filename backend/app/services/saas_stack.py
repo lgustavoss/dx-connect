@@ -165,10 +165,10 @@ def confirmar_stack_ops(db: Session, cliente_id: int) -> ClienteSaaS:
 
     if pend == "down":
         row.stack_status = "stopped"
-        row.stack_ops_mensagem = "Paragem da stack confirmada pela equipa ops"
+        row.stack_ops_mensagem = "Paragem da stack confirmada pela equipe ops"
     else:
         row.stack_status = "running"
-        row.stack_ops_mensagem = "Subida da stack confirmada pela equipa ops"
+        row.stack_ops_mensagem = "Subida da stack confirmada pela equipe ops"
 
     row.stack_ops_pendente = None
     row.stack_ops_atualizado_em = _utcnow()

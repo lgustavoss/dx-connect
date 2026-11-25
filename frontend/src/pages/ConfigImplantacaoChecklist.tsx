@@ -142,12 +142,12 @@ export function ConfigImplantacaoChecklist({ embedded = false }: { embedded?: bo
         toast.showSuccess('Checklist criado.')
       } else {
         await comercialImplantacaoTemplates.update(editing.id, payload)
-        toast.showSuccess('Checklist guardado.')
+        toast.showSuccess('Checklist salvo.')
       }
       setEditing(null)
       load()
     } catch (err) {
-      toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível guardar.'))
+      toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível salvar.'))
     } finally {
       setSaving(false)
     }
@@ -255,7 +255,7 @@ export function ConfigImplantacaoChecklist({ embedded = false }: { embedded?: bo
           </div>
           <div className="flex gap-2">
             <Button onClick={() => void save()} disabled={saving}>
-              Guardar
+              Salvar
             </Button>
             <Button variant="cancel" onClick={() => setEditing(null)}>
               Cancelar

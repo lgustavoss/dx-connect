@@ -82,7 +82,7 @@ def resolve_app_version() -> str | None:
     from_file = _read_version_file()
     if from_file:
         return from_file
-    # Docker local só monta `backend/` — o ficheiro VERSION da raiz não existe no contentor.
+    # Docker local só monta `backend/` — o arquivo VERSION da raiz não existe no contentor.
     json_ver = str(_load_release_notes_raw().get("current_version") or "").strip().lstrip("v")
     return json_ver or None
 

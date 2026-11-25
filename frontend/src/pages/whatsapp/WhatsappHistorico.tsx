@@ -212,7 +212,7 @@ export function WhatsappHistorico() {
   return (
     <div className="flex min-w-0 flex-col space-y-8 animate-in fade-in duration-500 pb-10">
       
-      {/* Header com Filtros — mobile: busca + acordeão (#825); desktop: layout actual */}
+      {/* Header com Filtros — mobile: busca + acordeão (#825); desktop: layout atual */}
       <header className="flex min-w-0 flex-col gap-6 border-b pb-6 dark:border-slate-800 md:flex-row md:items-end md:justify-between">
         <div className="space-y-1 md:shrink-0">
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Atendimentos</h1>

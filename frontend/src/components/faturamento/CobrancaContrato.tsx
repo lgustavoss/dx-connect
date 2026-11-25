@@ -100,7 +100,7 @@ export function CobrancaContrato({
       toast.showSuccess('Cobrança do contrato atualizada.')
       onUpdated(atual)
     } catch (err) {
-      toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível guardar a cobrança do contrato.'))
+      toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível salvar a cobrança do contrato.'))
     } finally {
       setSaving(false)
     }
@@ -189,7 +189,7 @@ export function CobrancaContrato({
       {podeEditar ? (
         <div className="mt-2">
           <Button variant="secondary" onClick={() => void salvar()} disabled={saving} loading={saving}>
-            Guardar cobrança
+            Salvar cobrança
           </Button>
         </div>
       ) : null}

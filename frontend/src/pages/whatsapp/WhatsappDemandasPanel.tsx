@@ -45,7 +45,7 @@ function FormularioDemanda({
     <div className="space-y-3">
       <WhatsappDemandaFormFields values={form} onChange={setForm} disabled={salvando} idPrefix={idPrefix} />
       <Button type="button" className="h-11 w-full shrink-0 sm:h-9 sm:w-auto" onClick={onSalvar} loading={salvando}>
-        {editandoId != null ? 'Guardar alterações' : 'Registrar'}
+        {editandoId != null ? 'Salvar alterações' : 'Registrar'}
       </Button>
     </div>
   )

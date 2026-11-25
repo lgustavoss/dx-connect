@@ -231,7 +231,7 @@ def _rotulo_midia_outbound(tipo_db: str) -> str:
         "audio": "[Áudio enviado]",
         "documento": "[Documento enviado]",
         "figurinha": "[Figurinha enviada]",
-    }.get(tipo_db, "[Ficheiro enviado]")
+    }.get(tipo_db, "[Arquivo enviado]")
 
 
 def _prefixo_assinatura_whatsapp(
@@ -265,7 +265,7 @@ def _corpo_e_caption_midia_outbound(
 ) -> tuple[str, str]:
     """
     Retorna (corpo_db, caption_evolution).
-    Sem legenda do utilizador: corpo vazio e caption vazia (só a mídia no WhatsApp).
+    Sem legenda do usuário: corpo vazio e caption vazia (só a mídia no WhatsApp).
     """
     if tipo_db == "figurinha":
         return "", ""
@@ -1356,7 +1356,7 @@ def iniciar_chat_outbound(
     db: Session = Depends(get_db),
     atendente: Atendente = Depends(obter_atendente_atual),
 ):
-    """Atendente inicia contacto WhatsApp (contato cadastrado, número avulso ou retoma)."""
+    """Atendente inicia contato WhatsApp (contato cadastrado, número avulso ou retoma)."""
     func: FuncionarioRede | None = None
     if data.funcionario_id is not None:
         func = _funcionario_no_tenant(db, atendente, data.funcionario_id)
@@ -1390,7 +1390,7 @@ def iniciar_chat_outbound(
             if existente.estado == "em_atendimento" and existente.atendente_id not in (None, atendente.id):
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
-                    detail="Já existe um atendimento aberto deste contacto com outro responsável.",
+                    detail="Já existe um atendimento aberto deste contato com outro responsável.",
                 )
             _aplicar_setor_ao_assumir(db, existente, atendente, data.setor_id)
             estado_anterior = existente.estado
@@ -1558,7 +1558,7 @@ def atualizar_foto_perfil(
     db: Session = Depends(get_db),
     atendente: Atendente = Depends(obter_atendente_atual),
 ):
-    """Força refresh da foto de perfil do contacto via Evolution (#630)."""
+    """Força refresh da foto de perfil do contato via Evolution (#630)."""
     c = (
         db.query(WhatsappChat)
         .options(*_CHAT_LOAD_OPTIONS)
@@ -2219,15 +2219,15 @@ async def enviar_mensagem_midia(
 
     data = await file.read()
     if len(data) > settings.WHATSAPP_MEDIA_MAX_BYTES:
-        raise HTTPException(status_code=413, detail="Ficheiro excede o tamanho máximo permitido.")
+        raise HTTPException(status_code=413, detail="Arquivo excede o tamanho máximo permitido.")
     if len(data) == 0:
-        raise HTTPException(status_code=400, detail="Ficheiro vazio.")
+        raise HTTPException(status_code=400, detail="Arquivo vazio.")
 
     mime = (file.content_type or "application/octet-stream").split(";")[0].strip()
     tipo_db = _tipo_midia_db(mediatipo)
     nome_guardado = gravar_bytes_em_disco(data, mime)
     if not nome_guardado:
-        raise HTTPException(status_code=500, detail="Não foi possível guardar o ficheiro em disco.")
+        raise HTTPException(status_code=500, detail="Não foi possível salvar o arquivo em disco.")
 
     cap = (caption or "").strip()
     prefixo = _prefixo_assinatura_whatsapp(db, c, atendente) if cap else None

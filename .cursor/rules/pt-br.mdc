@@ -5,9 +5,9 @@ alwaysApply: true
 
 # Português do Brasil (pt-BR)
 
-**Sempre** pt-BR: chat do agente, UI (painel, Expo `mobile/`, desktop), erros, CHANGELOG `[Unreleased]`, docs novas, issues GitHub e mensagem ao cliente. Mesmo se o pedido vier em inglês. Não use português de Portugal.
+**Sempre** pt-BR: chat do agente, UI (painel, Expo `mobile/`, desktop), erros HTTP (`detail`), CHANGELOG `[Unreleased]`, docs novas, issues GitHub e mensagem ao cliente. Mesmo se o pedido vier em inglês. **Nunca** português de Portugal em texto que o usuário lê.
 
-Tratamento: **você** (Preencha, Use, Entre de novo) — não tu (Preenche, Usa, Entra).
+Tratamento: **você** (Preencha, Use, Entre de novo) — não tu (Preenche, Usa, Entra / teus / adiciona).
 
 ## Vocabulário — evitar → usar
 
@@ -16,19 +16,34 @@ Tratamento: **você** (Preencha, Use, Entre de novo) — não tu (Preenche, Usa,
 | equipa | equipe |
 | rato (dispositivo) | mouse |
 | planeamento | planejamento |
-| ficheiro | arquivo |
+| ficheiro / ficheiros | arquivo / arquivos |
 | ecrã | tela |
-| utilizador | usuário |
-| actual / actualizar | atual / atualizar |
-| contacto | contato |
+| utilizador / utilizadores | usuário / usuários |
+| actual / actualizar / actualização | atual / atualizar / atualização |
+| activo / activa / inactivo / inactiva | ativo / ativa / inativo / inativa |
+| contacto / contactos | contato / contatos |
 | telemóvel | celular |
 | aceite (adj.: pedido aceite) | aceito |
-| guardar (persistir) | salvar |
+| guardar / guarde / guardado (persistir) | salvar / salve / salvo |
 | ligar a (conectar) | conectar |
 | defeito (por defeito) | padrão |
+| registo / registamos | registro / registramos |
+| receção | recepção |
+| redireccionam | redirecionam |
+| predefinições | padrões / configurações padrão |
+
+## Checklist obrigatório (antes de considerar pronto)
+
+1. Busque no diff (UI + `detail=` + toasts): `contacto`, `ficheiro`, `guardar`, `equipa`, `utilizador`, `telemóvel`, `ecrã`, `actual`, `activo`, `inactivo`, `registo`.
+2. Se achar qualquer um → **corrigir no mesmo PR**, não deixar “para depois”.
+3. Exceções permitidas (não são texto de UI):
+   - redirects de URL legada (`/configuracoes/equipa` → `/equipe`);
+   - regex/parsers que ainda aceitam rótulos antigos (`[Contacto]` **e** `[Contato]`);
+   - comentários internos de código só se o diff não os tocar — ao editar o arquivo, alinhe.
 
 ## Produto e CHANGELOG
 
 - UI **não** mostra GitHub, `issue #N` nem jargão de lote interno.
 - CHANGELOG em linguagem para o usuário final — sem proxy CORS, pasta `mobile/` ou detalhe de CI.
 - Mensagem que o cliente lê: só pt-BR, sem ops. Nota interna = `publico_cliente=false`.
+- Entradas **históricas** do CHANGELOG não precisam ser reescritas; só `[Unreleased]` e textos novos.

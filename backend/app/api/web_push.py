@@ -57,6 +57,6 @@ def apagar_por_endpoint(
     db: Session = Depends(get_db),
     atendente: Atendente = Depends(obter_atendente_atual),
 ):
-    """Revoga o dispositivo actual no logout."""
+    """Revoga o dispositivo atual no logout."""
     svc.remover_por_endpoint(db, atendente.id, endpoint)
     return None

@@ -168,7 +168,7 @@ export function ChatDemandasPanel({ chatId, api, podeRegistrar, onDemandasChange
             </p>
             <WhatsappDemandaFormFields values={form} onChange={setForm} disabled={salvando} idPrefix="panel" />
             <Button type="button" className="h-9 shrink-0" onClick={() => void salvar()} loading={salvando}>
-              {editandoId != null ? 'Guardar alterações' : 'Registrar'}
+              {editandoId != null ? 'Salvar alterações' : 'Registrar'}
             </Button>
           </div>
         )}

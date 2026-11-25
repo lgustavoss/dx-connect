@@ -101,9 +101,9 @@ export function ConfigFaturamentoPolitica({ embedded = false }: { embedded?: boo
         proporcional_primeira_fatura: proporcional,
       })
       setPolitica(atual)
-      toast.showSuccess('Política de faturamento guardada. As próximas faturas já usam esta regra.')
+      toast.showSuccess('Política de faturamento salva. As próximas faturas já usam esta regra.')
     } catch (err) {
-      toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível guardar a política.'))
+      toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível salvar a política.'))
     } finally {
       setSaving(false)
     }
@@ -122,7 +122,7 @@ export function ConfigFaturamentoPolitica({ embedded = false }: { embedded?: boo
       actions={
         podeEditar ? (
           <Button onClick={() => void salvar()} disabled={saving || loading} loading={saving}>
-            Guardar
+            Salvar
           </Button>
         ) : null
       }

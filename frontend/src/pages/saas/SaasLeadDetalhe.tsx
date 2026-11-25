@@ -232,7 +232,7 @@ export function SaasLeadDetalhe() {
           </label>
           <div className="flex justify-end">
             <Button onClick={salvar} disabled={saving} loading={saving}>
-              Guardar
+              Salvar
             </Button>
           </div>
         </div>

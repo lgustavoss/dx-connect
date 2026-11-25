@@ -1,7 +1,7 @@
 """Escopo de dados do portal do cliente (funcionário da rede).
 
 RBAC por papel (#604):
-- colaborador: tickets/chats **próprios** (aberto_por / contacto vinculado)
+- colaborador: tickets/chats **próprios** (aberto_por / contato vinculado)
 - supervisor: tickets/chats das **empresas vinculadas**
 - sócio: tudo da **rede**
 

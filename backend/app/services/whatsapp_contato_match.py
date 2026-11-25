@@ -1,4 +1,4 @@
-"""Match de contacto WhatsApp ↔ funcionário da rede por telefone/wa_id."""
+"""Match de contato WhatsApp ↔ funcionário da rede por telefone/wa_id."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ def digits_wa(raw: str | None) -> str:
 
 def variantes_wa_id(wa_id: str | None) -> set[str]:
     """
-    Variantes do mesmo contacto WhatsApp.
+    Variantes do mesmo contato WhatsApp.
 
     Cobre DDI 55 com/sem prefixo e o nono dígito BR em telemóveis
     (ex.: 5511988776655 ↔ 551188776655 ↔ 11988776655).
@@ -42,7 +42,7 @@ def variantes_wa_id(wa_id: str | None) -> set[str]:
 
     local = digits[2:] if digits.startswith("55") and len(digits) >= 12 else digits
 
-    # Telemóvel BR: DDD(2) + 9 + 8 dígitos ↔ DDD(2) + 8 dígitos (legado)
+    # Celular BR: DDD(2) + 9 + 8 dígitos ↔ DDD(2) + 8 dígitos (legado)
     if len(local) == 11 and local[2] == "9":
         add_with_ddi(local[:2] + local[3:])
     elif len(local) == 10:
@@ -52,7 +52,7 @@ def variantes_wa_id(wa_id: str | None) -> set[str]:
 
 
 def canonical_wa_id_para_lock(wa_id: str | None) -> str:
-    """Representante estável entre variantes — mesmo lock para o mesmo contacto."""
+    """Representante estável entre variantes — mesmo lock para o mesmo contato."""
     variants = variantes_wa_id(wa_id)
     if not variants:
         return digits_wa(wa_id) or (wa_id or "").strip()
@@ -98,7 +98,7 @@ def chat_aberto_por_wa_id(
     excluir_classificacao_pendente: bool = False,
     load_options: Sequence[Any] | None = None,
 ) -> WhatsappChat | None:
-    """Chat ativo (fila ou em atendimento) para o contacto, tolerando variantes de wa_id."""
+    """Chat ativo (fila ou em atendimento) para o contato, tolerando variantes de wa_id."""
     targets = variantes_wa_id(wa_id)
     if not targets:
         return None

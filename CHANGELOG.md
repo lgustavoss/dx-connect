@@ -9,6 +9,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Correções
 
+- Textos do painel, portal e erros da API padronizados em **português do Brasil** (contato, arquivo, salvar, equipe, celular, atual…), sem português de Portugal
 - App no celular: ao acompanhar o WhatsApp de outro atendente, dá para mandar **comentário interno** (a equipe vê; o cliente não) (#S202611-0006)
 - App no celular: **áudio e vídeo** do WhatsApp voltam a tocar na conversa (#S202611-0007)
 
@@ -23,6 +24,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Interno / Infra
 
+- Cobrança: no painel Ops dá para cadastrar **vários pools** Boleto Cloud (API Key cifrada), **vincular clientes** com vigência e **testar a conexão**; na instância, o financeiro cadastra as **contas bancárias** (token cifrado). Trocar de pool só muda boletos novos — os antigos ficam na conta de origem (#1392)
 - Deploy: o build e o webhook da API recusam endereço fora do domínio DeskRudder; no painel de cada conta a API segue `api-{conta}.deskrudder.com.br`
 
 ## [26.11.004] - 2026-11-17

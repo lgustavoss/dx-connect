@@ -1,5 +1,5 @@
 """
-Envio de resposta da equipa ao cliente (Resend API), com threading (In-Reply-To) (#165).
+Envio de resposta da equipe ao cliente (Resend API), com threading (In-Reply-To) (#165).
 """
 
 from __future__ import annotations
@@ -84,7 +84,7 @@ def enviar_resposta_equipa_por_email(db: Session, *, ticket: Ticket, corpo: str)
     if not to_addr:
         raise ValueError(
             "Não foi possível determinar o e-mail do cliente a partir do último remetente recebido. "
-            "Peça ao cliente um contacto válido ou use outro canal."
+            "Peça ao cliente um contato válido ou use outro canal."
         )
     in_reply_to = (row.message_id_normalized or "").strip()
     if not in_reply_to:
@@ -108,5 +108,5 @@ def enviar_resposta_equipa_por_email(db: Session, *, ticket: Ticket, corpo: str)
             in_reply_to=in_reply_to,
         )
     except Exception as e:
-        logger.warning("Falha ao enviar resposta da equipa por e-mail (ticket %s): %s", ticket.id, e)
+        logger.warning("Falha ao enviar resposta da equipe por e-mail (ticket %s): %s", ticket.id, e)
         raise ValueError("Falha ao enviar e-mail. Verifique a configuração de envio da plataforma.") from e

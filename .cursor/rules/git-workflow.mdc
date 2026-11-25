@@ -84,5 +84,5 @@ Exceção: hotfix urgente na mesma linha só se o PR ainda **não** tiver sido m
 - Comando: **`/release-staging`**
 - Abre (ou atualiza) PR **`main` → `staging`**
 - **PROIBIDO** ao agente: `gh pr merge`, push para `staging`, “mergear para facilitar”
-- O utilizador **analisa, aprova e mergeia no GitHub**
+- O usuário **analisa, aprova e mergeia no GitHub**
 - Rule: `.cursor/rules/staging-release-approval.mdc`

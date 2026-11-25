@@ -9,7 +9,7 @@ import { DocumentoPreviewLightbox } from './DocumentoPreviewLightbox'
 import { useToast } from '../ui/Toast'
 
 const ROTULO_SEM_LEGENDA =
-  /^(?:\[\s*[^\]]+\s*\]:\s*)?\[(Imagem|Áudio|Vídeo|Documento|Figurinha|Contacto|Localização)(\s+enviad[oa])?\]$/i
+  /^(?:\[\s*[^\]]+\s*\]:\s*)?\[(Imagem|Áudio|Vídeo|Documento|Figurinha|Contacto|Contato|Localização)(\s+enviad[oa])?\]$/i
 
 type Bloco = {
   chat: WhatsappChats.Anterior

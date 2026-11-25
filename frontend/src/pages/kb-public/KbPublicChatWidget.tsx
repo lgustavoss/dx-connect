@@ -670,7 +670,7 @@ export function KbPublicChatWidget() {
 
                         disabled={enviando}
 
-                        aria-label="Anexar ficheiro"
+                        aria-label="Anexar arquivo"
 
                       >
 

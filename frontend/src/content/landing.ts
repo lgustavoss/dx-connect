@@ -196,7 +196,7 @@ export const landingFinalCta = {
 
 export const landingFooter = {
   productLine: APP_DESCRIPTION,
-  /** Equipa DeskRudder — control-plane SaaS (licenças / leads). */
+  /** Equipe DeskRudder — control-plane SaaS (licenças / leads). */
   loginLabel: 'Acessar painel admin',
   contactLabel: 'Contato',
 } as const

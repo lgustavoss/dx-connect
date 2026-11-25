@@ -35,7 +35,7 @@ export function WhatsappPreviaAnexo({ file }: Props) {
 
   return (
     <p className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">
-      {(file.size / 1024).toFixed(0)} KB • {file.type || 'ficheiro'}
+      {(file.size / 1024).toFixed(0)} KB • {file.type || 'arquivo'}
     </p>
   )
 }

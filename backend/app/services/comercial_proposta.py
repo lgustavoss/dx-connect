@@ -395,7 +395,7 @@ def garantir_pdf(db: Session, row: Proposta) -> bytes:
     try:
         key = gravar_bytes_em_disco(pdf, mimetype="application/pdf", nome_original=f"proposta-{row.id}.pdf")
     except ValueError as exc:
-        raise HTTPException(status_code=500, detail="Não foi possível guardar o PDF.") from exc
+        raise HTTPException(status_code=500, detail="Não foi possível salvar o PDF.") from exc
     row.pdf_storage_key = key
     db.flush()
     return pdf

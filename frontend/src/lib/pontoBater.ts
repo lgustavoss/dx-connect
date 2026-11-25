@@ -129,7 +129,7 @@ export async function baterProximoPonto(opcoes: BaterPontoOpcoes): Promise<Bater
 
   if (!navigator.onLine) {
     const r = aplicarOffline()
-    toast.showWarning('Sem ligação — batida guardada offline. Será enviada ao voltar online.')
+    toast.showWarning('Sem ligação — batida salva offline. Será enviada ao voltar online.')
     return r
   }
 
@@ -172,7 +172,7 @@ export async function baterProximoPonto(opcoes: BaterPontoOpcoes): Promise<Bater
   } catch (err) {
     if (isLikelyOfflineError(err)) {
       const r = aplicarOffline()
-      toast.showWarning('Falha de rede — batida guardada offline.')
+      toast.showWarning('Falha de rede — batida salva offline.')
       return r
     }
     toast.showError(mensagemFalhaParaToast(err, 'Não foi possível bater o ponto.'))

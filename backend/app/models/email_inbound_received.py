@@ -7,7 +7,7 @@ from app.database import Base
 
 class EmailInboundReceived(Base):
     """
-    Registo de mensagens já processadas via webhook (idempotência por Message-ID).
+    Registro de mensagens já processadas via webhook (idempotência por Message-ID).
     """
 
     __tablename__ = "email_inbound_received"

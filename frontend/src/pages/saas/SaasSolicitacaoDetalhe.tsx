@@ -367,7 +367,7 @@ export function SaasSolicitacaoDetalhe() {
           <Card title="Status" description="O cliente vê este andamento em Minhas solicitações. Só avanços permitidos.">
             <nav className="space-y-1.5" aria-label="Status da triagem">
               {statusFluxo.map((s) => {
-                const activo = novoStatus === s.value || (mostrarImplementar && s.value === 'em_desenvolvimento')
+                const ativo = novoStatus === s.value || (mostrarImplementar && s.value === 'em_desenvolvimento')
                 const atual = item.status === s.value
                 const permitido =
                   atual ||
@@ -380,15 +380,15 @@ export function SaasSolicitacaoDetalhe() {
                     disabled={busy || (!permitido && !atual)}
                     onClick={() => void escolherStatus(s.value)}
                     className={`flex w-full items-center gap-2.5 rounded-xl border px-3 py-2 text-left text-sm transition disabled:cursor-not-allowed disabled:opacity-45 ${
-                      activo
+                      ativo
                         ? 'border-cyan-300 bg-cyan-50/90 ring-1 ring-cyan-400/25 dark:border-cyan-700/60 dark:bg-cyan-950/35 dark:ring-cyan-600/30'
                         : 'border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900/40 dark:hover:bg-slate-800/50'
                     }`}
                   >
                     <span
-                      className={`size-2 shrink-0 rounded-full ${activo ? 'bg-cyan-500' : 'bg-slate-300 dark:bg-slate-600'}`}
+                      className={`size-2 shrink-0 rounded-full ${ativo ? 'bg-cyan-500' : 'bg-slate-300 dark:bg-slate-600'}`}
                     />
-                    <span className={`min-w-0 flex-1 font-medium ${activo ? 'text-slate-900 dark:text-slate-50' : 'text-slate-700 dark:text-slate-200'}`}>
+                    <span className={`min-w-0 flex-1 font-medium ${ativo ? 'text-slate-900 dark:text-slate-50' : 'text-slate-700 dark:text-slate-200'}`}>
                       {s.label}
                     </span>
                     {atual ? (

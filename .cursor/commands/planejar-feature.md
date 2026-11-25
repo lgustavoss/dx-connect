@@ -20,7 +20,7 @@ Não peça caminho de `.md` local em `.github/planning-issue-bodies/` — a verd
 
 ### 2. Plano (skill design-feature)
 
-Produzir plano **no chat** (não gravar ficheiro local) com:
+Produzir plano **no chat** (não gravar arquivo local) com:
 - Escopo dentro/fora
 - Mapa de arquivos (criar vs alterar)
 - Decisões RBAC (admin vs atendente/comercial, setor_scope, casos 403)
@@ -39,7 +39,7 @@ Produzir plano **no chat** (não gravar ficheiro local) com:
 
 ### 4. Persistir decisões (obrigatório se há issue)
 
-Quando o utilizador confirmar decisões de produto:
+Quando o usuário confirmar decisões de produto:
 
 ```bash
 gh issue comment <número> --body "..."
@@ -55,4 +55,4 @@ Plano pronto. Próximos passos:
 /implementar-issue #<número-da-issue-ou-lote>
 ```
 
-**Não** commitar, criar ficheiros de código nem abrir PR nesta fase — só o plano no chat + comentário na issue.
+**Não** commitar, criar arquivos de código nem abrir PR nesta fase — só o plano no chat + comentário na issue.

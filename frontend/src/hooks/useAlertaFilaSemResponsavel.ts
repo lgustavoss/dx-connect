@@ -95,7 +95,7 @@ function readFilaAguardandoMuted(): boolean {
 let filaAguardandoMuted = readFilaAguardandoMuted()
 
 let wppFilaLoopAudio: HTMLAudioElement | null = null
-/** Loop contínuo activo (fila > 0 e não silenciado). */
+/** Loop contínuo ativo (fila > 0 e não silenciado). */
 let wppFilaLoopWanted = false
 let wppFilaLoopRetryTimer: number | null = null
 /** Contexto mantido aberto depois do primeiro uso da página — o toque da fila sai sem um clique novo. */
@@ -875,7 +875,7 @@ function applyResumo(r: Notificacoes.Resumo, atualizarSom: boolean, source: 'sse
       !filaAguardandoMuted &&
       shouldEnqueueCounterAlert('wpp_fila_pulse', prevWppFilaValue, r.wpp_fila_count)
     ) {
-      // Loop contínuo já cobre o alerta; pulse só se o loop ainda não estiver activo
+      // Loop contínuo já cobre o alerta; pulse só se o loop ainda não estiver ativo
       if (!wppFilaLoopWanted) enqueueAlert('wpp_fila_pulse')
     }
 
@@ -1000,7 +1000,7 @@ function preloadSounds() {
   }
 }
 
-/** Desbloqueia reprodução após gesto do utilizador (autoplay / aba em background). */
+/** Desbloqueia reprodução após gesto do usuário (autoplay / aba em background). */
 export function unlockAlertAudio() {
   primeFilaAudioContext()
   if (audioUnlocked) return

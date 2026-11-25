@@ -144,7 +144,7 @@ def montar_html_chat_pdf(
 ) -> str:
     marca = _empresa_sistema_nome(db)
     protocolo = chat.protocolo or str(chat.id)
-    contacto = chat.cliente_nome or "Contacto"
+    contato = chat.cliente_nome or "Contato"
     empresa_nome = getattr(chat.empresa, "nome", None) if chat.empresa else None
     setor_nome = getattr(chat.setor, "nome", None) if chat.setor else None
     atendente_nome = getattr(chat.atendente, "nome", None) if chat.atendente else None
@@ -193,7 +193,7 @@ def montar_html_chat_pdf(
   <div class="marca">{_esc(marca)} · Exportação de conversa WhatsApp</div>
   <h1>Protocolo { _esc(protocolo) }</h1>
   <table class="meta-grid">
-    <tr><th>Contacto</th><td>{_esc(contacto)}</td></tr>
+    <tr><th>Contato</th><td>{_esc(contato)}</td></tr>
     <tr><th>Telefone</th><td>{_esc(chat.wa_id)}</td></tr>
     <tr><th>Empresa</th><td>{_esc(empresa_nome) or "—"}</td></tr>
     <tr><th>Setor</th><td>{_esc(setor_nome) or "—"}</td></tr>

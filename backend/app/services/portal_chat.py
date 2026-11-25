@@ -347,7 +347,7 @@ def _rotulo_midia_outbound(tipo_db: str) -> str:
         "audio": "[Áudio enviado]",
         "documento": "[Documento enviado]",
         "figurinha": "[Figurinha enviada]",
-    }.get(tipo_db, "[Ficheiro enviado]")
+    }.get(tipo_db, "[Arquivo enviado]")
 
 
 def registrar_mensagem_midia_atendente(

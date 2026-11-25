@@ -37,7 +37,7 @@ export const CONFIG_GROUPS: ConfigNavGroup[] = [
         slug: 'atendentes',
         label: 'Atendentes',
         hint: 'Usuários internos que operam tickets e o chat.',
-        keywords: ['utilizador', 'usuário', 'login', 'perfil'],
+        keywords: ['usuário', 'usuário', 'login', 'perfil'],
       },
       {
         slug: 'grupos-permissao',
@@ -171,6 +171,12 @@ export const CONFIG_GROUPS: ConfigNavGroup[] = [
         hint: 'Dia de vencimento, gatilho de início da mensalidade e primeira fatura proporcional.',
         keywords: ['faturamento', 'vencimento', 'mensalidade', 'proporcional', 'setup'],
       },
+      {
+        slug: 'contas-bancarias',
+        label: 'Contas bancárias',
+        hint: 'Conta cedente e token do Boleto Cloud para emissão de boletos nesta instância.',
+        keywords: ['boleto', 'conta', 'banco', 'cedente', 'token'],
+      },
     ],
   },
   {
@@ -246,6 +252,7 @@ export const PERMISSAO_CONFIG: Record<string, string> = {
   custos: 'custos.ver',
   implantacao: 'implantacao.editar',
   faturamento: 'faturamento.politica',
+  'contas-bancarias': 'faturamento.politica',
   empresa: 'instalacao.ver',
   pdv: 'pdv.ver',
   auditoria: 'auditoria.ver',

@@ -476,7 +476,7 @@ def portal_download_midia_chat(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
     path = caminho_absoluto_arquivo(m.midia_nome_arquivo)
     if path is None or not path.is_file():
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ficheiro não encontrado")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Arquivo não encontrado")
     media_type = m.mimetype or "application/octet-stream"
     return FileResponse(path, media_type=media_type, filename=path.name)
 

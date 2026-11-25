@@ -77,7 +77,7 @@ class CrmLeadCreate(BaseModel):
     empresa_texto: str | None = Field(None, max_length=255)
     origem: str | None = Field(None, max_length=80)
     notas: str | None = None
-    responsavel_id: int | None = None  # default = utilizador logado
+    responsavel_id: int | None = None  # default = usuário logado
     criar_negociacao: bool = True
     titulo_negociacao: str | None = Field(None, max_length=255)
 

@@ -20,7 +20,7 @@ def registar_message_id_para_ticket(
     """
     Regista um Message-ID no índice do ticket (idempotente por ``message_id`` global).
 
-    Devolve ``True`` se criou um registo novo; ``False`` se o ID era inválido ou já existia.
+    Devolve ``True`` se criou um registro novo; ``False`` se o ID era inválido ou já existia.
     """
     mid = normalize_message_id(message_id)
     if not mid:

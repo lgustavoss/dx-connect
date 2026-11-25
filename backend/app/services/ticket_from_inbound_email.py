@@ -68,8 +68,8 @@ def _try_auto_reply_ticket_encerrado(db: Session, parsed: ParsedInboundEmail, ch
         f"Olá,\n\n"
         f"O chamado **{chamado_fechado.protocolo}** já se encontra **encerrado** no nosso sistema.\n\n"
         f"— Se a sua questão é **outro assunto** (ou um problema novo), envie um **novo e-mail** "
-        f"(sem responder a esta conversa) para abrir um novo registo.\n\n"
-        f"— Se considera que esta mensagem **continua o mesmo assunto** do chamado encerrado, a nossa equipa "
+        f"(sem responder a esta conversa) para abrir um novo registro.\n\n"
+        f"— Se considera que esta mensagem **continua o mesmo assunto** do chamado encerrado, a nossa equipe "
         f"irá analisá-la num **novo ticket de triagem** e poderá associá-la ao histórico anterior, se for adequado.\n\n"
         f"Com os melhores cumprimentos,\n{assinatura}\n"
     )

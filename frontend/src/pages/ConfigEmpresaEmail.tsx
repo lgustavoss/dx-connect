@@ -786,7 +786,7 @@ export function ConfigEmpresaEmail({ embedded = false, section }: ConfigEmpresaE
                 <h4 className="font-semibold text-sky-950 dark:text-sky-50">O que o cliente deve fazer</h4>
                 <ol className="mt-2 list-decimal space-y-2 pl-5">
                   <li>
-                    Para cada departamento da tabela, abra as configurações da caixa de e-mail usada por essa equipa (ex.{' '}
+                    Para cada departamento da tabela, abra as configurações da caixa de e-mail usada por essa equipe (ex.{' '}
                     <span className="font-mono">suporte@empresa.com.br</span>).
                   </li>
                   <li>
@@ -799,7 +799,7 @@ export function ConfigEmpresaEmail({ embedded = false, section }: ConfigEmpresaE
                     ferramenta permitir.
                   </li>
                   <li>
-                    Guarde e envie um e-mail de teste para a caixa do cliente; o ticket deve aparecer no setor correto no
+                    Salve e envie um e-mail de teste para a caixa do cliente; o ticket deve aparecer no setor correto no
                     painel.
                   </li>
                   <li>Repita para todos os departamentos listados acima.</li>

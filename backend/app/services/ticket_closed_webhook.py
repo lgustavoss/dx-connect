@@ -205,7 +205,7 @@ def _enviar_saas_solicitacao_media(row: WebhookOutbox) -> tuple[int, str | None]
     storage_key = (payload.get("storage_key") or "").strip()
     path = caminho_absoluto(storage_key)
     if not path:
-        return 0, "ficheiro em falta no disco"
+        return 0, "arquivo em falta no disco"
     nome = sanitizar_nome(payload.get("nome_original") or storage_key)
     ctype = (payload.get("content_type") or "application/octet-stream").split(";", 1)[0].strip()
     body, content_type = _encode_multipart(

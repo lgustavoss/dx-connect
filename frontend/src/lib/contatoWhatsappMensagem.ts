@@ -6,7 +6,7 @@ export type ContatoCartao = {
 const LINHA_CONTATO = /^\[(?:Contacto|Contato)\]\s+(.+?)(?:\s+[—–-]\s+(\d{8,}))?\s*$/
 const LINHA_ASSINATURA = /^\[[^\]]+\]:?$/
 
-/** Cartões `[Contato] Nome — número` (e o rótulo antigo `[Contacto]`). Null se a mensagem tiver outro texto. */
+/** Cartões `[Contato] Nome — número` (e o rótulo antigo `[Contato]`). Null se a mensagem tiver outro texto. */
 export function contatosNaMensagem(corpo: string | null | undefined): ContatoCartao[] | null {
   const texto = (corpo || '').trim()
   if (!texto) return null
