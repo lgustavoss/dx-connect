@@ -2,7 +2,7 @@
 Resolve remetente de e-mail inbound → funcionário, rede e empresa(s).
 
 Regras:
-- Um e-mail não pode estar activo em mais de uma rede.
+- Um e-mail não pode estar ativo em mais de uma rede.
 - Colaborador: uma empresa; supervisor: N empresas na mesma rede; sócio: rede sem empresa fixa.
 """
 
@@ -115,7 +115,7 @@ def assert_email_unico_por_rede(
     rede_id: int,
     ignorar_funcionario_id: int | None = None,
 ) -> None:
-    """Levanta ValueError se o e-mail já existir activo noutra rede."""
+    """Levanta ValueError se o e-mail já existir ativo noutra rede."""
     email_n = _normalizar_email(email)
     if not email_n:
         return

@@ -153,7 +153,7 @@ export async function syncWebPushSubscription(
   return 'ok'
 }
 
-/** Reinscreve se já estava activo, aplica deep link e escuta o Service Worker / UnifiedPush. */
+/** Reinscreve se já estava ativo, aplica deep link e escuta o Service Worker / UnifiedPush. */
 export function useWebPushSession(enabled: boolean) {
   const navigate = useNavigate()
 

@@ -71,6 +71,8 @@ from app.api import (
     saas_ops_usuarios,
     saas_setores,
     saas_alertas,
+    saas_boleto_cloud,
+    cobranca_contas,
     web_push,
     dispositivos,
     solicitacoes_melhoria,
@@ -753,6 +755,8 @@ app.include_router(saas_ops_conta.router, prefix=API_V1_PREFIX)
 app.include_router(saas_ops_usuarios.router, prefix=API_V1_PREFIX)
 app.include_router(saas_setores.router, prefix=API_V1_PREFIX)
 app.include_router(saas_alertas.router, prefix=API_V1_PREFIX)
+app.include_router(saas_boleto_cloud.router, prefix=API_V1_PREFIX)
+app.include_router(cobranca_contas.router, prefix=API_V1_PREFIX)
 app.include_router(solicitacoes_melhoria.router, prefix=API_V1_PREFIX)
 
 

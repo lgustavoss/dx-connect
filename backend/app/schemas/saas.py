@@ -31,7 +31,7 @@ def _validar_email_opcional(v: str | None) -> str | None:
     if not email:
         return None
     if not _EMAIL_RE.match(email):
-        raise ValueError("E-mail de contacto inválido")
+        raise ValueError("E-mail de contato inválido")
     return email
 
 

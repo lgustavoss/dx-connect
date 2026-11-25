@@ -1,6 +1,6 @@
 /**
  * Voltar nativo fecha o painel sem pôr id na URL (#699).
- * `pushState` no mesmo path; `popstate` limpa o item activo.
+ * `pushState` no mesmo path; `popstate` limpa o item ativo.
  * Não grava o id no histórico — Forward não reabre conversa encerrada (#653).
  */
 

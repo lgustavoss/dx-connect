@@ -84,7 +84,7 @@ class WhatsappChat(Base):
     inatividade_retomada_em = Column(DateTime(timezone=True), nullable=True)
     # Após encerramento por inatividade: responsável deve registar (ou confirmar sem) demanda.
     classificacao_demanda_pendente = Column(Boolean, nullable=False, default=False, server_default="false")
-    # Cache da foto de perfil WhatsApp do contacto (#630 lote 1).
+    # Cache da foto de perfil WhatsApp do contato (#630 lote 1).
     foto_perfil_url = Column(Text, nullable=True)
     foto_perfil_atualizada_em = Column(DateTime(timezone=True), nullable=True)
 
@@ -116,7 +116,7 @@ class WhatsappMensagem(Base):
     # texto | imagem | audio | video | documento | figurinha — None = legado (tratar como texto)
     tipo_midia = Column(String(24), nullable=True)
     mimetype = Column(String(128), nullable=True)
-    # Nome do ficheiro dentro de WHATSAPP_MEDIA_DIR (apenas inbound com mídia obtida da Evolution)
+    # Nome do arquivo dentro de WHATSAPP_MEDIA_DIR (apenas inbound com mídia obtida da Evolution)
     midia_nome_arquivo = Column(String(500), nullable=True)
     # Nome amigável para UI/download (#679); storage em disco continua com UUID
     midia_nome_original = Column(String(255), nullable=True)

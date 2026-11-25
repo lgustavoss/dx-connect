@@ -6625,6 +6625,163 @@ export const saasAlertasOps = {
     }),
 };
 
+/** Pools Boleto Cloud e vínculos no control-plane (#1392). */
+export namespace SaasBoletoCloud {
+  export interface Pool {
+    id: number
+    apelido: string
+    email_login?: string | null
+    api_base_url: string
+    faixa_teto?: number | null
+    notas?: string | null
+    ativo: boolean
+    tem_api_key: boolean
+    clientes_vinculados: number
+    created_at?: string | null
+    updated_at?: string | null
+  }
+  export interface PoolUpsert {
+    apelido: string
+    email_login?: string | null
+    api_base_url: string
+    faixa_teto?: number | null
+    notas?: string | null
+    ativo?: boolean
+    api_key?: string | null
+  }
+  export interface PoolLista {
+    items: Pool[]
+    total: number
+  }
+  export interface Vinculo {
+    id: number
+    cliente_saas_id: number
+    cliente_nome?: string | null
+    cliente_slug?: string | null
+    pool_id: number
+    pool_apelido?: string | null
+    vigencia_de: string
+    vigencia_ate?: string | null
+    ativo_agora: boolean
+    notas?: string | null
+    created_at?: string | null
+  }
+  export interface VinculoCreate {
+    pool_id: number
+    vigencia_de?: string | null
+    notas?: string | null
+    encerrar_anterior?: boolean
+  }
+  export interface VinculoLista {
+    items: Vinculo[]
+    total: number
+  }
+  /** Compat piloto. */
+  export interface Config {
+    id: number
+    apelido: string
+    api_base_url: string
+    ativo: boolean
+    tem_api_key: boolean
+    tem_conta_token: boolean
+    created_at?: string | null
+    updated_at?: string | null
+  }
+  export interface TestarResultado {
+    ok: boolean
+    mensagem: string
+    http_status?: number | null
+  }
+}
+
+export const saasBoletoCloud = {
+  listarPools: () => api<SaasBoletoCloud.PoolLista>('/saas/boleto-cloud/pools'),
+  criarPool: (data: SaasBoletoCloud.PoolUpsert) =>
+    api<SaasBoletoCloud.Pool>('/saas/boleto-cloud/pools', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  atualizarPool: (id: number, data: SaasBoletoCloud.PoolUpsert) =>
+    api<SaasBoletoCloud.Pool>(`/saas/boleto-cloud/pools/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  testarPool: (id: number) =>
+    api<SaasBoletoCloud.TestarResultado>(`/saas/boleto-cloud/pools/${id}/testar`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    }),
+  listarVinculos: (clienteSaasId: number) =>
+    api<SaasBoletoCloud.VinculoLista>(`/saas/boleto-cloud/clientes/${clienteSaasId}/vinculos`),
+  vincular: (clienteSaasId: number, data: SaasBoletoCloud.VinculoCreate) =>
+    api<SaasBoletoCloud.Vinculo>(`/saas/boleto-cloud/clientes/${clienteSaasId}/vinculos`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+}
+
+/** Contas bancárias de cobrança na instância (#1392). */
+export namespace CobrancaContas {
+  export interface Conta {
+    id: number
+    apelido: string
+    banco_codigo?: string | null
+    banco_nome?: string | null
+    agencia?: string | null
+    agencia_dv?: string | null
+    conta?: string | null
+    conta_dv?: string | null
+    carteira?: string | null
+    titular_nome?: string | null
+    titular_documento?: string | null
+    ativo: boolean
+    padrao: boolean
+    tem_token: boolean
+    notas?: string | null
+    created_at?: string | null
+    updated_at?: string | null
+  }
+  export interface Upsert {
+    apelido: string
+    banco_codigo?: string | null
+    banco_nome?: string | null
+    agencia?: string | null
+    agencia_dv?: string | null
+    conta?: string | null
+    conta_dv?: string | null
+    carteira?: string | null
+    titular_nome?: string | null
+    titular_documento?: string | null
+    ativo?: boolean
+    padrao?: boolean
+    notas?: string | null
+    boleto_cloud_token?: string | null
+  }
+  export interface Lista {
+    items: Conta[]
+    total: number
+  }
+}
+
+export const cobrancaContas = {
+  listar: () => api<CobrancaContas.Lista>('/cobranca/contas-bancarias'),
+  criar: (data: CobrancaContas.Upsert) =>
+    api<CobrancaContas.Conta>('/cobranca/contas-bancarias', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  atualizar: (id: number, data: CobrancaContas.Upsert) =>
+    api<CobrancaContas.Conta>(`/cobranca/contas-bancarias/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  desativar: (id: number) =>
+    api<CobrancaContas.Conta>(`/cobranca/contas-bancarias/${id}/desativar`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    }),
+}
+
 export namespace SaasSolicitacoesProduto {
   export interface Resumo {
     total: number;

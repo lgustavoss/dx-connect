@@ -46,7 +46,7 @@ class Settings(BaseSettings):
     WHATSAPP_EMBEDDED_INSTANCE_NAME: str = "dxconnect"
     # URL base que a Evolution deve usar para POST no webhook do DX Connect (hostname Docker = nome do serviço).
     DX_CONNECT_WEBHOOK_BASE_URL: str | None = None
-    # Diretório para ficheiros de mídia WhatsApp (caminho relativo ao cwd ou absoluto). Em Docker: mapear volume em /app/data.
+    # Diretório para arquivos de mídia WhatsApp (caminho relativo ao cwd ou absoluto). Em Docker: mapear volume em /app/data.
     WHATSAPP_MEDIA_DIR: str = "data/whatsapp_media"
     # Tamanho máximo (bytes) ao descodificar base64 da Evolution antes de gravar em disco.
     WHATSAPP_MEDIA_MAX_BYTES: int = 25 * 1024 * 1024

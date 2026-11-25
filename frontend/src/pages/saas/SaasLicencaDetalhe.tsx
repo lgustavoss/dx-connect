@@ -1,6 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ApiError, saasClientes, saasPlanos, type SaasCatalogo } from '../../api/client'
+import {
+  ApiError,
+  saasBoletoCloud,
+  saasClientes,
+  saasPlanos,
+  type SaasBoletoCloud,
+  type SaasCatalogo,
+} from '../../api/client'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { DetailRow } from '../../components/ui/DetailRow'
@@ -59,6 +66,22 @@ export function SaasLicencaDetalhe() {
   const [timeline, setTimeline] = useState<
     Awaited<ReturnType<typeof saasClientes.timeline>>
   >([])
+  const [pools, setPools] = useState<SaasBoletoCloud.Pool[]>([])
+  const [vinculos, setVinculos] = useState<SaasBoletoCloud.Vinculo[]>([])
+  const [poolVinculoId, setPoolVinculoId] = useState<number | ''>('')
+  const [busyVinculo, setBusyVinculo] = useState(false)
+
+  function carregarVinculos(cid: number) {
+    Promise.all([
+      saasBoletoCloud.listarVinculos(cid).catch(() => ({ items: [], total: 0 })),
+      saasBoletoCloud.listarPools().catch(() => ({ items: [], total: 0 })),
+    ]).then(([v, p]) => {
+      setVinculos(v.items)
+      setPools(p.items.filter((x) => x.ativo))
+      const ativo = v.items.find((x) => x.ativo_agora)
+      setPoolVinculoId(ativo?.pool_id ?? '')
+    })
+  }
 
   function carregar() {
     if (!id || Number.isNaN(clienteId)) {
@@ -82,6 +105,7 @@ export function SaasLicencaDetalhe() {
           setBaseDomain(saasBaseDomain(resumo.base_dominio_provisionamento))
         }
         setPlanoAprovarId(c.plano_id ?? '')
+        carregarVinculos(c.id)
       })
       .catch((err) => {
         if (err instanceof ApiError && err.status === 403) {
@@ -138,6 +162,28 @@ export function SaasLicencaDetalhe() {
       toast.showError(mensagemFalhaParaToast(err, 'Não foi possível concluir a ação.'))
     } finally {
       setActing(false)
+    }
+  }
+
+  async function salvarVinculoPool() {
+    if (Number.isNaN(clienteId) || poolVinculoId === '') {
+      toast.showError('Escolha um pool de cobrança.')
+      return
+    }
+    setBusyVinculo(true)
+    try {
+      await saasBoletoCloud.vincular(clienteId, {
+        pool_id: Number(poolVinculoId),
+        encerrar_anterior: true,
+      })
+      toast.showSuccess(
+        'Cliente vinculado ao pool. Boletos novos usam esta conta; os antigos ficam na origem.',
+      )
+      carregarVinculos(clienteId)
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível vincular ao pool.'))
+    } finally {
+      setBusyVinculo(false)
     }
   }
 
@@ -221,10 +267,10 @@ export function SaasLicencaDetalhe() {
                     .filter((p) => p.ativo || p.id === planoAprovarId)
                     .map((p) => ({
                       value: p.id,
-                      label: p.ativo ? p.nome : `${p.nome} (inactivo)`,
+                      label: p.ativo ? p.nome : `${p.nome} (inativo)`,
                     }))}
                   includeEmpty
-                  emptyLabel="Manter actual"
+                  emptyLabel="Manter atual"
                   disabled={acting}
                 />
               </div>
@@ -421,11 +467,78 @@ export function SaasLicencaDetalhe() {
             value={item.lead_comercial_id != null ? `#${item.lead_comercial_id}` : '—'}
           />
           <DetailRow
-            label="Entrega ao contacto"
+            label="Entrega ao contato"
             value={item.entrega_notificada_em ? formatDate(item.entrega_notificada_em) : 'Não enviada'}
           />
           <DetailRow label="Notas" value={item.notas || '—'} />
         </dl>
+      </Card>
+
+      <Card
+        title="Pool de cobrança (Boleto Cloud)"
+        description="Aloca este cliente a uma conta Boleto Cloud. Trocar o pool só afeta boletos novos — os já emitidos permanecem na conta de origem até a baixa."
+      >
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="min-w-[14rem] flex-1">
+              <Select
+                label="Pool ativo"
+                value={poolVinculoId}
+                onChange={(v) => setPoolVinculoId(v === '' ? '' : Number(v))}
+                options={pools.map((p) => ({
+                  value: p.id,
+                  label: `${p.apelido}${p.tem_api_key ? '' : ' (sem API Key)'}`,
+                }))}
+                includeEmpty
+                emptyLabel="Sem pool"
+                disabled={acting || busyVinculo || pools.length === 0}
+              />
+            </div>
+            <Button
+              type="button"
+              disabled={acting || busyVinculo || poolVinculoId === ''}
+              loading={busyVinculo}
+              onClick={() => void salvarVinculoPool()}
+            >
+              Vincular
+            </Button>
+          </div>
+          {pools.length === 0 ? (
+            <p className="text-sm text-slate-500">
+              Cadastre um pool em{' '}
+              <button
+                type="button"
+                className="font-medium text-sky-600 hover:underline dark:text-sky-400"
+                onClick={() => navigate('/saas/cobranca')}
+              >
+                Cobrança
+              </button>
+              .
+            </p>
+          ) : null}
+          {vinculos.length > 0 ? (
+            <ul className="space-y-2 text-sm text-slate-600 dark:text-slate-300">
+              {vinculos.slice(0, 5).map((v) => (
+                <li key={v.id} className="flex flex-wrap gap-2">
+                  <span className="font-medium text-slate-800 dark:text-slate-100">
+                    {v.pool_apelido || `Pool #${v.pool_id}`}
+                  </span>
+                  <span>
+                    desde {formatDate(v.vigencia_de)}
+                    {v.vigencia_ate ? ` até ${formatDate(v.vigencia_ate)}` : ' (aberto)'}
+                  </span>
+                  {v.ativo_agora ? (
+                    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200">
+                      Ativo agora
+                    </span>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-slate-500">Nenhum vínculo ainda.</p>
+          )}
+        </div>
       </Card>
 
       {item.lead_comercial_id != null ? (
@@ -444,7 +557,7 @@ export function SaasLicencaDetalhe() {
 
       {item.aprovacao_status === 'pendente' ? (
         <div className="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-700/50 dark:bg-amber-950/40 dark:text-amber-100">
-          Aprovação comercial pendente. Use <strong>Aprovar e criar base</strong> para activar a licença e
+          Aprovação comercial pendente. Use <strong>Aprovar e criar base</strong> para ativar a licença e
           enfileirar a criação da base, ou <strong>Rejeitar</strong> para cancelar. Em local (Windows), se ficar
           em «aguardando ops», corra no host{' '}
           <code className="text-xs">./deploy/scripts/saas-drain-queue.sh</code>.
@@ -452,11 +565,11 @@ export function SaasLicencaDetalhe() {
       ) : null}
 
       {item.provisionamento_status === 'sucesso' && item.contato_email ? (
-        <Card title="Entrega ao contacto">
+        <Card title="Entrega ao contato">
           <p className="mb-4 text-sm text-slate-600 dark:text-slate-300">
             {item.entrega_notificada_em
               ? `Último e-mail de acesso enviado em ${formatDate(item.entrega_notificada_em)} para ${item.contato_email}.`
-              : `Instância pronta. Ainda não há registo de e-mail de entrega para ${item.contato_email}.`}
+              : `Instância pronta. Ainda não há registro de e-mail de entrega para ${item.contato_email}.`}
           </p>
           <Button
             variant="secondary"
@@ -666,7 +779,7 @@ export function SaasLicencaDetalhe() {
           {acesso.modo === 'local' ? (
             <p className="mb-3 text-sm text-amber-800 dark:text-amber-200">
               Ambiente local: <code className="text-xs">*.{baseDomain}</code> não tem DNS. Abrindo health
-              na porta API. Em Windows, pode mapear no ficheiro hosts se precisar do domínio público.
+              na porta API. Em Windows, pode mapear no arquivo hosts se precisar do domínio público.
             </p>
           ) : null}
           <a

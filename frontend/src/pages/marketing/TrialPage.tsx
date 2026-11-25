@@ -59,7 +59,7 @@ export function TrialPage() {
       <main className="mx-auto w-full max-w-3xl px-5 py-12 sm:px-8">
         <h1 className="text-3xl font-bold tracking-tight text-white">Pedir trial DeskRudder</h1>
         <p className="mt-3 text-slate-300">
-          Preencha os dados da sua empresa de suporte. Registamos o pedido de trial para a equipa
+          Preencha os dados da sua empresa de suporte. Registramos o pedido de trial para a equipe
           DeskRudder analisar; após aprovação, criamos a base de dados e a instância.
         </p>
 
@@ -131,7 +131,7 @@ export function TrialPage() {
               />
             </label>
             <p className="rounded-xl border border-sky-400/20 bg-sky-500/10 px-3 py-2 text-xs text-sky-100/90">
-              Ao enviar, o pedido fica pendente de aprovação. Depois de aprovado pela equipa DeskRudder,
+              Ao enviar, o pedido fica pendente de aprovação. Depois de aprovado pela equipe DeskRudder,
               a base de dados e a instância são criadas.
             </p>
             <button

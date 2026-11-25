@@ -16,7 +16,7 @@ export function isIosSafari(): boolean {
   return /Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS/.test(ua)
 }
 
-/** No iPhone/iPad, Web Push só funciona na PWA do ecrã inicial (Safari 16.4+). */
+/** No iPhone/iPad, Web Push só funciona na PWA da tela inicial (Safari 16.4+). */
 export function webPushRequerPwaIos(): boolean {
   return isIosSafari() && !isStandaloneDisplay()
 }

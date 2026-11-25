@@ -1699,7 +1699,7 @@ def download_anexo(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=(
                 "Arquivo não encontrado no storage. "
-                "O registo do anexo existe, mas o ficheiro sumiu do disco "
+                "O registro do anexo existe, mas o arquivo sumiu do disco "
                 "(comum após redeploy sem volume persistente em /app/data)."
             ),
         )

@@ -203,7 +203,7 @@ def confirmar_provisionamento(
     row.instancia_url = url
     row.provisionamento_solicitado = True
     row.provisionamento_status = "sucesso"
-    row.provisionamento_mensagem = "Provisionamento confirmado pela equipa ops (health ok)"
+    row.provisionamento_mensagem = "Provisionamento confirmado pela equipe ops (health ok)"
     row.provisionamento_atualizado_em = _utcnow()
     row.stack_status = "running"
     row.stack_ops_pendente = None

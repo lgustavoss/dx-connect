@@ -12,7 +12,7 @@ alwaysApply: true
 
 ## Proibido ao agente (padrão)
 
-1. Criar ou atualizar ficheiros em `.github/planning-issue-bodies/` para planos, spikes ou corpos de issue **só porque estamos a planear no chat**
+1. Criar ou atualizar arquivos em `.github/planning-issue-bodies/` para planos, spikes ou corpos de issue **só porque estamos a planear no chat**
 2. Commitar rascunhos de planeamento «para não perder» — usar comentário na issue
 3. Pedir commit de `.md` de análise quando a decisão já pode ir no GitHub
 
@@ -20,15 +20,15 @@ alwaysApply: true
 
 1. Ler a issue/épico no GitHub
 2. Apresentar o plano **no chat**
-3. Quando o utilizador confirmar decisões → `gh issue comment <n>` com o resumo (decisões, escopo, ordem de lotes)
+3. Quando o usuário confirmar decisões → `gh issue comment <n>` com o resumo (decisões, escopo, ordem de lotes)
 4. **Não** gravar `analises/*.md` nem `followups/*.md` locais
 
 ## Follow-ups ao fechar issue
 
-- Abrir com `gh issue create` (corpo no comando / ficheiro temp apagado a seguir)
+- Abrir com `gh issue create` (corpo no comando / arquivo temp apagado a seguir)
 - Comentar na issue/PR fechada com os `#NNN`
 - **Não** exigir body em `.github/planning-issue-bodies/followups/`
 
 ## Exceção (rara)
 
-Só escrever/commitar em `analises/` se o utilizador pedir **explicitamente** um doc durável no repo (ex.: decisão arquitectónica multi-épico que não cabe num comentário). Preferir sempre comentário ou issue dedicada.
+Só escrever/commitar em `analises/` se o usuário pedir **explicitamente** um doc durável no repo (ex.: decisão arquitectónica multi-épico que não cabe num comentário). Preferir sempre comentário ou issue dedicada.

@@ -81,7 +81,7 @@ export function NotificacoesPreferencias() {
           Notificações
         </h1>
         <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-          Escolha quando deseja receber e-mails e alertas no telemóvel. Os avisos in-app (sino no topo) continuam
+          Escolha quando deseja receber e-mails e alertas no celular. Os avisos in-app (sino no topo) continuam
           independentes — fila, mensagens não lidas e WhatsApp.
         </p>
       </div>
@@ -102,13 +102,13 @@ export function NotificacoesPreferencias() {
             atinge 80% do prazo ou estoura a meta de primeira resposta ou resolução.
           </li>
           <li>
-            <strong>Telemóvel</strong> — com a app fechada, alertas de fila e de mensagens nos teus atendimentos. No
-            iPhone, primeiro adiciona o DeskRudder ao ecrã inicial (Safari 16.4+).
+            <strong>Celular</strong> — com a app fechada, alertas de fila e de mensagens nos seus atendimentos. No
+            iPhone, primeiro adicione o DeskRudder à tela inicial (Safari 16.4+).
           </li>
         </ul>
       </div>
 
-      <Card title="Telemóvel (app fechada)">
+      <Card title="Celular (app fechada)">
         <div className="space-y-4">
           <Switch
             checked={prefs.push_habilitado}
@@ -119,23 +119,23 @@ export function NotificacoesPreferencias() {
                   if (v && r !== 'ok') {
                     const msg =
                       r === 'negado'
-                        ? 'Permita notificações neste dispositivo para activar os alertas.'
+                        ? 'Permita notificações neste dispositivo para ativar os alertas.'
                         : r === 'sem_vapid'
-                          ? 'Alertas no telemóvel ainda não estão configurados nesta instância.'
+                          ? 'Alertas no celular ainda não estão configurados nesta instância.'
                           : r === 'ios_pwa'
-                            ? 'No iPhone, adiciona o DeskRudder ao ecrã inicial e activa os alertas a partir desse atalho.'
+                            ? 'No iPhone, adicione o DeskRudder à tela inicial e ative os alertas a partir desse atalho.'
                             : 'Este dispositivo não suporta alertas com a app fechada.'
                     toast.showError(msg)
                     return
                   }
                   setPrefs((p) => ({ ...p, push_habilitado: v }))
                 } catch (err) {
-                  toast.showError(mensagemFalhaParaToast(err, 'Não foi possível actualizar o push.'))
+                  toast.showError(mensagemFalhaParaToast(err, 'Não foi possível atualizar o push.'))
                 }
               })()
             }}
-            label="Alertas no telemóvel"
-            description="Fila e mensagens nos teus chats e tickets, mesmo com a app fechada. No app Android usa o mesmo canal da instância; no iPhone, o atalho da tela inicial (Safari 16.4+)."
+            label="Alertas no celular"
+            description="Fila e mensagens nos seus chats e tickets, mesmo com a app fechada. No app Android usa o mesmo canal da instância; no iPhone, o atalho da tela inicial (Safari 16.4+)."
             showStatusPill
             statusOnText="Ativo"
             statusOffText="Inativo"
@@ -146,7 +146,7 @@ export function NotificacoesPreferencias() {
               setPrefs((p) => ({ ...p, push_fila: v }))
               setFilaAguardandoMuted(!v)
               void notificacoes.preferenciasUpdate({ push_fila: v }).catch((err) => {
-                toast.showError(mensagemFalhaParaToast(err, 'Não foi possível actualizar o alerta da fila.'))
+                toast.showError(mensagemFalhaParaToast(err, 'Não foi possível atualizar o alerta da fila.'))
               })
             }}
             label="Avisar fila de espera"

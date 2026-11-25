@@ -34,7 +34,7 @@ def notificar_contacto_entrega(
     *,
     forcar: bool = False,
 ) -> bool:
-    """Avisa o contacto da licença de que a instância está pronta (pós-health)."""
+    """Avisa o contato da licença de que a instância está pronta (pós-health)."""
     to_addr = (row.contato_email or "").strip()
     if not to_addr:
         logger.info("Sem contato_email — entrega ignorada para slug=%s", row.slug)
@@ -87,9 +87,9 @@ def notificar_contacto_entrega(
         notificar_equipe_saas(
             db,
             subject=f"[DeskRudder] Entrega enviada — {row.slug}",
-            body=f"Contacto notificado: {to_addr}\nURL: {url}\n",
+            body=f"Contato notificado: {to_addr}\nURL: {url}\n",
         )
         return True
     except Exception as e:
-        logger.warning("Falha ao notificar contacto de entrega (%s): %s", row.slug, e)
+        logger.warning("Falha ao notificar contato de entrega (%s): %s", row.slug, e)
         return False

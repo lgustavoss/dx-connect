@@ -62,7 +62,7 @@ def caminho_absoluto(rel_path: str | None) -> Path | None:
 
 
 def apagar_evidencias(contrato_id: int) -> int:
-    """Remove a pasta de assinatura do contrato. Devolve quantos ficheiros apagou."""
+    """Remove a pasta de assinatura do contrato. Devolve quantos arquivos apagou."""
     pasta = diretorio_contrato(contrato_id)
     if not pasta.exists():
         return 0

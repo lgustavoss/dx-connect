@@ -457,7 +457,7 @@ def obter_midia_da_mensagem(
         raise HTTPException(status_code=404, detail="Mídia não encontrada")
     path = caminho_absoluto_arquivo(m.midia_nome_arquivo)
     if not path:
-        raise HTTPException(status_code=404, detail="Ficheiro não encontrado em disco")
+        raise HTTPException(status_code=404, detail="Arquivo não encontrado em disco")
     media_type = m.mimetype or "application/octet-stream"
     return FileResponse(path, media_type=media_type, filename=path.name)
 
@@ -474,14 +474,14 @@ async def enviar_mensagem_midia(
     c = _get_chat(db, chat_id)
     data = await file.read()
     if len(data) > settings.WHATSAPP_MEDIA_MAX_BYTES:
-        raise HTTPException(status_code=413, detail="Ficheiro excede o tamanho máximo permitido.")
+        raise HTTPException(status_code=413, detail="Arquivo excede o tamanho máximo permitido.")
     if len(data) == 0:
-        raise HTTPException(status_code=400, detail="Ficheiro vazio.")
+        raise HTTPException(status_code=400, detail="Arquivo vazio.")
     mime = (file.content_type or "application/octet-stream").split(";")[0].strip()
     tipo_db = _tipo_midia_db(mediatipo)
     nome_guardado = gravar_bytes_em_disco(data, mime)
     if not nome_guardado:
-        raise HTTPException(status_code=500, detail="Não foi possível guardar o ficheiro em disco.")
+        raise HTTPException(status_code=500, detail="Não foi possível salvar o arquivo em disco.")
     msg = registrar_mensagem_midia_atendente(
         db,
         c,

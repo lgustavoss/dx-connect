@@ -14,7 +14,7 @@ type Props = {
 }
 
 /**
- * Slot de contacto comercial B2B (#516 / DR-06).
+ * Slot de contato comercial B2B (#516 / DR-06).
  * Control-plane: formulário → /v1/saas/public/contato (não usa /kb).
  * Sem control-plane: fallback mailto.
  */
@@ -136,7 +136,7 @@ function ContatoComercialModal({ titleId, onClose }: { titleId: string; onClose:
             <h2 id={titleId} className="text-xl font-semibold text-white">
               Tire dúvidas sobre o DeskRudder
             </h2>
-            <p className="mt-1 text-sm text-slate-300">Fale conosco — a equipa comercial responde por e-mail.</p>
+            <p className="mt-1 text-sm text-slate-300">Fale conosco — a equipe comercial responde por e-mail.</p>
           </div>
           <button
             type="button"

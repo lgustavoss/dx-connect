@@ -125,6 +125,6 @@ def check_saas_contato_rate_limit(request: Request) -> None:
         if len(bucket) >= _MAX_CONTATO_PER_HOUR_PER_IP:
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="Muitos contactos em pouco tempo. Aguarde e tente novamente.",
+                detail="Muitos contatos em pouco tempo. Aguarde e tente novamente.",
             )
         bucket.append(now)

@@ -94,7 +94,7 @@ def resumo(
 
 @router.get("/clientes", response_model=ListaPaginada[ClienteSaaSRead])
 def listar(
-    busca: str | None = Query(None, description="Filtra por nome, slug ou e-mail de contacto"),
+    busca: str | None = Query(None, description="Filtra por nome, slug ou e-mail de contato"),
     status_filtro: str | None = Query(None, alias="status", description="Filtra por status"),
     plano_id: int | None = Query(None, description="Filtra por plano comercial"),
     aprovacao_status: str | None = Query(None, description="pendente | aprovado | rejeitado"),
@@ -461,7 +461,7 @@ def _read_plano(row) -> SaasPlanoRead:
 
 @router.get("/planos", response_model=list[SaasPlanoRead])
 def listar_planos(
-    ativo: bool | None = Query(None, description="Filtra por activo/inactivo"),
+    ativo: bool | None = Query(None, description="Filtra por ativo/inativo"),
     db: Session = Depends(get_db),
     _: None = Depends(exigir_saas_control_plane),
     __: Atendente = Depends(exigir_saas_ops),

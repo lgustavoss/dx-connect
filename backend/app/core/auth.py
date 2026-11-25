@@ -187,11 +187,11 @@ def exigir_financeiro_ou_admin(
 
 
 def exigir_saas_ops(atendente: Atendente = Depends(obter_atendente_atual)) -> Atendente:
-    """Equipa comercial DeskRudder (control-plane) — distinto do admin da instância do cliente."""
+    """Equipe comercial DeskRudder (control-plane) — distinto do admin da instância do cliente."""
     if atendente.role != "saas_ops":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Acesso restrito à equipa SaaS DeskRudder",
+            detail="Acesso restrito à equipe SaaS DeskRudder",
         )
     return atendente
 
@@ -206,7 +206,7 @@ def _actor_mcp(db: Session) -> Atendente:
     if row is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Nenhum utilizador saas_ops activo para o MCP",
+            detail="Nenhum usuário saas_ops ativo para o MCP",
         )
     return row
 

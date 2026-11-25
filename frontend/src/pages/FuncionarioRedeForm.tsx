@@ -350,7 +350,7 @@ export function FuncionarioRedeForm() {
                 onChange={(e) => setEmail(e.target.value)}
               />
               <p className="text-xs text-slate-500">
-                Usado para identificar remetente em tickets por e-mail. Contactos só WhatsApp podem ficar em branco.
+                Usado para identificar remetente em tickets por e-mail. Contatos só WhatsApp podem ficar em branco.
               </p>
               <Input
                 label="WhatsApp (opcional)"

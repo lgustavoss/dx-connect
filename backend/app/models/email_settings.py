@@ -6,7 +6,7 @@ from app.database import Base
 
 class EmailSettings(Base):
     """
-    Singleton (1 linha): envio transaccional (Resend API) e colunas legadas SMTP/IMAP (não usadas no fluxo actual).
+    Singleton (1 linha): envio transaccional (Resend API) e colunas legadas SMTP/IMAP (não usadas no fluxo atual).
     A API Key fica em ``transactional_api_key_enc`` (cifrada); nunca exposta no GET.
     """
 

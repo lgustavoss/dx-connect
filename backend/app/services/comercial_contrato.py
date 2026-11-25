@@ -1231,7 +1231,7 @@ def garantir_pdf(db: Session, row: Contrato, *, pdf_id: int | None = None) -> tu
     try:
         key = gravar_bytes_em_disco(pdf, mimetype="application/pdf", nome_original=f"contrato-{row.id}-{pdf_row.id}.pdf")
     except ValueError as exc:
-        raise HTTPException(status_code=500, detail="Não foi possível guardar o PDF.") from exc
+        raise HTTPException(status_code=500, detail="Não foi possível salvar o PDF.") from exc
     pdf_row.pdf_storage_key = key
     db.flush()
     return pdf_row, pdf
@@ -1691,7 +1691,7 @@ def bytes_pdf_assinado(row: Contrato) -> tuple[bytes, str]:
         raise HTTPException(status_code=404, detail="Este contrato ainda não tem PDF assinado anexado.")
     path = caminho_absoluto_arquivo(row.pdf_assinado_storage_key)
     if not path:
-        raise HTTPException(status_code=404, detail="Ficheiro do PDF assinado não encontrado.")
+        raise HTTPException(status_code=404, detail="Arquivo do PDF assinado não encontrado.")
     nome = row.pdf_assinado_nome_original or f"contrato-{row.id}-assinado.pdf"
     return path.read_bytes(), nome
 
@@ -1728,7 +1728,7 @@ def _vincular_contato_chat(db: Session, empresa: Empresa, rede: Rede, fiscal: di
     if not nome and lead is not None:
         nome = (getattr(lead, "nome", None) or "").strip()
     if not nome:
-        nome = (empresa.nome or "").strip() or "Contacto comercial"
+        nome = (empresa.nome or "").strip() or "Contato comercial"
     existente = None
     if telefone:
         for f in db.query(FuncionarioRede).filter(FuncionarioRede.ativo.is_(True), FuncionarioRede.rede_id == rede.id):
@@ -1827,7 +1827,7 @@ def converter_pos_assinatura(db: Session, contrato: Contrato, linha: CrmNegociac
 
     existente = _empresa_por_cnpj(db, tenant_id, cnpj_digits)
     if existente:
-        # CNPJ já cadastrado: vincula a Empresa existente e o contacto na Rede dela
+        # CNPJ já cadastrado: vincula a Empresa existente e o contato na Rede dela
         # (não forçar a Rede do nome_base_webposto se for outra).
         _aplicar_contato_empresa(existente, email_contato, telefone_contato)
         contrato.empresa_id = existente.id

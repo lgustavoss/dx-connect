@@ -1,4 +1,4 @@
-"""Gravação local de ficheiros de mídia recebidos via Evolution (base64)."""
+"""Gravação local de arquivos de mídia recebidos via Evolution (base64)."""
 
 from __future__ import annotations
 
@@ -78,7 +78,7 @@ def gravar_bytes_em_disco(data: bytes, mimetype: str | None) -> str | None:
 
 def gravar_base64_em_disco(b64: str, mimetype: str | None) -> str | None:
     """
-    Grava bytes em disco. Devolve apenas o nome do ficheiro (basename) ou None se falhar/limite.
+    Grava bytes em disco. Devolve apenas o nome do arquivo (basename) ou None se falhar/limite.
     """
     raw_b64 = _strip_data_url_prefix(b64)
     raw_b64 = re.sub(r"\s+", "", raw_b64)

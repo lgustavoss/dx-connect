@@ -92,7 +92,7 @@ export function PortalTicketDetalhe({ ticketIdProp, onVoltar }: PortalTicketDeta
     if (!ticket || !ticket.pode_responder) return
     const texto = corpo.trim()
     if (!texto && !file) {
-      toast.showError('Escreva uma mensagem ou anexe um ficheiro.')
+      toast.showError('Escreva uma mensagem ou anexe um arquivo.')
       return
     }
     setEnviando(true)
@@ -247,7 +247,7 @@ export function PortalTicketDetalhe({ ticketIdProp, onVoltar }: PortalTicketDeta
                 className="hidden"
                 onChange={(e) => setFile(e.target.files?.[0] || null)}
               />
-              {file ? `Anexo: ${file.name}` : 'Anexar ficheiro'}
+              {file ? `Anexo: ${file.name}` : 'Anexar arquivo'}
             </label>
             <Button type="submit" disabled={enviando}>
               {enviando ? 'Enviando…' : 'Enviar'}

@@ -184,7 +184,7 @@ export function WhatsappGravadorAudio({ disabled, onConcluido, onCancelar }: Pro
       {gravando && (
         <div className="mt-2 flex items-center gap-2">
           <span className="h-2 w-2 animate-pulse rounded-full bg-rose-500" />
-          <span className="text-[10px] text-rose-700 dark:text-rose-300">Microfone activo</span>
+          <span className="text-[10px] text-rose-700 dark:text-rose-300">Microfone ativo</span>
         </div>
       )}
       {erro && <p className="mt-2 text-xs text-rose-700 dark:text-rose-300">{erro}</p>}

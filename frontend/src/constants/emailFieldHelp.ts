@@ -43,7 +43,7 @@ export function getEmailFieldHelp(
         title: 'E-mail da conta',
         steps: [
           'Abra mail.google.com e confirme o endereço completo da caixa (ex.: nome@gmail.com ou o domínio Google Workspace).',
-          'Esse mesmo e-mail é usado para autenticar no envio (SMTP) e na receção (IMAP).',
+          'Esse mesmo e-mail é usado para autenticar no envio (SMTP) e na recepção (IMAP).',
         ],
       }
     }
@@ -73,7 +73,7 @@ export function getEmailFieldHelp(
           'Com verificação em duas etapas ativa, o Gmail não aceita a senha normal do site.',
           'Na Conta Google: Segurança → verificação em duas etapas ativa → «Senhas de app».',
           'Crie uma senha para a app «Correio» (dispositivo «Outro», ex.: DeskRudder), copie os 16 caracteres e cole aqui.',
-          'Esta senha é usada automaticamente para envio e receção. Deixe em branco ao guardar se quiser manter a senha já gravada no sistema.',
+          'Esta senha é usada automaticamente para envio e recepção. Deixe em branco ao salvar se quiser manter a senha já gravada no sistema.',
         ],
       }
     }
@@ -83,11 +83,11 @@ export function getEmailFieldHelp(
         steps: [
           'A senha que você usa para entrar no site do Outlook nem sempre funciona aqui (SMTP/IMAP). Muitas vezes é preciso uma «senha de aplicativo» ou uma política do TI que permita este tipo de acesso.',
           'Se você abriu «Informações de segurança» → «Adicionar um método de entrada» e só aparecem opções como Microsoft Authenticator, token de hardware ou e-mail, isso é normal: essa lista não é onde se cria senha de app. Ela serve para MFA (como entrar no browser), não para correio legado.',
-          'Em contas Microsoft 365 de trabalho ou escola, a opção «Senha de aplicativo» costuma sumir quando o administrador desativou senhas de app, usa predefinições de segurança restritivas ou políticas que bloqueiam SMTP/IMAP com senha. Nesse caso não há como o utilizador final «ativar» sozinho: é preciso o TI.',
-          'Se o teste SMTP passar e o IMAP falhar com «LOGIN failed», muitas vezes não é a senha no formulário: no Microsoft 365 o envio (SMTP autenticado) e a receção (IMAP) são controlados em separado — o TI pode ter deixado SMTP ativo e bloqueado IMAP ou a autenticação básica só do lado IMAP. Resumo oficial: https://learn.microsoft.com/exchange/clients-and-mobile-in-exchange-online/deprecation-of-basic-authentication-exchange-online',
+          'Em contas Microsoft 365 de trabalho ou escola, a opção «Senha de aplicativo» costuma sumir quando o administrador desativou senhas de app, usa configurações padrão de segurança restritivas ou políticas que bloqueiam SMTP/IMAP com senha. Nesse caso não há como o usuário final «ativar» sozinho: é preciso o TI.',
+          'Se o teste SMTP passar e o IMAP falhar com «LOGIN failed», muitas vezes não é a senha no formulário: no Microsoft 365 o envio (SMTP autenticado) e a recepção (IMAP) são controlados em separado — o TI pode ter deixado SMTP ativo e bloqueado IMAP ou a autenticação básica só do lado IMAP. Resumo oficial: https://learn.microsoft.com/exchange/clients-and-mobile-in-exchange-online/deprecation-of-basic-authentication-exchange-online',
           'Peça ao TI para: (1) permitir senhas de aplicativo na organização, se forem usar esse modelo, ou (2) ativar «SMTP autenticado» (Authenticated SMTP) na sua caixa de correio no Exchange Online e confirmar se IMAP está permitido para a conta, ou (3) indicar outro método oficial (por exemplo integração OAuth, se o produto suportar).',
           'Conta pessoal @outlook.com / @hotmail.com: em account.microsoft.com → Segurança, com verificação em duas etapas ligada, às vezes existe «Senhas de app» num menu separado (não confundir com a lista de «adicionar método» da conta empresarial).',
-          'A mesma senha é aplicada ao envio e à receção neste formulário. Deixe em branco ao guardar para manter a senha já gravada no sistema.',
+          'A mesma senha é aplicada ao envio e à recepção neste formulário. Deixe em branco ao salvar para manter a senha já gravada no sistema.',
         ],
       }
     }
@@ -96,7 +96,7 @@ export function getEmailFieldHelp(
       steps: [
         'É a senha ou token que o servidor aceita para enviar e receber (muitas vezes uma «senha de aplicação»).',
         'Peça ao fornecedor de e-mail ou ao TI o tipo de credencial correto.',
-        'Deixe em branco ao guardar para manter a senha já gravada no sistema.',
+        'Deixe em branco ao salvar para manter a senha já gravada no sistema.',
       ],
     }
   }

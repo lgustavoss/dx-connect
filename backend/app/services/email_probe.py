@@ -18,7 +18,7 @@ def format_email_probe_error(exc: BaseException) -> str:
         if "login failed" in low or "authentication failed" in low:
             return (
                 f"{msg} — O servidor recusou o login IMAP. "
-                "No Microsoft 365 o envio (SMTP autenticado) e a receção (IMAP) são controlados em separado: o teste SMTP "
+                "No Microsoft 365 o envio (SMTP autenticado) e a recepção (IMAP) são controlados em separado: o teste SMTP "
                 "pode passar mesmo quando IMAP está desligado na caixa, a autenticação básica para IMAP está bloqueada "
                 "no tenant, ou só o SMTP foi autorizado. Isto não indica senha errada por si só. "
                 "Peça ao administrador para rever a caixa no Exchange (IMAP ativo, políticas de autenticação) e a "

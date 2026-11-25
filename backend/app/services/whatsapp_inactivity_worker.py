@@ -94,7 +94,7 @@ def _normalizar_utc(dt: datetime) -> datetime:
 
 
 def _ultimo_aviso_no_ciclo(db: Session, chat_id: int, referencia: datetime) -> WhatsappMensagem | None:
-    """Último auto_inativ_aviso do ciclo actual (após a referência de silêncio humano)."""
+    """Último auto_inativ_aviso do ciclo atual (após a referência de silêncio humano)."""
     ref = _normalizar_utc(referencia)
     return (
         db.query(WhatsappMensagem)

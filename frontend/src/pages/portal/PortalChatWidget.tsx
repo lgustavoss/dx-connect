@@ -353,7 +353,7 @@ export function PortalChatWidget() {
                         className="shrink-0 rounded-lg border border-black/15 px-2 text-lg"
                         onClick={() => fileInputRef.current?.click()}
                         disabled={enviando}
-                        aria-label="Anexar ficheiro"
+                        aria-label="Anexar arquivo"
                       >
                         📎
                       </button>

@@ -82,7 +82,7 @@ def listar_leads(
     q: str | None = Query(None),
     responsavel_id: int | None = Query(None),
     estagio_id: int | None = Query(None),
-    so_minhas: bool = Query(False, description="Filtra só leads do utilizador logado"),
+    so_minhas: bool = Query(False, description="Filtra só leads do usuário logado"),
     ativo: bool | None = Query(True),
     db: Session = Depends(get_db),
     atendente: Atendente = Depends(exigir_permissao("crm.ver")),

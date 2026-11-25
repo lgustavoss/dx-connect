@@ -77,7 +77,7 @@ def ingest_solicitacao(
     authorization: str | None = Header(None),
     x_saas_instance_token: str | None = Header(None, alias="X-Saas-Instance-Token"),
 ):
-    """Recebe cópia autenticada da instância. Sem JWT de utilizador."""
+    """Recebe cópia autenticada da instância. Sem JWT de usuário."""
     token = _token_from_headers(authorization, x_saas_instance_token)
     cliente = ingest.autenticar_ingest(db, slug=data.instance_slug, token=token)
     row = ingest.upsert_from_payload(db, data, cliente=cliente)
@@ -138,7 +138,7 @@ async def ingest_solicitacao_media(
     authorization: str | None = Header(None),
     x_saas_instance_token: str | None = Header(None, alias="X-Saas-Instance-Token"),
 ):
-    """Recebe o ficheiro da instância (multipart). JSON já tem de ter sido ingerido."""
+    """Recebe o arquivo da instância (multipart). JSON já tem de ter sido ingerido."""
     token = _token_from_headers(authorization, x_saas_instance_token)
     cliente = ingest.autenticar_ingest_por_token(db, token)
     data = await file.read()

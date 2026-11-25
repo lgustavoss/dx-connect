@@ -79,6 +79,7 @@ import { ConfigWhatsapp } from './pages/ConfigWhatsapp'
 import { ConfigPdvCatalogos } from './pages/ConfigPdvCatalogos'
 import { ConfigComercialCustos } from './pages/ConfigComercialCustos'
 import { ConfigFaturamentoPolitica } from './pages/ConfigFaturamentoPolitica'
+import { ConfigContasBancarias } from './pages/ConfigContasBancarias'
 import { ConfigEmpresaEmail } from './pages/ConfigEmpresaEmail'
 import { ConfigHubPage } from './pages/config/ConfigHubPage'
 import { ConfigDomainIndexRedirect, ConfigDomainLayout } from './pages/config/ConfigDomainLayout'
@@ -118,6 +119,7 @@ import { SaasUsuarioForm } from './pages/saas/SaasUsuarioForm'
 import { SaasSetoresPage } from './pages/saas/SaasSetores'
 import { SaasSetorForm } from './pages/saas/SaasSetorForm'
 import { SaasAlertas } from './pages/saas/SaasAlertas'
+import { SaasCobranca } from './pages/saas/SaasCobranca'
 import { KbPublicLayout } from './pages/kb-public/KbPublicLayout'
 import { KbPublicHome } from './pages/kb-public/KbPublicHome'
 import { KbPublicArtigo } from './pages/kb-public/KbPublicArtigo'
@@ -346,6 +348,7 @@ function AppRoutes() {
         <Route path="setores/:id" element={<SaasSetorForm />} />
         <Route path="setores" element={<SaasSetoresPage />} />
         <Route path="alertas" element={<SaasAlertas />} />
+        <Route path="cobranca" element={<SaasCobranca />} />
         <Route path="conta" element={<SaasConta />} />
         <Route path="sobre" element={<SaasSobre />} />
       </Route>
@@ -877,6 +880,7 @@ function AppRoutes() {
           <Route path="contratos" element={<PermissaoRoute codigo="contratos.modelos"><ConfigContratoTemplates embedded /></PermissaoRoute>} />
           <Route path="custos" element={<AlgumaPermissaoRoute codigos={['custos.ver', 'custos.simular', 'custos.editar']}><ConfigComercialCustos embedded /></AlgumaPermissaoRoute>} />
           <Route path="faturamento" element={<PermissaoRoute codigo="faturamento.politica"><ConfigFaturamentoPolitica embedded /></PermissaoRoute>} />
+          <Route path="contas-bancarias" element={<PermissaoRoute codigo="faturamento.politica"><ConfigContasBancarias embedded /></PermissaoRoute>} />
           <Route path="implantacao" element={<PermissaoRoute codigo="implantacao.editar"><ConfigImplantacaoChecklist embedded /></PermissaoRoute>} />
           <Route path="empresa" element={<PermissaoRoute codigo="instalacao.ver"><ConfigEmpresaEmail embedded section="empresa" /></PermissaoRoute>} />
           <Route path="tipos-negocio" element={<PermissaoRoute codigo="tipos_negocio.ver"><TiposNegocio embedded /></PermissaoRoute>} />
@@ -887,7 +891,7 @@ function AppRoutes() {
         <Route path="configuracoes/atendimento/*" element={<ConfigLegacyRedirect />} />
         <Route path="configuracoes/cadastros/*" element={<ConfigLegacyRedirect />} />
         <Route path="configuracoes/sistema/*" element={<ConfigLegacyRedirect />} />
-        <Route path="configuracoes/equipa/*" element={<ConfigLegacyRedirect />} />
+        <Route path="configuracoes/equipe/*" element={<ConfigLegacyRedirect />} />
         <Route path="configuracoes/empresa-catalogos/*" element={<ConfigLegacyRedirect />} />
         <Route path="configuracoes/whatsapp" element={<ConfigLegacyRedirect />} />
         <Route path="configuracoes/empresa-email" element={<ConfigLegacyRedirect />} />

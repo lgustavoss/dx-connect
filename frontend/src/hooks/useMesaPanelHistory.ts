@@ -4,7 +4,7 @@ import { pushMesaPanelState, type MesaHistoryKind } from '../lib/mesaHistory'
 
 /**
  * Garante `history.state` enquanto o painel está aberto e fecha no Voltar do browser (#699).
- * `onFecharPorBrowser` deve só limpar o item activo — sem `history.back()` (já ocorreu).
+ * `onFecharPorBrowser` deve só limpar o item ativo — sem `history.back()` (já ocorreu).
  */
 export function useMesaPanelHistory(
   kind: MesaHistoryKind,
